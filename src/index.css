@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+@theme {
+  --color-pollon-red: #c00000;
+  --color-pollon-red-dark: #990000;
+  --color-pollon-red-light: #e02020;
+  --color-pollon-orange: #f97316;
+  --color-pollon-gold: #f5c518;
+  --color-pollon-wood: #8b5a2b;
+  --color-pollon-cream: #f5f5f5;
+  --color-pollon-black: #0a0a0a;
+  --color-pollon-gray: #1a1a1a;
+  --font-display: "Bebas Neue", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, sans-serif;
+  --font-brand: "Playfair Display", Georgia, "Times New Roman", serif;
+}
+
+@layer base {
+  html { scroll-behavior: smooth; }
+  body {
+    @apply bg-white text-pollon-black antialiased;
+    font-family: var(--font-body);
+  }
+}
+
+@layer utilities {
+  .font-display { font-family: var(--font-display); }
+  .font-brand { font-family: var(--font-brand); }
+  .header-text-crisp {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
+  .card-hover {
+    @apply transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg;
+  }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in { animation: fade-in 0.4s ease-out; }

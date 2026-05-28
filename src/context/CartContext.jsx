@@ -1,0 +1,114 @@
+import { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
+import { BAG_PRICE, CART_KEY } from '../utils/constants';
+import { useBranch } from './BranchContext';
+
+const CartContext = createContext(null);
+
+function loadCartState() {
+  try {
+    const raw = localStorage.getItem(CART_KEY);
+    if (!raw) return { branchId: null, items: [] };
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return { branchId: null, items: parsed };
+    return { branchId: parsed.branchId || null, items: parsed.items || [] };
+  } catch {
+    return { branchId: null, items: [] };
+  }
+}
+
+export function CartProvider({ children }) {
+  const [cartState, setCartState] = useState(loadCartState);
+  const [isOpen, setIsOpen] = useState(false);
+  const { branch } = useBranch();
+
+  const items = cartState.items;
+  const cartBranchId = cartState.branchId;
+
+  useEffect(() => {
+    localStorage.setItem(CART_KEY, JSON.stringify(cartState));
+  }, [cartState]);
+
+  useEffect(() => {
+    if (branch?.id && cartBranchId && cartBranchId !== branch.id && items.length > 0) {
+      /* no auto-clear — el componente que cambia sucursal debe confirmar */
+    }
+  }, [branch?.id, cartBranchId, items.length]);
+
+  const subtotal = useMemo(() => items.reduce((s, i) => s + (i.total || 0), 0), [items]);
+  const deliveryFee = useMemo(() => {
+    if (!branch || items.length === 0) return 0;
+    return branch.deliveryCost || 0;
+  }, [branch, items.length]);
+
+  const addItem = useCallback((item) => {
+    if (!branch?.id) return { ok: false, error: 'Selecciona una sucursal primero' };
+    if (!item.available && item.available !== undefined) {
+      return { ok: false, error: 'Producto no disponible' };
+    }
+    if (cartBranchId && cartBranchId !== branch.id && items.length > 0) {
+      return { ok: false, error: 'branch_mismatch' };
+    }
+    const entry = {
+      ...item,
+      branchId: branch.id,
+      cartId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    };
+    setCartState((prev) => ({
+      branchId: branch.id,
+      items: [...(prev.branchId === branch.id ? prev.items : []), entry],
+    }));
+    setIsOpen(true);
+    return { ok: true };
+  }, [branch?.id, cartBranchId, items.length]);
+
+  const removeItem = useCallback((cartId) => {
+    setCartState((prev) => ({ ...prev, items: prev.items.filter((i) => i.cartId !== cartId) }));
+  }, []);
+
+  const updateQty = useCallback((cartId, delta) => {
+    setCartState((prev) => ({
+      ...prev,
+      items: prev.items
+        .map((i) => {
+          if (i.cartId !== cartId) return i;
+          const qty = Math.max(1, (i.qty || 1) + delta);
+          const unit = i.unitPrice ?? Math.round((i.total || 0) / (i.qty || 1));
+          return { ...i, qty, total: unit * qty };
+        })
+        .filter((i) => (i.qty || 1) > 0),
+    }));
+  }, []);
+
+  const clearCart = useCallback(() => setCartState({ branchId: branch?.id || null, items: [] }), [branch?.id]);
+
+  const resetForBranch = useCallback((newBranchId) => {
+    setCartState({ branchId: newBranchId, items: [] });
+  }, []);
+
+  const itemCount = useMemo(() => items.reduce((s, i) => s + (i.qty || 1), 0), [items]);
+
+  const value = {
+    items,
+    cartBranchId,
+    subtotal,
+    deliveryFee,
+    total: subtotal,
+    itemCount,
+    isOpen,
+    setIsOpen,
+    addItem,
+    removeItem,
+    updateQty,
+    clearCart,
+    resetForBranch,
+    BAG_PRICE,
+  };
+
+  return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
+}
+
+export function useCart() {
+  const ctx = useContext(CartContext);
+  if (!ctx) throw new Error('useCart debe usarse dentro de CartProvider');
+  return ctx;
+}

@@ -1,0 +1,213 @@
+import { getSupabase, isSupabaseConfigured } from './supabaseClient';
+import { ROLE_PERMISSIONS, ROLES, STAFF_ROLES, CUSTOMER_SESSION_KEY } from '../utils/constants';
+
+const LEGACY_SESSION_KEY = 'pollon_admin_legacy_v1';
+export const LEGACY_ADMIN_PASSWORD = import.meta.env.VITE_LEGACY_ADMIN_PASSWORD || 'HUILLCA123';
+
+function mapProfile(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    authUserId: row.auth_user_id,
+    fullName: row.full_name || row.nombre || '',
+    nombre: row.full_name || row.nombre || '',
+    email: row.email || '',
+    phone: row.phone || row.telefono || '',
+    rol: normalizeRole(row.role || row.rol),
+    role: normalizeRole(row.role || row.rol),
+    branchId: row.branch_id || row.sucursal_id || null,
+    branch_id: row.branch_id || row.sucursal_id || null,
+    isActive: row.is_active !== false,
+    activo: row.is_active !== false,
+  };
+}
+
+/** Compatibilidad roles legacy */
+export function normalizeRole(role) {
+  if (!role) return ROLES.CLIENTE;
+  if (role === 'administrador') return ROLES.ADMIN_SUCURSAL;
+  if (role === 'cajero') return ROLES.CAJERA;
+  if (role === 'repartidor') return ROLES.DELIVERY;
+  return role;
+}
+
+export function isStaffRole(role) {
+  const r = normalizeRole(role);
+  return STAFF_ROLES.includes(r);
+}
+
+export function isCustomerRole(role) {
+  return normalizeRole(role) === ROLES.CLIENTE;
+}
+
+export function getLegacySession() {
+  try {
+    const raw = sessionStorage.getItem(LEGACY_SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function getCustomerLocalSession() {
+  try {
+    const raw = localStorage.getItem(CUSTOMER_SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function legacySignIn(password, asStaff = true) {
+  if ((password || '').trim() !== LEGACY_ADMIN_PASSWORD) {
+    throw new Error('Contraseña incorrecta');
+  }
+  const profile = {
+    id: 'legacy',
+    email: 'admin@local',
+    nombre: 'Admin Local',
+    fullName: 'Admin Local',
+    rol: ROLES.SUPER_ADMIN,
+    role: ROLES.SUPER_ADMIN,
+    activo: true,
+    isActive: true,
+  };
+  const session = { legacy: true, user: { id: 'legacy', email: profile.email } };
+  if (asStaff) {
+    sessionStorage.setItem(LEGACY_SESSION_KEY, JSON.stringify({ session, profile }));
+  }
+  return { session, profile };
+}
+
+export async function getProfileByAuthId(authUserId) {
+  const sb = getSupabase();
+  if (!sb || !authUserId) return null;
+
+  const { data: profile } = await sb.from('profiles').select('*').eq('auth_user_id', authUserId).maybeSingle();
+  if (profile) return mapProfile(profile);
+
+  const { data: legacy } = await sb.from('administradores').select('*').eq('id', authUserId).maybeSingle();
+  if (legacy) {
+    return mapProfile({
+      id: legacy.id,
+      auth_user_id: authUserId,
+      full_name: legacy.nombre,
+      email: legacy.email,
+      role: legacy.rol || ROLES.ADMIN_SUCURSAL,
+      branch_id: legacy.branch_id || legacy.sucursal_id,
+      is_active: legacy.activo,
+    });
+  }
+  return null;
+}
+
+export async function signIn(email, password) {
+  if (!isSupabaseConfigured()) {
+    return legacySignIn(password, true);
+  }
+  const sb = getSupabase();
+  if (!sb) throw new Error('Supabase no configurado. Revisa el archivo .env');
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) throw error;
+  sessionStorage.removeItem(LEGACY_SESSION_KEY);
+  return data;
+}
+
+export async function signUpCustomer({ email, password, fullName, phone, acceptsEmailPromotions, acceptsWhatsappPromotions }) {
+  const sb = getSupabase();
+  if (!sb) {
+    const profile = {
+      id: `local-${Date.now()}`,
+      email,
+      fullName,
+      nombre: fullName,
+      phone,
+      rol: ROLES.CLIENTE,
+      role: ROLES.CLIENTE,
+      isActive: true,
+    };
+    const session = { legacy: true, customer: true, user: { id: profile.id, email } };
+    localStorage.setItem(CUSTOMER_SESSION_KEY, JSON.stringify({ session, profile, marketing: { acceptsEmailPromotions, acceptsWhatsappPromotions } }));
+    return { session, profile };
+  }
+
+  const { data, error } = await sb.auth.signUp({
+    email,
+    password,
+    options: {
+      data: {
+        full_name: fullName,
+        phone,
+        role: ROLES.CLIENTE,
+        accepts_email_promotions: !!acceptsEmailPromotions,
+        accepts_whatsapp_promotions: !!acceptsWhatsappPromotions,
+      },
+    },
+  });
+  if (error) throw error;
+
+  if (data.user) {
+    await sb.from('profiles').upsert({
+      auth_user_id: data.user.id,
+      full_name: fullName,
+      email,
+      phone,
+      role: ROLES.CLIENTE,
+    }, { onConflict: 'auth_user_id' });
+
+    const prof = await getProfileByAuthId(data.user.id);
+    if (prof?.id) {
+      await sb.from('customer_marketing_preferences').upsert({
+        customer_id: prof.id,
+        accepts_email_promotions: !!acceptsEmailPromotions,
+        accepts_whatsapp_promotions: !!acceptsWhatsappPromotions,
+      }, { onConflict: 'customer_id' });
+    }
+  }
+  return data;
+}
+
+export async function resetPassword(email) {
+  const sb = getSupabase();
+  if (!sb) throw new Error('Recuperación de contraseña requiere Supabase configurado');
+  const redirectTo = `${window.location.origin}/cuenta/perfil`;
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo });
+  if (error) throw error;
+}
+
+export async function signOut() {
+  sessionStorage.removeItem(LEGACY_SESSION_KEY);
+  localStorage.removeItem(CUSTOMER_SESSION_KEY);
+  const sb = getSupabase();
+  if (sb) await sb.auth.signOut();
+}
+
+export async function getSession() {
+  const customerLocal = getCustomerLocalSession();
+  if (customerLocal?.session) return customerLocal.session;
+
+  const sb = getSupabase();
+  if (!sb) return null;
+  const { data } = await sb.auth.getSession();
+  return data.session;
+}
+
+export async function getAdminProfile(userId) {
+  return getProfileByAuthId(userId);
+}
+
+export function hasPermission(role, perm) {
+  const r = normalizeRole(role);
+  const perms = ROLE_PERMISSIONS[r] || [];
+  return perms.includes(perm);
+}
+
+export function canAccessBranch(profile, branchId) {
+  if (!profile) return false;
+  const role = normalizeRole(profile.rol || profile.role);
+  if (role === ROLES.SUPER_ADMIN) return true;
+  if (!branchId) return true;
+  return profile.branchId === branchId || profile.branch_id === branchId;
+}
+
+export { isSupabaseConfigured };

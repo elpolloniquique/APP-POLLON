@@ -1,0 +1,60 @@
+import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { BRANCH_KEY } from '../utils/constants';
+import { loadBranches, isBranchOpenNow } from '../services/branchService';
+
+const BranchContext = createContext(null);
+
+export function BranchProvider({ children }) {
+  const [branches, setBranches] = useState([]);
+  const [branch, setBranchState] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const refreshBranches = useCallback(async () => {
+    const list = await loadBranches(true);
+    setBranches(list.filter((b) => !b.comingSoon));
+    return list;
+  }, []);
+
+  useEffect(() => {
+    refreshBranches().then((list) => {
+      const active = list.filter((b) => !b.comingSoon && b.isActive !== false);
+      const saved = localStorage.getItem(BRANCH_KEY);
+      const found = saved ? active.find((b) => b.id === saved) : null;
+      setBranchState(found || active[0] || null);
+      setLoading(false);
+    });
+  }, [refreshBranches]);
+
+  const setBranch = useCallback((b, options = {}) => {
+    if (!b || b.comingSoon) return false;
+    if (!options.force && b.id === branch?.id) return true;
+    setBranchState(b);
+    localStorage.setItem(BRANCH_KEY, b.id);
+    return true;
+  }, [branch?.id]);
+
+  const whatsapp = branch?.whatsapp || import.meta.env.VITE_WHATSAPP_DEFAULT || '56986925310';
+  const branchOpen = branch ? isBranchOpenNow(branch) : false;
+
+  return (
+    <BranchContext.Provider
+      value={{
+        branches,
+        branch,
+        setBranch,
+        loading,
+        whatsapp,
+        branchOpen,
+        refreshBranches,
+      }}
+    >
+      {children}
+    </BranchContext.Provider>
+  );
+}
+
+export function useBranch() {
+  const ctx = useContext(BranchContext);
+  if (!ctx) throw new Error('useBranch debe usarse dentro de BranchProvider');
+  return ctx;
+}
