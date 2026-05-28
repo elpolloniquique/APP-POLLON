@@ -38,7 +38,10 @@ export function AdminLogin() {
     setError('');
     setLoading(true);
     try {
-      if (session) await signOut();
+      // Solo cerrar sesión de cliente; no bloquear re-login de staff
+      if (session && profile && !isStaffRole(normalizeRole(profile.rol || profile.role))) {
+        await withTimeout(signOut(), 8000, 'No se pudo cerrar la sesión anterior').catch(() => {});
+      }
       const { profile: p, session: s } = await withTimeout(
         signIn(email.trim(), password),
         LOGIN_TIMEOUT_MS,
@@ -46,8 +49,10 @@ export function AdminLogin() {
       );
       const role = normalizeRole(p?.rol || p?.role);
       if (!isStaffRole(role) && !s?.legacy) {
-        await signOut();
-        setError('Esta cuenta es de cliente. En Supabase ejecuta fix-perfil-admin.sql para asignar rol super_admin.');
+        await signOut().catch(() => {});
+        setError(
+          'Esta cuenta no tiene rol de personal. En Supabase ejecuta fix-perfil-admin.sql o crear-admins-sucursal.sql y verifica la tabla profiles.'
+        );
         return;
       }
       navigate('/admin', { replace: true });

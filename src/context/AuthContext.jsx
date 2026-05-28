@@ -2,7 +2,8 @@ import { createContext, useContext, useEffect, useState, useCallback } from 'rea
 import { getSupabase, isSupabaseConfigured } from '../services/supabaseClient';
 import {
   getSession,
-  getProfileByAuthId,
+  getProfileByAuthIdSafe,
+  profileFromAuthUser,
   getLegacySession,
   signIn as authSignIn,
   signUpCustomer,
@@ -35,21 +36,20 @@ export function AuthProvider({ children }) {
   const refreshProfile = useCallback(async (user) => {
     if (!user) {
       setProfile(null);
-      return;
+      return null;
     }
-    const p = await getProfileByAuthId(user.id);
+    const p = await getProfileByAuthIdSafe(user.id, user);
+    if (p?.role && p.role !== 'cliente') {
+      setProfile(p);
+      return p;
+    }
     if (p) {
       setProfile(p);
-      return;
+      return p;
     }
-    setProfile({
-      id: user.id,
-      email: user.email,
-      fullName: user.email,
-      nombre: user.email,
-      rol: 'cliente',
-      role: 'cliente',
-    });
+    const fallback = profileFromAuthUser(user);
+    setProfile(fallback);
+    return fallback;
   }, []);
 
   useEffect(() => {
@@ -69,19 +69,30 @@ export function AuthProvider({ children }) {
       return;
     }
 
-    getSession().then(async (s) => {
+    getSession().then((s) => {
       setSession(s);
-      if (s?.user) await refreshProfile(s.user);
-      setLoading(false);
+      if (s?.user) {
+        // Diferir: evita deadlock con signInWithPassword (bug conocido Supabase)
+        setTimeout(() => {
+          refreshProfile(s.user).finally(() => setLoading(false));
+        }, 0);
+      } else {
+        setLoading(false);
+      }
     });
 
     const sb = getSupabase();
     if (!sb) return undefined;
 
-    const { data: { subscription } } = sb.auth.onAuthStateChange(async (_event, s) => {
+    const { data: { subscription } } = sb.auth.onAuthStateChange((_event, s) => {
       setSession(s);
-      if (s?.user) await refreshProfile(s.user);
-      else if (!getLegacySession() && !getCustomerLocal()) setProfile(null);
+      if (s?.user) {
+        setTimeout(() => {
+          refreshProfile(s.user).catch((err) => console.warn('[Pollón] auth state profile:', err));
+        }, 0);
+      } else if (!getLegacySession() && !getCustomerLocal()) {
+        setProfile(null);
+      }
     });
     return () => subscription.unsubscribe();
   }, [refreshProfile]);
@@ -93,13 +104,13 @@ export function AuthProvider({ children }) {
       setProfile(result.profile);
       return { session: result.session, profile: result.profile };
     }
-    const s = result?.session ?? result;
+    const s = result?.session;
+    const user = result?.user ?? s?.user;
+    if (!s || !user) throw new Error('No se pudo iniciar sesión. Revisa email y contraseña.');
     setSession(s);
-    if (s?.user) {
-      await refreshProfile(s.user);
-      return { session: s, profile: await getProfileByAuthId(s.user.id) };
-    }
-    return { session: s };
+    const p = await getProfileByAuthIdSafe(user.id, user);
+    setProfile(p);
+    return { session: s, profile: p };
   };
 
   const signUp = async (data) => {

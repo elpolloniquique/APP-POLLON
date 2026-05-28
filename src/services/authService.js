@@ -79,15 +79,39 @@ function legacySignIn(password, asStaff = true) {
   return { session, profile };
 }
 
+/** Perfil mínimo desde JWT (fallback si la consulta a BD tarda o falla) */
+export function profileFromAuthUser(user) {
+  if (!user) return null;
+  const meta = user.user_metadata || {};
+  const role = normalizeRole(meta.role);
+  return {
+    id: user.id,
+    authUserId: user.id,
+    email: user.email || '',
+    fullName: meta.full_name || meta.nombre || user.email || '',
+    nombre: meta.full_name || meta.nombre || user.email || '',
+    rol: role,
+    role,
+    isActive: true,
+    activo: true,
+  };
+}
+
 /** Combina profiles + administradores; prioriza rol de personal si hay conflicto */
 export async function getProfileByAuthId(authUserId) {
   const sb = getSupabase();
   if (!sb || !authUserId) return null;
 
-  const [{ data: profile }, { data: legacy }] = await Promise.all([
+  const [profileRes, legacyRes] = await Promise.all([
     sb.from('profiles').select('*').eq('auth_user_id', authUserId).maybeSingle(),
     sb.from('administradores').select('*').eq('id', authUserId).maybeSingle(),
   ]);
+
+  if (profileRes.error) console.warn('[Pollón] profiles:', profileRes.error.message);
+  if (legacyRes.error) console.warn('[Pollón] administradores:', legacyRes.error.message);
+
+  const profile = profileRes.data;
+  const legacy = legacyRes.data;
 
   const fromProfile = profile ? mapProfile(profile) : null;
   const fromAdmin = legacy
@@ -102,6 +126,11 @@ export async function getProfileByAuthId(authUserId) {
       })
     : null;
 
+  // Priorizar rol staff en profiles (no degradar super_admin por fila en administradores)
+  if (fromProfile && isStaffRole(fromProfile.role)) {
+    return fromProfile;
+  }
+
   if (fromAdmin && isStaffRole(fromAdmin.role)) {
     if (fromProfile) {
       return {
@@ -112,12 +141,31 @@ export async function getProfileByAuthId(authUserId) {
         email: fromProfile.email || fromAdmin.email,
         fullName: fromAdmin.fullName || fromProfile.fullName,
         nombre: fromAdmin.nombre || fromProfile.nombre,
+        role: fromAdmin.role,
+        rol: fromAdmin.role,
       };
     }
     return fromAdmin;
   }
 
   return fromProfile || fromAdmin;
+}
+
+/** Evita cuelgue infinito al cargar perfil tras login */
+export async function getProfileByAuthIdSafe(authUserId, userFallback, timeoutMs = 12000) {
+  try {
+    const p = await Promise.race([
+      getProfileByAuthId(authUserId),
+      new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('timeout')), timeoutMs);
+      }),
+    ]);
+    if (p) return p;
+  } catch (e) {
+    console.warn('[Pollón] getProfileByAuthIdSafe:', e.message);
+  }
+  const fallback = profileFromAuthUser(userFallback);
+  return fallback;
 }
 
 export async function signIn(email, password) {

@@ -227,6 +227,8 @@ CREATE TRIGGER on_auth_user_created
 -- -----------------------------------------------------------------------------
 -- RLS
 -- -----------------------------------------------------------------------------
+ALTER TABLE roles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_roles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE customer_addresses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE customer_marketing_preferences ENABLE ROW LEVEL SECURITY;
@@ -249,6 +251,34 @@ CREATE OR REPLACE FUNCTION auth_user_branch_id()
 RETURNS UUID AS $$
   SELECT branch_id FROM profiles WHERE auth_user_id = auth.uid() LIMIT 1;
 $$ LANGUAGE sql SECURITY DEFINER STABLE;
+
+-- ROLES (catálogo)
+DROP POLICY IF EXISTS roles_select_all ON roles;
+CREATE POLICY roles_select_all ON roles FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS roles_manage_super_admin ON roles;
+CREATE POLICY roles_manage_super_admin ON roles
+  FOR ALL
+  TO authenticated
+  USING (auth_user_role() = 'super_admin')
+  WITH CHECK (auth_user_role() = 'super_admin');
+
+-- USER_ROLES (roles extra por perfil)
+DROP POLICY IF EXISTS user_roles_select_own ON user_roles;
+CREATE POLICY user_roles_select_own ON user_roles
+  FOR SELECT
+  TO authenticated
+  USING (
+    profile_id = auth_user_profile_id()
+    OR auth_user_role() IN ('super_admin', 'admin_sucursal')
+  );
+
+DROP POLICY IF EXISTS user_roles_manage_super_admin ON user_roles;
+CREATE POLICY user_roles_manage_super_admin ON user_roles
+  FOR ALL
+  TO authenticated
+  USING (auth_user_role() = 'super_admin')
+  WITH CHECK (auth_user_role() = 'super_admin');
 
 -- PROFILES
 CREATE POLICY profiles_select_own ON profiles FOR SELECT
