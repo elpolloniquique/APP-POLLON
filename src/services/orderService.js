@@ -57,8 +57,7 @@ function orderToRow(order) {
     total: order.total || 0,
     estado: order.estado || 'pendiente',
     observaciones: cust.comments || order.observaciones || '',
-      sucursal_id: order.branchId || null,
-      branch_id: order.branchId || null,
+    branch_id: order.branchId || null,
     customer_id: order.customerId || null,
     creado_en: order.createdAt || new Date().toISOString(),
     entregado_en: order.deliveredAt || null,
@@ -68,6 +67,7 @@ function orderToRow(order) {
       ticketNumber: order.ticketNumber,
       deliveryFee: order.deliveryFee || 0,
       branchId: order.branchId,
+      productIds: (order.items || []).map((it) => it.id || it.producto_id).filter(Boolean),
     },
   });
 }
@@ -177,14 +177,16 @@ async function insertDetalle(sb, pedidoId, items) {
   if (!items?.length) return;
   const rows = items.map((it) => ({
     pedido_id: pedidoId,
-    producto_id: it.producto_id || null,
+    // producto_id apunta a tabla legacy "productos"; menú multi-sucursal usa "products"
+    producto_id: null,
     nombre_producto: it.name || 'Producto',
     cantidad: it.qty || 1,
     precio_unitario: Math.round((it.total || 0) / (it.qty || 1)),
     subtotal: it.total || 0,
-    extras: { drink: it.drink, bagQty: it.bagQty, notes: it.notes },
+    extras: { drink: it.drink, bagQty: it.bagQty, notes: it.notes, productId: it.id || it.producto_id },
   }));
-  await sb.from('detalle_pedidos').insert(rows);
+  const { error } = await sb.from('detalle_pedidos').insert(rows);
+  if (error) console.warn('[Pollón] detalle_pedidos:', error.message);
 }
 
 export async function saveOrder(order) {
@@ -204,7 +206,12 @@ export async function saveOrder(order) {
 
   const row = orderToRow(order);
   const { error } = await sb.from('pedidos').upsert(row, { onConflict: 'id' });
-  if (error) throw error;
+  if (error) {
+    if (error.message?.includes('branch_id')) {
+      throw new Error('Falta columna branch_id en pedidos. Ejecuta fix-pedidos-checkout.sql en Supabase.');
+    }
+    throw error;
+  }
   await insertDetalle(sb, order.id, order.items);
   saveLocal();
   return order;

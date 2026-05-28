@@ -76,4 +76,11 @@ FROM pg_publication_tables
 WHERE pubname = 'supabase_realtime'
   AND tablename IN ('pedidos', 'order_status_history');
 
+-- Columnas necesarias para checkout (branch_id, no sucursal_id)
+ALTER TABLE public.pedidos
+  ADD COLUMN IF NOT EXISTS branch_id UUID REFERENCES public.branches(id) ON DELETE SET NULL;
+
+ALTER TABLE public.pedidos
+  ADD COLUMN IF NOT EXISTS customer_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL;
+
 SELECT COUNT(*)::int AS pedidos_en_bd FROM public.pedidos;
