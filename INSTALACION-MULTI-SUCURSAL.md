@@ -4,7 +4,16 @@
 
 1. `supabase/schema-es.sql` — pedidos y auth (si proyecto nuevo)
 2. **`supabase/schema-multi-sucursal.sql`** — tablas branches, categories, products, etc.
-3. **`supabase/seed-multi-sucursal.sql`** — datos iniciales:
+
+   **Al ejecutar:** abre el archivo → **Ctrl+A** (seleccionar todo) → **Run** (una vez).
+   Si sale `ERROR 42601 unterminated dollar-quoted string` ejecutaste solo un **fragmento** del archivo, no el script completo.
+3. **`supabase/seed-multi-sucursal.sql`** — datos iniciales (~4878 líneas; puede tardar 30–60 s):
+
+   **Resultado normal en Supabase:** `Success. No rows returned` y `0 row` en muchos INSERT — **no es error**.
+   Al final del script verás una tabla con: `sucursales`, `categorias`, `productos` (esperado: 4, 30+, 500+).
+   El punto rojo junto a **Retry** suele ser de un intento anterior; si dice **Success**, está bien.
+   Para comprobar después: ejecuta `supabase/verificar-seed.sql`.
+
    - Iquique Vivar: 7 categorías × 15 productos
    - Alto Hospicio: 8 × 15
    - Arica Santa María: 9 × 16

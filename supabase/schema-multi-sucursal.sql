@@ -1,6 +1,11 @@
 -- =============================================================================
 -- EL POLLÓN — Plataforma multi-sucursal (menú independiente por sucursal)
 -- Ejecutar en Supabase SQL Editor (proyecto nuevo o migración)
+--
+-- IMPORTANTE:
+-- 1) Ejecuta schema-es.sql ANTES de este archivo
+-- 2) Copia TODO el archivo (Ctrl+A) y pulsa RUN una sola vez
+-- 3) NO uses "Run selected" ni ejecutes solo un fragmento (causa error 42601)
 -- =============================================================================
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -147,41 +152,58 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 CREATE INDEX IF NOT EXISTS idx_audit_branch ON audit_logs(branch_id, created_at DESC);
 
 -- -----------------------------------------------------------------------------
--- ADMINISTRADORES / PEDIDOS — columnas extra (solo si ya existen desde schema-es.sql)
--- Si es proyecto NUEVO: ejecuta schema-es.sql ANTES de este archivo.
+-- ADMINISTRADORES / PEDIDOS — columnas extra (requiere schema-es.sql previo)
 -- -----------------------------------------------------------------------------
-DO $$ BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'administradores') THEN
-    ALTER TABLE administradores ADD COLUMN IF NOT EXISTS branch_id UUID REFERENCES branches(id) ON DELETE SET NULL;
+DO $pollon$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'administradores'
+  ) THEN
+    ALTER TABLE administradores
+      ADD COLUMN IF NOT EXISTS branch_id UUID REFERENCES branches(id) ON DELETE SET NULL;
   END IF;
-END $$;
 
-DO $$ BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'pedidos') THEN
-    ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS branch_id UUID REFERENCES branches(id) ON DELETE SET NULL;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'pedidos'
+  ) THEN
+    ALTER TABLE pedidos
+      ADD COLUMN IF NOT EXISTS branch_id UUID REFERENCES branches(id) ON DELETE SET NULL;
   END IF;
-END $$;
+END
+$pollon$;
 
 -- -----------------------------------------------------------------------------
 -- TRIGGERS updated_at
 -- -----------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION set_updated_at()
-RETURNS TRIGGER AS $$
+CREATE OR REPLACE FUNCTION public.set_updated_at()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $fn$
 BEGIN
   NEW.updated_at = now();
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$fn$;
 
-DO $$ BEGIN
-  CREATE TRIGGER branches_updated BEFORE UPDATE ON branches FOR EACH ROW EXECUTE PROCEDURE set_updated_at();
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN
-  CREATE TRIGGER categories_updated BEFORE UPDATE ON categories FOR EACH ROW EXECUTE PROCEDURE set_updated_at();
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-DO $$ BEGIN
-  CREATE TRIGGER products_updated BEFORE UPDATE ON products FOR EACH ROW EXECUTE PROCEDURE set_updated_at();
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DROP TRIGGER IF EXISTS branches_updated ON branches;
+CREATE TRIGGER branches_updated
+  BEFORE UPDATE ON branches
+  FOR EACH ROW
+  EXECUTE FUNCTION public.set_updated_at();
+
+DROP TRIGGER IF EXISTS categories_updated ON categories;
+CREATE TRIGGER categories_updated
+  BEFORE UPDATE ON categories
+  FOR EACH ROW
+  EXECUTE FUNCTION public.set_updated_at();
+
+DROP TRIGGER IF EXISTS products_updated ON products;
+CREATE TRIGGER products_updated
+  BEFORE UPDATE ON products
+  FOR EACH ROW
+  EXECUTE FUNCTION public.set_updated_at();
 
 -- -----------------------------------------------------------------------------
 -- ROW LEVEL SECURITY
@@ -243,8 +265,21 @@ CREATE POLICY settings_auth_all ON settings FOR ALL USING (auth.role() = 'authen
 DROP POLICY IF EXISTS audit_logs_auth_all ON audit_logs;
 CREATE POLICY audit_logs_auth_all ON audit_logs FOR ALL USING (auth.role() = 'authenticated');
 
--- Realtime pedidos
-DO $$ BEGIN
+-- Realtime pedidos (ignora si ya está agregado o la tabla no existe)
+DO $realtime$
+BEGIN
   ALTER PUBLICATION supabase_realtime ADD TABLE pedidos;
-EXCEPTION WHEN OTHERS THEN NULL;
-END $$;
+EXCEPTION
+  WHEN OTHERS THEN NULL;
+END
+$realtime$;
+
+-- Verificación rápida (debe mostrar 8 tablas)
+SELECT table_name
+FROM information_schema.tables
+WHERE table_schema = 'public'
+  AND table_name IN (
+    'branches', 'categories', 'products', 'product_extras',
+    'promotions', 'delivery_zones', 'settings', 'audit_logs'
+  )
+ORDER BY table_name;

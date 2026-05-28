@@ -4875,3 +4875,13 @@ INSERT INTO settings (key, value, branch_id) VALUES
   ('site_name', '"Pollería El Pollón"', NULL),
   ('payment_methods', '["efectivo","transferencia"]', NULL)
 ON CONFLICT (key, branch_id) DO NOTHING;
+
+-- -----------------------------------------------------------------------------
+-- VERIFICACIÓN (la última consulta muestra filas en Results — no es un error)
+-- Esperado aprox.: 4 sucursales, 30+ categorías, 500+ productos
+-- -----------------------------------------------------------------------------
+SELECT
+  (SELECT COUNT(*)::int FROM branches) AS sucursales,
+  (SELECT COUNT(*)::int FROM categories) AS categorias,
+  (SELECT COUNT(*)::int FROM products) AS productos,
+  (SELECT COUNT(*)::int FROM delivery_zones) AS zonas_delivery;
