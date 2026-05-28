@@ -120,7 +120,7 @@ CREATE INDEX IF NOT EXISTS idx_pedidos_customer ON pedidos(customer_id);
 
 CREATE TABLE IF NOT EXISTS order_status_history (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  order_id UUID NOT NULL,
+  order_id TEXT NOT NULL,
   status TEXT NOT NULL,
   note TEXT DEFAULT '',
   changed_by UUID REFERENCES profiles(id) ON DELETE SET NULL,

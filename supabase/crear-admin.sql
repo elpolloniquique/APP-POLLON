@@ -3,16 +3,16 @@
 -- 2. Copia el UUID del usuario
 -- 3. Reemplaza abajo y ejecuta:
 
-/*
+
 INSERT INTO administradores (id, email, nombre, rol, activo)
 VALUES (
-  'PEGA-AQUI-EL-UUID-DEL-USUARIO',
-  'tu-correo@gmail.com',
+  '2d235f2c-c7a0-44fe-aa93-da24a4ad7daa',
+  'tutacanehuillca@gmail.com',
   'Administrador Principal',
   'super_admin',
   true
 );
-*/
+
 
 -- Ejemplo con email (si ya existe en auth.users):
 INSERT INTO administradores (id, email, nombre, rol, activo)

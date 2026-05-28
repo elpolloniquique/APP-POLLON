@@ -147,14 +147,20 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 CREATE INDEX IF NOT EXISTS idx_audit_branch ON audit_logs(branch_id, created_at DESC);
 
 -- -----------------------------------------------------------------------------
--- ADMINISTRADORES — vincular a sucursal (opcional)
+-- ADMINISTRADORES / PEDIDOS — columnas extra (solo si ya existen desde schema-es.sql)
+-- Si es proyecto NUEVO: ejecuta schema-es.sql ANTES de este archivo.
 -- -----------------------------------------------------------------------------
-ALTER TABLE administradores ADD COLUMN IF NOT EXISTS branch_id UUID REFERENCES branches(id) ON DELETE SET NULL;
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'administradores') THEN
+    ALTER TABLE administradores ADD COLUMN IF NOT EXISTS branch_id UUID REFERENCES branches(id) ON DELETE SET NULL;
+  END IF;
+END $$;
 
--- -----------------------------------------------------------------------------
--- PEDIDOS — branch_id UUID
--- -----------------------------------------------------------------------------
-ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS branch_id UUID REFERENCES branches(id) ON DELETE SET NULL;
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'pedidos') THEN
+    ALTER TABLE pedidos ADD COLUMN IF NOT EXISTS branch_id UUID REFERENCES branches(id) ON DELETE SET NULL;
+  END IF;
+END $$;
 
 -- -----------------------------------------------------------------------------
 -- TRIGGERS updated_at
