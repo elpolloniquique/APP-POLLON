@@ -152,36 +152,77 @@ CREATE TRIGGER trg_pedidos_status_history
 -- -----------------------------------------------------------------------------
 -- Auto-crear perfil al registrarse (cliente)
 -- -----------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION handle_new_user()
-RETURNS TRIGGER AS $$
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_role TEXT;
+  v_profile_id UUID;
+  v_email_ok BOOLEAN;
+  v_whatsapp_ok BOOLEAN;
 BEGIN
-  INSERT INTO profiles (auth_user_id, full_name, email, phone, role)
+  v_role := COALESCE(NULLIF(trim(NEW.raw_user_meta_data->>'role'), ''), 'cliente');
+  IF NOT EXISTS (SELECT 1 FROM public.roles WHERE id = v_role) THEN
+    v_role := 'cliente';
+  END IF;
+
+  INSERT INTO public.profiles (auth_user_id, full_name, email, phone, role)
   VALUES (
     NEW.id,
-    COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1)),
+    COALESCE(NULLIF(trim(NEW.raw_user_meta_data->>'full_name'), ''), split_part(NEW.email, '@', 1)),
     NEW.email,
     COALESCE(NEW.raw_user_meta_data->>'phone', ''),
-    COALESCE(NEW.raw_user_meta_data->>'role', 'cliente')
+    v_role
   )
   ON CONFLICT (auth_user_id) DO UPDATE SET
     email = EXCLUDED.email,
-    updated_at = now();
+    updated_at = now()
+  RETURNING id INTO v_profile_id;
 
-  INSERT INTO customer_marketing_preferences (customer_id, accepts_email_promotions, accepts_whatsapp_promotions)
-  SELECT p.id,
-    COALESCE((NEW.raw_user_meta_data->>'accepts_email_promotions')::boolean, false),
-    COALESCE((NEW.raw_user_meta_data->>'accepts_whatsapp_promotions')::boolean, false)
-  FROM profiles p WHERE p.auth_user_id = NEW.id
-  ON CONFLICT (customer_id) DO NOTHING;
+  IF v_role = 'cliente' AND v_profile_id IS NOT NULL THEN
+  BEGIN
+    v_email_ok := false;
+    v_whatsapp_ok := false;
+    IF NEW.raw_user_meta_data ? 'accepts_email_promotions' THEN
+      BEGIN
+        v_email_ok := COALESCE((NEW.raw_user_meta_data->>'accepts_email_promotions')::boolean, false);
+      EXCEPTION WHEN OTHERS THEN
+        v_email_ok := false;
+      END;
+    END IF;
+    IF NEW.raw_user_meta_data ? 'accepts_whatsapp_promotions' THEN
+      BEGIN
+        v_whatsapp_ok := COALESCE((NEW.raw_user_meta_data->>'accepts_whatsapp_promotions')::boolean, false);
+      EXCEPTION WHEN OTHERS THEN
+        v_whatsapp_ok := false;
+      END;
+    END IF;
+
+    INSERT INTO public.customer_marketing_preferences (
+      customer_id, accepts_email_promotions, accepts_whatsapp_promotions
+    )
+    VALUES (v_profile_id, v_email_ok, v_whatsapp_ok)
+    ON CONFLICT (customer_id) DO NOTHING;
+  EXCEPTION WHEN OTHERS THEN
+    RAISE WARNING 'handle_new_user marketing: %', SQLERRM;
+  END;
+  END IF;
 
   RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'handle_new_user profiles: %', SQLERRM;
+  RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION handle_new_user();
+  FOR EACH ROW
+  EXECUTE FUNCTION public.handle_new_user();
 
 -- -----------------------------------------------------------------------------
 -- RLS
