@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
@@ -6,37 +6,51 @@ import { isSupabaseConfigured } from '../services/supabaseClient';
 import { LEGACY_ADMIN_PASSWORD } from '../services/authService';
 import { isStaffRole, normalizeRole } from '../services/authService';
 
+const LOGIN_TIMEOUT_MS = 25000;
+
+function withTimeout(promise, ms, message) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(message)), ms);
+    }),
+  ]);
+}
+
 export function AdminLogin() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signIn, session, profile } = useAuth();
+  const { signIn, signOut, session, profile, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
-  if (session && profile) {
+  useEffect(() => {
+    if (authLoading || !session || !profile) return;
     const role = normalizeRole(profile.rol || profile.role);
     if (isStaffRole(role) || session.legacy) {
       navigate('/admin', { replace: true });
-      return null;
     }
-    navigate('/cuenta', { replace: true });
-    return null;
-  }
+  }, [authLoading, session, profile, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
-      const { profile: p, session: s } = await signIn(email, password);
+      if (session) await signOut();
+      const { profile: p, session: s } = await withTimeout(
+        signIn(email.trim(), password),
+        LOGIN_TIMEOUT_MS,
+        'La conexión tardó demasiado. Revisa VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY en Vercel, y que el proyecto Supabase no esté pausado.'
+      );
       const role = normalizeRole(p?.rol || p?.role);
       if (!isStaffRole(role) && !s?.legacy) {
-        setError('Esta cuenta es de cliente. Usa el acceso desde la tienda.');
-        navigate('/cuenta');
+        await signOut();
+        setError('Esta cuenta es de cliente. En Supabase ejecuta fix-perfil-admin.sql para asignar rol super_admin.');
         return;
       }
-      navigate('/admin');
+      navigate('/admin', { replace: true });
     } catch (err) {
       setError(err.message || 'Credenciales incorrectas');
     } finally {

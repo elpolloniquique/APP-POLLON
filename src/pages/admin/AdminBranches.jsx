@@ -4,6 +4,7 @@ import { adminListAllBranches, adminSaveBranch } from '../../services/branchServ
 import { isSupabaseConfigured } from '../../services/menuService';
 import { useToast } from '../../hooks/useToast';
 import { Plus, Pencil } from 'lucide-react';
+import { ROLES } from '../../utils/constants';
 
 const emptyBranch = () => ({
   name: '',
@@ -24,13 +25,20 @@ const emptyBranch = () => ({
 });
 
 export function AdminBranches() {
-  const { profile } = useAuth();
+  const { profile, can, role } = useAuth();
   const { show, Toast } = useToast();
   const [list, setList] = useState([]);
   const [modal, setModal] = useState(null);
+  const [loadError, setLoadError] = useState('');
   const user = { id: profile?.id, email: profile?.email };
+  const canManage = can('branches');
 
-  const load = () => adminListAllBranches().then(setList);
+  const load = () => {
+    setLoadError('');
+    return adminListAllBranches()
+      .then(setList)
+      .catch((err) => setLoadError(err.message || 'No se pudo cargar sucursales'));
+  };
   useEffect(() => { load(); }, []);
 
   const save = async (e) => {
@@ -46,7 +54,8 @@ export function AdminBranches() {
       setModal(null);
       load();
     } catch (err) {
-      show(err.message);
+      const msg = err.message || 'Error al guardar';
+      show(msg.includes('branches') ? `${msg} — ¿Ejecutaste schema-multi-sucursal.sql?` : msg);
     }
   };
 
@@ -54,15 +63,32 @@ export function AdminBranches() {
     return <p className="rounded-xl bg-amber-50 p-4">Configura Supabase y ejecuta schema-multi-sucursal.sql</p>;
   }
 
+  if (!canManage) {
+    return (
+      <div className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">
+        <p className="font-bold">Sin permiso para gestionar sucursales</p>
+        <p className="mt-2">Tu rol actual es <strong>{role}</strong>. Solo <strong>{ROLES.SUPER_ADMIN}</strong> puede crear sucursales.</p>
+        <p className="mt-2">En Supabase ejecuta <code>supabase/fix-perfil-admin.sql</code> y vuelve a iniciar sesión.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {Toast}
+      {loadError && (
+        <p className="rounded-xl bg-red-50 p-3 text-sm text-red-800">{loadError}. Verifica que exista la tabla <code>branches</code> (schema-multi-sucursal.sql).</p>
+      )}
       <div className="flex justify-between">
         <div>
           <h2 className="text-2xl font-bold">Sucursales</h2>
           <p className="text-sm text-gray-500">Cada sucursal opera de forma independiente</p>
         </div>
-        <button type="button" onClick={() => setModal(emptyBranch())} className="flex items-center gap-2 rounded-xl bg-pollon-red px-4 py-2 text-sm font-bold text-white">
+        <button
+          type="button"
+          onClick={() => setModal(emptyBranch())}
+          className="flex items-center gap-2 rounded-xl bg-pollon-red px-4 py-2 text-sm font-bold text-white hover:bg-red-700"
+        >
           <Plus className="h-4 w-4" /> Nueva sucursal
         </button>
       </div>
@@ -87,7 +113,7 @@ export function AdminBranches() {
       </div>
 
       {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4">
           <form onSubmit={save} className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6">
             <h3 className="text-lg font-bold">{modal.id ? 'Editar' : 'Nueva'} sucursal</h3>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">

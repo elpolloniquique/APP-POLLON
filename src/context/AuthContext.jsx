@@ -97,8 +97,7 @@ export function AuthProvider({ children }) {
     setSession(s);
     if (s?.user) {
       await refreshProfile(s.user);
-      const p = await getProfileByAuthId(s.user.id);
-      return { session: s, profile: p };
+      return { session: s, profile: await getProfileByAuthId(s.user.id) };
     }
     return { session: s };
   };

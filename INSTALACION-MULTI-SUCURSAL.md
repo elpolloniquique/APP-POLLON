@@ -46,6 +46,18 @@ Ruta: **`/admin/menu`**
 | administrador | Su sucursal (`branch_id` en tabla administradores) |
 | cajero / cocina / repartidor | Según permisos en `ROLE_PERMISSIONS` |
 
+### Problemas frecuentes admin
+
+**Login se queda en "Entrando…"**
+- Revisa variables en Vercel (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) y redeploy.
+- Proyecto Supabase no debe estar pausado.
+- Ejecuta `supabase/fix-perfil-admin.sql` (rol en tabla `profiles`).
+
+**No puedo agregar sucursales**
+- Solo `super_admin` tiene permiso `branches`.
+- Debe existir tabla `branches` (`schema-multi-sucursal.sql`).
+- Ejecuta `fix-perfil-admin.sql` si el rol quedó como `cliente` en `profiles`.
+
 ## 6. Editar datos bancarios transferencia
 
 `src/utils/constants.js` → `TRANSFER_BANK_INFO`

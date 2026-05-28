@@ -1,22 +1,26 @@
 -- Crear administrador después de registrar usuario en Authentication
 -- 1. Ve a Authentication > Users > Add user (email + password)
--- 2. Copia el UUID del usuario
--- 3. Reemplaza abajo y ejecuta:
+-- 2. Ejecuta este script (cambia el email si hace falta)
+-- 3. IMPORTANTE: el rol debe estar en profiles Y en administradores
 
-
-INSERT INTO administradores (id, email, nombre, rol, activo)
-VALUES (
-  '2d235f2c-c7a0-44fe-aa93-da24a4ad7daa',
-  'tutacanehuillca@gmail.com',
-  'Administrador Principal',
-  'super_admin',
-  true
-);
-
-
--- Ejemplo con email (si ya existe en auth.users):
+-- Tabla legacy (compatibilidad)
 INSERT INTO administradores (id, email, nombre, rol, activo)
 SELECT id, email, 'Admin El Pollón', 'super_admin', true
 FROM auth.users
-WHERE email = 'admin@elpollon.cl'
-ON CONFLICT (id) DO UPDATE SET activo = true, rol = 'super_admin';
+WHERE email = 'tutacanehuillca@gmail.com'
+ON CONFLICT (id) DO UPDATE SET activo = true, rol = 'super_admin', nombre = EXCLUDED.nombre;
+
+-- Tabla principal que usa la app (profiles)
+INSERT INTO profiles (auth_user_id, full_name, email, role, is_active)
+SELECT
+  u.id,
+  COALESCE(u.raw_user_meta_data->>'full_name', 'Admin El Pollón'),
+  u.email,
+  'super_admin',
+  true
+FROM auth.users u
+WHERE u.email = 'tutacanehuillca@gmail.com'
+ON CONFLICT (auth_user_id) DO UPDATE SET
+  role = 'super_admin',
+  is_active = true,
+  email = EXCLUDED.email;

@@ -79,26 +79,45 @@ function legacySignIn(password, asStaff = true) {
   return { session, profile };
 }
 
+/** Combina profiles + administradores; prioriza rol de personal si hay conflicto */
 export async function getProfileByAuthId(authUserId) {
   const sb = getSupabase();
   if (!sb || !authUserId) return null;
 
-  const { data: profile } = await sb.from('profiles').select('*').eq('auth_user_id', authUserId).maybeSingle();
-  if (profile) return mapProfile(profile);
+  const [{ data: profile }, { data: legacy }] = await Promise.all([
+    sb.from('profiles').select('*').eq('auth_user_id', authUserId).maybeSingle(),
+    sb.from('administradores').select('*').eq('id', authUserId).maybeSingle(),
+  ]);
 
-  const { data: legacy } = await sb.from('administradores').select('*').eq('id', authUserId).maybeSingle();
-  if (legacy) {
-    return mapProfile({
-      id: legacy.id,
-      auth_user_id: authUserId,
-      full_name: legacy.nombre,
-      email: legacy.email,
-      role: legacy.rol || ROLES.ADMIN_SUCURSAL,
-      branch_id: legacy.branch_id || legacy.sucursal_id,
-      is_active: legacy.activo,
-    });
+  const fromProfile = profile ? mapProfile(profile) : null;
+  const fromAdmin = legacy
+    ? mapProfile({
+        id: fromProfile?.id || legacy.id,
+        auth_user_id: authUserId,
+        full_name: legacy.nombre,
+        email: legacy.email,
+        role: legacy.rol || ROLES.ADMIN_SUCURSAL,
+        branch_id: legacy.branch_id || legacy.sucursal_id,
+        is_active: legacy.activo,
+      })
+    : null;
+
+  if (fromAdmin && isStaffRole(fromAdmin.role)) {
+    if (fromProfile) {
+      return {
+        ...fromProfile,
+        ...fromAdmin,
+        id: fromProfile.id,
+        authUserId: fromProfile.authUserId || authUserId,
+        email: fromProfile.email || fromAdmin.email,
+        fullName: fromAdmin.fullName || fromProfile.fullName,
+        nombre: fromAdmin.nombre || fromProfile.nombre,
+      };
+    }
+    return fromAdmin;
   }
-  return null;
+
+  return fromProfile || fromAdmin;
 }
 
 export async function signIn(email, password) {

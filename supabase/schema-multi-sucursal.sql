@@ -216,7 +216,11 @@ CREATE POLICY settings_public_read ON settings FOR SELECT USING (true);
 
 -- Admin autenticado: gestión completa
 DROP POLICY IF EXISTS branches_auth_all ON branches;
-CREATE POLICY branches_auth_all ON branches FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY branches_auth_all ON branches
+  FOR ALL
+  TO authenticated
+  USING (true)
+  WITH CHECK (true);
 
 DROP POLICY IF EXISTS categories_auth_all ON categories;
 CREATE POLICY categories_auth_all ON categories FOR ALL USING (auth.role() = 'authenticated');
