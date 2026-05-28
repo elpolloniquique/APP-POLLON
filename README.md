@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Pollería El Pollón — Plataforma empresarial
 
 Sistema web profesional multi-sucursal: tienda online, delivery, reservas, panel admin, cocina digital, caja, stock y reportes.
@@ -26,3 +27,7 @@ Documentación completa: [INSTALACION.md](./INSTALACION.md)
 ## Versión anterior
 
 La versión HTML estática se conserva en `../COPIA_01/`.
+=======
+# APP-POLLON
+Pollo a la brasa 
+>>>>>>> ebdd16a19d8a3a3403b83c11e60e4cc394b3e23d
