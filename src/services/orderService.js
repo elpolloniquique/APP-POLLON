@@ -4,6 +4,7 @@ import { ORDERS_KEY } from '../utils/constants';
 let orders = [];
 let channel = null;
 let backendReady = false;
+let initPromise = null;
 
 function sanitize(obj) {
   if (obj === null || typeof obj !== 'object') return obj;
@@ -97,9 +98,47 @@ export function isBackendReady() {
 }
 
 async function fetchAll(sb) {
-  const { data, error } = await sb.from('pedidos').select('*').order('creado_en', { ascending: true });
+  const { data, error } = await sb.from('pedidos').select('*').order('creado_en', { ascending: false });
   if (error) throw error;
   return (data || []).map(rowToOrder);
+}
+
+/** Comprueba conexión con Supabase (no depende de haber abierto el panel admin antes) */
+async function ensureSupabaseReady() {
+  const sb = getSupabase();
+  if (!sb) return null;
+  if (backendReady) return sb;
+  try {
+    const { error } = await sb.from('pedidos').select('id').limit(1);
+    if (error) throw error;
+    backendReady = true;
+    return sb;
+  } catch (e) {
+    console.warn('[Pollón] Supabase pedidos no disponible:', e.message);
+    return null;
+  }
+}
+
+function subscribeRealtime(sb, onSync) {
+  if (channel) sb.removeChannel(channel);
+  channel = sb
+    .channel('pollon-pedidos-rt')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'pedidos' },
+      async (payload) => {
+        console.info('[Pollón] Pedido en tiempo real:', payload.eventType, payload.new?.id || payload.old?.id);
+        try {
+          orders = await fetchAll(sb);
+          onSync?.(orders);
+        } catch (e) {
+          console.warn('[Pollón] RT refresh:', e);
+        }
+      }
+    )
+    .subscribe((status) => {
+      console.info('[Pollón] Realtime pedidos:', status);
+    });
 }
 
 export async function initOrders(onSync) {
@@ -110,30 +149,28 @@ export async function initOrders(onSync) {
     onSync?.(orders);
     return;
   }
-  try {
-    orders = await fetchAll(sb);
-    orders.sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
-    backendReady = true;
-    onSync?.(orders);
 
-    if (channel) sb.removeChannel(channel);
-    channel = sb
-      .channel('pollon-pedidos-rt')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, async () => {
-        try {
-          orders = await fetchAll(sb);
-          onSync?.(orders);
-        } catch (e) {
-          console.warn('[Pollón] RT:', e);
-        }
-      })
-      .subscribe();
-  } catch (e) {
-    console.warn('[Pollón] pedidos:', e);
-    loadLocal();
-    backendReady = false;
+  if (initPromise) {
+    await initPromise;
     onSync?.(orders);
+    return;
   }
+
+  initPromise = (async () => {
+    try {
+      orders = await fetchAll(sb);
+      backendReady = true;
+      onSync?.(orders);
+      subscribeRealtime(sb, onSync);
+    } catch (e) {
+      console.warn('[Pollón] initOrders:', e);
+      loadLocal();
+      backendReady = false;
+      onSync?.(orders);
+    }
+  })();
+
+  await initPromise;
 }
 
 async function insertDetalle(sb, pedidoId, items) {
@@ -154,11 +191,14 @@ export async function saveOrder(order) {
   if (!order?.id) throw new Error('Pedido inválido');
 
   orders.push(order);
-  orders.sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+  orders.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
 
-  const sb = getSupabase();
-  if (!sb || !backendReady) {
+  const sb = await ensureSupabaseReady();
+  if (!sb) {
     saveLocal();
+    if (isSupabaseConfigured()) {
+      throw new Error('No se pudo guardar en Supabase. Revisa la conexión o ejecuta fix-realtime-pedidos.sql');
+    }
     return order;
   }
 
@@ -175,8 +215,8 @@ export async function updateOrder(order) {
   if (idx >= 0) orders[idx] = order;
   else orders.push(order);
 
-  const sb = getSupabase();
-  if (!sb || !backendReady) {
+  const sb = await ensureSupabaseReady();
+  if (!sb) {
     saveLocal();
     return order;
   }

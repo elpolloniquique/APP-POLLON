@@ -6,12 +6,12 @@ import { Button } from '../../components/ui/Button';
 import { ORDER_STATES } from '../../utils/constants';
 
 export function AdminOrders() {
-  const { orders, updateOrder, refresh } = useOrders();
+  const [alarmOn, setAlarmOn] = useState(true);
+  const { orders, updateOrder, refresh, ready, realtimeStatus, isBackendReady } = useOrders({ alarmEnabled: alarmOn });
   const [estado, setEstado] = useState('');
   const [search, setSearch] = useState('');
   const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
-  const [alarmOn, setAlarmOn] = useState(false);
 
   const filtered = useMemo(() => orders.filter((o) => {
     const d = (o.createdAt || '').substring(0, 10);
@@ -54,7 +54,19 @@ export function AdminOrders() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-2xl font-bold">Pedidos en tiempo real</h2>
+        <div>
+          <h2 className="text-2xl font-bold">Pedidos en tiempo real</h2>
+          <p className="text-sm text-gray-500">
+            {ready && isBackendReady && realtimeStatus === 'live' && (
+              <span className="inline-flex items-center gap-1 text-green-700">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-green-500" /> En vivo — los pedidos nuevos aparecen solos
+              </span>
+            )}
+            {ready && !isBackendReady && (
+              <span className="text-amber-700">Modo local — ejecuta fix-realtime-pedidos.sql en Supabase</span>
+            )}
+          </p>
+        </div>
         <div className="flex gap-2">
           <Button variant="ghost" onClick={refresh}>Actualizar</Button>
           <Button onClick={exportCsv}>Exportar CSV</Button>

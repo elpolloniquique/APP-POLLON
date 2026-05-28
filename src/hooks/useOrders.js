@@ -1,41 +1,64 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import * as orderService from '../services/orderService';
 
-export function useOrders() {
+/** Sonido de aviso (Web Audio — no requiere archivo mp3) */
+export function playNewOrderBeep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 880;
+    gain.gain.value = 0.15;
+    osc.start();
+    setTimeout(() => {
+      osc.stop();
+      ctx.close();
+    }, 400);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function useOrders(options = {}) {
+  const { alarmEnabled = false } = options;
   const [orders, setOrders] = useState([]);
   const [ready, setReady] = useState(false);
+  const [realtimeStatus, setRealtimeStatus] = useState('connecting');
   const prevCount = useRef(0);
+  const initialLoad = useRef(true);
+  const alarmEnabledRef = useRef(alarmEnabled);
+
+  alarmEnabledRef.current = alarmEnabled;
 
   const sync = useCallback((list) => {
     setOrders([...list].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')));
     setReady(true);
+    setRealtimeStatus(orderService.isBackendReady() ? 'live' : 'local');
   }, []);
 
   useEffect(() => {
     orderService.initOrders(sync);
   }, [sync]);
 
-  const playAlarm = useCallback(() => {
-    try {
-      const audio = new Audio('/sounds/alarma.mp3');
-      audio.volume = 0.8;
-      audio.play().catch(() => {});
-      setTimeout(() => audio.pause(), 2000);
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
   useEffect(() => {
-    if (ready && orders.length > prevCount.current && prevCount.current > 0) {
-      playAlarm();
+    if (!ready) return;
+    if (initialLoad.current) {
+      initialLoad.current = false;
+      prevCount.current = orders.length;
+      return;
+    }
+    if (alarmEnabledRef.current && orders.length > prevCount.current) {
+      playNewOrderBeep();
     }
     prevCount.current = orders.length;
-  }, [orders.length, ready, playAlarm]);
+  }, [orders.length, ready]);
 
   return {
     orders,
     ready,
+    realtimeStatus,
     refresh: () => orderService.fetchOrdersAdmin().then(sync),
     saveOrder: orderService.saveOrder,
     updateOrder: orderService.updateOrder,
