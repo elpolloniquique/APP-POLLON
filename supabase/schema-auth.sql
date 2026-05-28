@@ -129,25 +129,32 @@ CREATE TABLE IF NOT EXISTS order_status_history (
 
 CREATE INDEX IF NOT EXISTS idx_order_status_history_order ON order_status_history(order_id);
 
--- Trigger: registrar cambio de estado en pedidos
-CREATE OR REPLACE FUNCTION log_order_status_change()
-RETURNS TRIGGER AS $$
+-- Trigger: registrar cambio de estado en pedidos (SECURITY DEFINER evita bloqueo RLS al checkout)
+CREATE OR REPLACE FUNCTION public.log_order_status_change()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 BEGIN
   IF TG_OP = 'UPDATE' AND OLD.estado IS DISTINCT FROM NEW.estado THEN
-    INSERT INTO order_status_history (order_id, status, note)
+    INSERT INTO public.order_status_history (order_id, status, note)
     VALUES (NEW.id, NEW.estado, 'Cambio automático');
   ELSIF TG_OP = 'INSERT' THEN
-    INSERT INTO order_status_history (order_id, status, note)
+    INSERT INTO public.order_status_history (order_id, status, note)
     VALUES (NEW.id, COALESCE(NEW.estado, 'pendiente'), 'Pedido creado');
   END IF;
   RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'log_order_status_change: %', SQLERRM;
+  RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 DROP TRIGGER IF EXISTS trg_pedidos_status_history ON pedidos;
 CREATE TRIGGER trg_pedidos_status_history
   AFTER INSERT OR UPDATE OF estado ON pedidos
-  FOR EACH ROW EXECUTE FUNCTION log_order_status_change();
+  FOR EACH ROW EXECUTE FUNCTION public.log_order_status_change();
 
 -- -----------------------------------------------------------------------------
 -- Auto-crear perfil al registrarse (cliente)
@@ -317,6 +324,17 @@ CREATE POLICY campaign_recipients_staff ON campaign_recipients FOR ALL
   USING (auth_user_role() IN ('super_admin', 'admin_sucursal'));
 
 -- ORDER STATUS HISTORY
+DROP POLICY IF EXISTS order_history_insert ON order_status_history;
+CREATE POLICY order_history_insert ON order_status_history
+  FOR INSERT
+  WITH CHECK (true);
+
+DROP POLICY IF EXISTS order_history_select_all ON order_status_history;
+CREATE POLICY order_history_select_all ON order_status_history
+  FOR SELECT
+  USING (true);
+
+DROP POLICY IF EXISTS order_history_customer ON order_status_history;
 CREATE POLICY order_history_customer ON order_status_history FOR SELECT
   USING (
     EXISTS (
@@ -326,6 +344,7 @@ CREATE POLICY order_history_customer ON order_status_history FOR SELECT
     )
   );
 
+DROP POLICY IF EXISTS order_history_staff ON order_status_history;
 CREATE POLICY order_history_staff ON order_status_history FOR SELECT
   USING (auth_user_role() IN ('super_admin', 'admin_sucursal', 'cajera', 'cocina', 'delivery'));
 

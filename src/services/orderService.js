@@ -207,8 +207,15 @@ export async function saveOrder(order) {
   const row = orderToRow(order);
   const { error } = await sb.from('pedidos').upsert(row, { onConflict: 'id' });
   if (error) {
-    if (error.message?.includes('branch_id')) {
-      throw new Error('Falta columna branch_id en pedidos. Ejecuta fix-pedidos-checkout.sql en Supabase.');
+    const msg = error.message || '';
+    if (msg.includes('branch_id')) {
+      throw new Error('Falta columna branch_id. En Supabase ejecuta fix-pedidos-checkout.sql');
+    }
+    if (msg.includes('row-level security') || msg.includes('order_status_history')) {
+      throw new Error('Permisos de pedido. En Supabase ejecuta fix-pedidos-checkout.sql (script completo).');
+    }
+    if (msg.includes('sucursal_id')) {
+      throw new Error('Error de columna legacy. Redeploy en Vercel con el código actualizado.');
     }
     throw error;
   }
