@@ -62,7 +62,7 @@ export async function loadBranchMenu(branchId) {
     .order('display_order', { ascending: true });
   if (prodErr) throw prodErr;
 
-  const categories = (cats || []).map(mapCategory);
+  const categories = dedupeCategories((cats || []).map(mapCategory));
   const products = (prods || []).map(mapProduct);
   const productsByCategory = {};
   categories.forEach((c) => { productsByCategory[c.id] = []; });
@@ -74,7 +74,20 @@ export async function loadBranchMenu(branchId) {
   return { categories, productsByCategory, products, source: 'supabase' };
 }
 
-/** Admin: categorías de una sucursal (incluye inactivas) */
+/** Elimina duplicados visuales (mismo nombre en la misma sucursal) */
+function dedupeCategories(categories) {
+  const byKey = new Map();
+  for (const c of categories) {
+    const key = `${c.branchId}:${(c.name || '').trim().toLowerCase()}`;
+    const prev = byKey.get(key);
+    if (!prev || c.displayOrder < prev.displayOrder) {
+      byKey.set(key, c);
+    }
+  }
+  return [...byKey.values()].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
+}
+
+/** Admin: categorías de una sucursal (incluye inactivas, sin duplicados por nombre) */
 export async function adminListCategories(branchId) {
   if (!isSupabaseConfigured()) return [];
   const { data, error } = await sb()
@@ -83,29 +96,66 @@ export async function adminListCategories(branchId) {
     .eq('branch_id', branchId)
     .order('display_order', { ascending: true });
   if (error) throw error;
-  return (data || []).map(mapCategory);
+  return dedupeCategories((data || []).map(mapCategory));
+}
+
+export async function adminCountProductsInCategory(categoryId) {
+  const { count, error } = await sb()
+    .from('products')
+    .select('*', { count: 'exact', head: true })
+    .eq('category_id', categoryId);
+  if (error) throw error;
+  return count ?? 0;
 }
 
 export async function adminUpsertCategory(category, user) {
+  const name = (category.name || '').trim();
+  if (!name) throw new Error('El nombre de la categoría es obligatorio');
+
+  const { data: duplicate } = await sb()
+    .from('categories')
+    .select('id')
+    .eq('branch_id', category.branchId)
+    .eq('name', name)
+    .maybeSingle();
+
+  if (duplicate && duplicate.id !== category.id) {
+    throw new Error(`Ya existe la categoría "${name}" en esta sucursal`);
+  }
+
   const row = {
     id: category.id || undefined,
     branch_id: category.branchId,
-    name: category.name,
+    name,
     description: category.description || '',
     image_url: category.imageUrl || '',
     display_order: category.displayOrder ?? 0,
     is_active: category.isActive !== false,
   };
   const { data, error } = await sb().from('categories').upsert(row).select().single();
-  if (error) throw error;
+  if (error) {
+    if (error.code === '23505') {
+      throw new Error(`Ya existe la categoría "${name}" en esta sucursal`);
+    }
+    throw error;
+  }
   await logAudit({ user, branchId: category.branchId, entityType: 'category', entityId: data.id, action: category.id ? 'update' : 'create', newData: data });
   return mapCategory(data);
 }
 
-export async function adminDeleteCategory(id, user) {
+export async function adminDeleteCategory(id, branchId, user) {
+  const count = await adminCountProductsInCategory(id);
   const { error } = await sb().from('categories').delete().eq('id', id);
   if (error) throw error;
-  await logAudit({ user, entityType: 'category', entityId: id, action: 'delete' });
+  await logAudit({
+    user,
+    branchId,
+    entityType: 'category',
+    entityId: id,
+    action: 'delete',
+    oldData: { productsDeleted: count },
+  });
+  return count;
 }
 
 export async function adminReorderCategory(id, displayOrder) {

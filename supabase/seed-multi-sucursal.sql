@@ -8,31 +8,52 @@ ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name, city = EXCLUDED.city, add
 
 INSERT INTO categories (branch_id, name, description, display_order, is_active)
 SELECT id, 'Ofertas Familiares', 'Menú Ofertas Familiares — Pollón Iquique - Vivar', 1, true FROM branches WHERE slug = 'iquique-vivar'
-ON CONFLICT DO NOTHING;
+ON CONFLICT (branch_id, name) DO UPDATE SET
+  description = EXCLUDED.description,
+  display_order = EXCLUDED.display_order,
+  is_active = EXCLUDED.is_active;
 
 INSERT INTO categories (branch_id, name, description, display_order, is_active)
 SELECT id, 'Ofertas para Dos', 'Menú Ofertas para Dos — Pollón Iquique - Vivar', 2, true FROM branches WHERE slug = 'iquique-vivar'
-ON CONFLICT DO NOTHING;
+ON CONFLICT (branch_id, name) DO UPDATE SET
+  description = EXCLUDED.description,
+  display_order = EXCLUDED.display_order,
+  is_active = EXCLUDED.is_active;
 
 INSERT INTO categories (branch_id, name, description, display_order, is_active)
 SELECT id, 'Ofertas Personales', 'Menú Ofertas Personales — Pollón Iquique - Vivar', 3, true FROM branches WHERE slug = 'iquique-vivar'
-ON CONFLICT DO NOTHING;
+ON CONFLICT (branch_id, name) DO UPDATE SET
+  description = EXCLUDED.description,
+  display_order = EXCLUDED.display_order,
+  is_active = EXCLUDED.is_active;
 
 INSERT INTO categories (branch_id, name, description, display_order, is_active)
 SELECT id, 'Pollos a la Brasa', 'Menú Pollos a la Brasa — Pollón Iquique - Vivar', 4, true FROM branches WHERE slug = 'iquique-vivar'
-ON CONFLICT DO NOTHING;
+ON CONFLICT (branch_id, name) DO UPDATE SET
+  description = EXCLUDED.description,
+  display_order = EXCLUDED.display_order,
+  is_active = EXCLUDED.is_active;
 
 INSERT INTO categories (branch_id, name, description, display_order, is_active)
 SELECT id, 'Platos Extras', 'Menú Platos Extras — Pollón Iquique - Vivar', 5, true FROM branches WHERE slug = 'iquique-vivar'
-ON CONFLICT DO NOTHING;
+ON CONFLICT (branch_id, name) DO UPDATE SET
+  description = EXCLUDED.description,
+  display_order = EXCLUDED.display_order,
+  is_active = EXCLUDED.is_active;
 
 INSERT INTO categories (branch_id, name, description, display_order, is_active)
 SELECT id, 'Bebidas', 'Menú Bebidas — Pollón Iquique - Vivar', 6, true FROM branches WHERE slug = 'iquique-vivar'
-ON CONFLICT DO NOTHING;
+ON CONFLICT (branch_id, name) DO UPDATE SET
+  description = EXCLUDED.description,
+  display_order = EXCLUDED.display_order,
+  is_active = EXCLUDED.is_active;
 
 INSERT INTO categories (branch_id, name, description, display_order, is_active)
 SELECT id, 'Descartables', 'Menú Descartables — Pollón Iquique - Vivar', 7, true FROM branches WHERE slug = 'iquique-vivar'
-ON CONFLICT DO NOTHING;
+ON CONFLICT (branch_id, name) DO UPDATE SET
+  description = EXCLUDED.description,
+  display_order = EXCLUDED.display_order,
+  is_active = EXCLUDED.is_active;
 
 INSERT INTO products (branch_id, category_id, name, description, price, is_available, display_order, is_featured)
 SELECT br.id, cat.id, 'Ofertas Familiares — Plato 1', 'Delicioso ofertas familiares — plato 1 preparado al momento en Pollón Iquique - Vivar.', 5300, true, 1, true
@@ -991,35 +1012,59 @@ ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name, city = EXCLUDED.city, add
 
 INSERT INTO categories (branch_id, name, description, display_order, is_active)
 SELECT id, 'Ofertas Familiares', 'Menú Ofertas Familiares — Pollón Alto Hospicio', 1, true FROM branches WHERE slug = 'alto-hospicio'
-ON CONFLICT DO NOTHING;
+ON CONFLICT (branch_id, name) DO UPDATE SET
+  description = EXCLUDED.description,
+  display_order = EXCLUDED.display_order,
+  is_active = EXCLUDED.is_active;
 
 INSERT INTO categories (branch_id, name, description, display_order, is_active)
 SELECT id, 'Ofertas para Dos', 'Menú Ofertas para Dos — Pollón Alto Hospicio', 2, true FROM branches WHERE slug = 'alto-hospicio'
-ON CONFLICT DO NOTHING;
+ON CONFLICT (branch_id, name) DO UPDATE SET
+  description = EXCLUDED.description,
+  display_order = EXCLUDED.display_order,
+  is_active = EXCLUDED.is_active;
 
 INSERT INTO categories (branch_id, name, description, display_order, is_active)
 SELECT id, 'Ofertas Personales', 'Menú Ofertas Personales — Pollón Alto Hospicio', 3, true FROM branches WHERE slug = 'alto-hospicio'
-ON CONFLICT DO NOTHING;
+ON CONFLICT (branch_id, name) DO UPDATE SET
+  description = EXCLUDED.description,
+  display_order = EXCLUDED.display_order,
+  is_active = EXCLUDED.is_active;
 
 INSERT INTO categories (branch_id, name, description, display_order, is_active)
 SELECT id, 'Pollos a la Brasa', 'Menú Pollos a la Brasa — Pollón Alto Hospicio', 4, true FROM branches WHERE slug = 'alto-hospicio'
-ON CONFLICT DO NOTHING;
+ON CONFLICT (branch_id, name) DO UPDATE SET
+  description = EXCLUDED.description,
+  display_order = EXCLUDED.display_order,
+  is_active = EXCLUDED.is_active;
 
 INSERT INTO categories (branch_id, name, description, display_order, is_active)
 SELECT id, 'Platos Extras', 'Menú Platos Extras — Pollón Alto Hospicio', 5, true FROM branches WHERE slug = 'alto-hospicio'
-ON CONFLICT DO NOTHING;
+ON CONFLICT (branch_id, name) DO UPDATE SET
+  description = EXCLUDED.description,
+  display_order = EXCLUDED.display_order,
+  is_active = EXCLUDED.is_active;
 
 INSERT INTO categories (branch_id, name, description, display_order, is_active)
 SELECT id, 'Agregados', 'Menú Agregados — Pollón Alto Hospicio', 6, true FROM branches WHERE slug = 'alto-hospicio'
-ON CONFLICT DO NOTHING;
+ON CONFLICT (branch_id, name) DO UPDATE SET
+  description = EXCLUDED.description,
+  display_order = EXCLUDED.display_order,
+  is_active = EXCLUDED.is_active;
 
 INSERT INTO categories (branch_id, name, description, display_order, is_active)
 SELECT id, 'Bebidas', 'Menú Bebidas — Pollón Alto Hospicio', 7, true FROM branches WHERE slug = 'alto-hospicio'
-ON CONFLICT DO NOTHING;
+ON CONFLICT (branch_id, name) DO UPDATE SET
+  description = EXCLUDED.description,
+  display_order = EXCLUDED.display_order,
+  is_active = EXCLUDED.is_active;
 
 INSERT INTO categories (branch_id, name, description, display_order, is_active)
 SELECT id, 'Descartables', 'Menú Descartables — Pollón Alto Hospicio', 8, true FROM branches WHERE slug = 'alto-hospicio'
-ON CONFLICT DO NOTHING;
+ON CONFLICT (branch_id, name) DO UPDATE SET
+  description = EXCLUDED.description,
+  display_order = EXCLUDED.display_order,
+  is_active = EXCLUDED.is_active;
 
 INSERT INTO products (branch_id, category_id, name, description, price, is_available, display_order, is_featured)
 SELECT br.id, cat.id, 'Ofertas Familiares — Plato 1', 'Delicioso ofertas familiares — plato 1 preparado al momento en Pollón Alto Hospicio.', 5400, true, 1, true
@@ -2113,39 +2158,66 @@ ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name, city = EXCLUDED.city, add
 
 INSERT INTO categories (branch_id, name, description, display_order, is_active)
 SELECT id, 'Ofertas Familiares', 'Menú Ofertas Familiares — Pollón Arica - Santa María', 1, true FROM branches WHERE slug = 'arica-santa-maria'
-ON CONFLICT DO NOTHING;
+ON CONFLICT (branch_id, name) DO UPDATE SET
+  description = EXCLUDED.description,
+  display_order = EXCLUDED.display_order,
+  is_active = EXCLUDED.is_active;
 
 INSERT INTO categories (branch_id, name, description, display_order, is_active)
 SELECT id, 'Ofertas para Dos', 'Menú Ofertas para Dos — Pollón Arica - Santa María', 2, true FROM branches WHERE slug = 'arica-santa-maria'
-ON CONFLICT DO NOTHING;
+ON CONFLICT (branch_id, name) DO UPDATE SET
+  description = EXCLUDED.description,
+  display_order = EXCLUDED.display_order,
+  is_active = EXCLUDED.is_active;
 
 INSERT INTO categories (branch_id, name, description, display_order, is_active)
 SELECT id, 'Ofertas Personales', 'Menú Ofertas Personales — Pollón Arica - Santa María', 3, true FROM branches WHERE slug = 'arica-santa-maria'
-ON CONFLICT DO NOTHING;
+ON CONFLICT (branch_id, name) DO UPDATE SET
+  description = EXCLUDED.description,
+  display_order = EXCLUDED.display_order,
+  is_active = EXCLUDED.is_active;
 
 INSERT INTO categories (branch_id, name, description, display_order, is_active)
 SELECT id, 'Pollos a la Brasa', 'Menú Pollos a la Brasa — Pollón Arica - Santa María', 4, true FROM branches WHERE slug = 'arica-santa-maria'
-ON CONFLICT DO NOTHING;
+ON CONFLICT (branch_id, name) DO UPDATE SET
+  description = EXCLUDED.description,
+  display_order = EXCLUDED.display_order,
+  is_active = EXCLUDED.is_active;
 
 INSERT INTO categories (branch_id, name, description, display_order, is_active)
 SELECT id, 'Parrillas', 'Menú Parrillas — Pollón Arica - Santa María', 5, true FROM branches WHERE slug = 'arica-santa-maria'
-ON CONFLICT DO NOTHING;
+ON CONFLICT (branch_id, name) DO UPDATE SET
+  description = EXCLUDED.description,
+  display_order = EXCLUDED.display_order,
+  is_active = EXCLUDED.is_active;
 
 INSERT INTO categories (branch_id, name, description, display_order, is_active)
 SELECT id, 'Platos Extras', 'Menú Platos Extras — Pollón Arica - Santa María', 6, true FROM branches WHERE slug = 'arica-santa-maria'
-ON CONFLICT DO NOTHING;
+ON CONFLICT (branch_id, name) DO UPDATE SET
+  description = EXCLUDED.description,
+  display_order = EXCLUDED.display_order,
+  is_active = EXCLUDED.is_active;
 
 INSERT INTO categories (branch_id, name, description, display_order, is_active)
 SELECT id, 'Agregados', 'Menú Agregados — Pollón Arica - Santa María', 7, true FROM branches WHERE slug = 'arica-santa-maria'
-ON CONFLICT DO NOTHING;
+ON CONFLICT (branch_id, name) DO UPDATE SET
+  description = EXCLUDED.description,
+  display_order = EXCLUDED.display_order,
+  is_active = EXCLUDED.is_active;
 
 INSERT INTO categories (branch_id, name, description, display_order, is_active)
 SELECT id, 'Bebidas', 'Menú Bebidas — Pollón Arica - Santa María', 8, true FROM branches WHERE slug = 'arica-santa-maria'
-ON CONFLICT DO NOTHING;
+ON CONFLICT (branch_id, name) DO UPDATE SET
+  description = EXCLUDED.description,
+  display_order = EXCLUDED.display_order,
+  is_active = EXCLUDED.is_active;
 
 INSERT INTO categories (branch_id, name, description, display_order, is_active)
 SELECT id, 'Descartables', 'Menú Descartables — Pollón Arica - Santa María', 9, true FROM branches WHERE slug = 'arica-santa-maria'
-ON CONFLICT DO NOTHING;
+ON CONFLICT (branch_id, name) DO UPDATE SET
+  description = EXCLUDED.description,
+  display_order = EXCLUDED.display_order,
+  is_active = EXCLUDED.is_active;
 
 INSERT INTO products (branch_id, category_id, name, description, price, is_available, display_order, is_featured)
 SELECT br.id, cat.id, 'Ofertas Familiares — Plato 1', 'Delicioso ofertas familiares — plato 1 preparado al momento en Pollón Arica - Santa María.', 5500, true, 1, true
@@ -3455,39 +3527,66 @@ ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name, city = EXCLUDED.city, add
 
 INSERT INTO categories (branch_id, name, description, display_order, is_active)
 SELECT id, 'Ofertas Familiares', 'Menú Ofertas Familiares — Pollón Arica - Saucache', 1, true FROM branches WHERE slug = 'arica-saucache'
-ON CONFLICT DO NOTHING;
+ON CONFLICT (branch_id, name) DO UPDATE SET
+  description = EXCLUDED.description,
+  display_order = EXCLUDED.display_order,
+  is_active = EXCLUDED.is_active;
 
 INSERT INTO categories (branch_id, name, description, display_order, is_active)
 SELECT id, 'Ofertas para Dos', 'Menú Ofertas para Dos — Pollón Arica - Saucache', 2, true FROM branches WHERE slug = 'arica-saucache'
-ON CONFLICT DO NOTHING;
+ON CONFLICT (branch_id, name) DO UPDATE SET
+  description = EXCLUDED.description,
+  display_order = EXCLUDED.display_order,
+  is_active = EXCLUDED.is_active;
 
 INSERT INTO categories (branch_id, name, description, display_order, is_active)
 SELECT id, 'Ofertas Personales', 'Menú Ofertas Personales — Pollón Arica - Saucache', 3, true FROM branches WHERE slug = 'arica-saucache'
-ON CONFLICT DO NOTHING;
+ON CONFLICT (branch_id, name) DO UPDATE SET
+  description = EXCLUDED.description,
+  display_order = EXCLUDED.display_order,
+  is_active = EXCLUDED.is_active;
 
 INSERT INTO categories (branch_id, name, description, display_order, is_active)
 SELECT id, 'Pollos a la Brasa', 'Menú Pollos a la Brasa — Pollón Arica - Saucache', 4, true FROM branches WHERE slug = 'arica-saucache'
-ON CONFLICT DO NOTHING;
+ON CONFLICT (branch_id, name) DO UPDATE SET
+  description = EXCLUDED.description,
+  display_order = EXCLUDED.display_order,
+  is_active = EXCLUDED.is_active;
 
 INSERT INTO categories (branch_id, name, description, display_order, is_active)
 SELECT id, 'Parrillas', 'Menú Parrillas — Pollón Arica - Saucache', 5, true FROM branches WHERE slug = 'arica-saucache'
-ON CONFLICT DO NOTHING;
+ON CONFLICT (branch_id, name) DO UPDATE SET
+  description = EXCLUDED.description,
+  display_order = EXCLUDED.display_order,
+  is_active = EXCLUDED.is_active;
 
 INSERT INTO categories (branch_id, name, description, display_order, is_active)
 SELECT id, 'Platos Extras', 'Menú Platos Extras — Pollón Arica - Saucache', 6, true FROM branches WHERE slug = 'arica-saucache'
-ON CONFLICT DO NOTHING;
+ON CONFLICT (branch_id, name) DO UPDATE SET
+  description = EXCLUDED.description,
+  display_order = EXCLUDED.display_order,
+  is_active = EXCLUDED.is_active;
 
 INSERT INTO categories (branch_id, name, description, display_order, is_active)
 SELECT id, 'Agregados', 'Menú Agregados — Pollón Arica - Saucache', 7, true FROM branches WHERE slug = 'arica-saucache'
-ON CONFLICT DO NOTHING;
+ON CONFLICT (branch_id, name) DO UPDATE SET
+  description = EXCLUDED.description,
+  display_order = EXCLUDED.display_order,
+  is_active = EXCLUDED.is_active;
 
 INSERT INTO categories (branch_id, name, description, display_order, is_active)
 SELECT id, 'Bebidas', 'Menú Bebidas — Pollón Arica - Saucache', 8, true FROM branches WHERE slug = 'arica-saucache'
-ON CONFLICT DO NOTHING;
+ON CONFLICT (branch_id, name) DO UPDATE SET
+  description = EXCLUDED.description,
+  display_order = EXCLUDED.display_order,
+  is_active = EXCLUDED.is_active;
 
 INSERT INTO categories (branch_id, name, description, display_order, is_active)
 SELECT id, 'Descartables', 'Menú Descartables — Pollón Arica - Saucache', 9, true FROM branches WHERE slug = 'arica-saucache'
-ON CONFLICT DO NOTHING;
+ON CONFLICT (branch_id, name) DO UPDATE SET
+  description = EXCLUDED.description,
+  display_order = EXCLUDED.display_order,
+  is_active = EXCLUDED.is_active;
 
 INSERT INTO products (branch_id, category_id, name, description, price, is_available, display_order, is_featured)
 SELECT br.id, cat.id, 'Ofertas Familiares — Plato 1', 'Delicioso ofertas familiares — plato 1 preparado al momento en Pollón Arica - Saucache.', 5600, true, 1, true

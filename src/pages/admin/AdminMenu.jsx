@@ -1,10 +1,13 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { normalizeRole } from '../../services/authService';
 import { adminListAllBranches } from '../../services/branchService';
 import {
   adminListCategories,
   adminUpsertCategory,
+  adminDeleteCategory,
+  adminCountProductsInCategory,
   adminListProducts,
   adminUpsertProduct,
   adminBulkPriceIncrease,
@@ -55,8 +58,10 @@ export function AdminMenu() {
   const [dupTargetCats, setDupTargetCats] = useState([]);
 
   const user = { id: profile?.id, email: profile?.email };
-  const isSuper = profile?.rol === 'super_admin';
+  const role = normalizeRole(profile?.rol || profile?.role);
+  const isSuper = role === 'super_admin';
   const adminBranchId = profile?.branch_id || profile?.branchId;
+  const canManageMenu = role === 'super_admin' || role === 'admin_sucursal' || role === 'administrador';
 
   useEffect(() => {
     adminListAllBranches().then((list) => {
@@ -108,6 +113,22 @@ export function AdminMenu() {
       await adminUpsertCategory(catModal, user);
       setCatModal(null);
       show('Categoría guardada');
+      load();
+    } catch (err) {
+      show(err.message);
+    }
+  };
+
+  const deleteCategory = async (cat) => {
+    const count = await adminCountProductsInCategory(cat.id);
+    const msg = count > 0
+      ? `¿Eliminar "${cat.name}" y sus ${count} producto(s)? No se puede deshacer.`
+      : `¿Eliminar la categoría "${cat.name}"?`;
+    if (!window.confirm(msg)) return;
+    try {
+      await adminDeleteCategory(cat.id, branchId, user);
+      show('Categoría eliminada');
+      if (selectedCatId === cat.id) setSelectedCatId('');
       load();
     } catch (err) {
       show(err.message);
@@ -208,9 +229,11 @@ export function AdminMenu() {
         <div className="rounded-2xl bg-white p-4 shadow-sm">
           <div className="mb-4 flex justify-between">
             <h3 className="font-bold">Categorías ({categories.length})</h3>
-            <button type="button" onClick={() => setCatModal(emptyCat(branchId))} className="flex items-center gap-1 rounded-lg bg-pollon-red px-3 py-2 text-sm text-white">
-              <Plus className="h-4 w-4" /> Nueva categoría
-            </button>
+            {canManageMenu && (
+              <button type="button" onClick={() => setCatModal(emptyCat(branchId))} className="flex items-center gap-1 rounded-lg bg-pollon-red px-3 py-2 text-sm text-white">
+                <Plus className="h-4 w-4" /> Nueva categoría
+              </button>
+            )}
           </div>
           <div className="space-y-2">
             {categories.map((c, i) => (
@@ -220,12 +243,22 @@ export function AdminMenu() {
                   <p className="font-semibold">{c.name}</p>
                   <p className="text-xs text-gray-500">Orden {c.displayOrder} · {c.isActive ? 'Activa' : 'Inactiva'}</p>
                 </div>
-                <button type="button" onClick={() => moveCategory(c, -1)} disabled={i === 0} className="p-1"><ArrowUp className="h-4 w-4" /></button>
-                <button type="button" onClick={() => moveCategory(c, 1)} disabled={i === categories.length - 1} className="p-1"><ArrowDown className="h-4 w-4" /></button>
-                <button type="button" onClick={() => setCatModal(c)} className="p-2 text-gray-600"><Pencil className="h-4 w-4" /></button>
-                <button type="button" onClick={() => adminDuplicateCategory(c.id, branchId, user).then(() => { show('Categoría duplicada'); load(); })} className="p-2 text-blue-600"><Copy className="h-4 w-4" /></button>
+                {canManageMenu && (
+                  <>
+                    <button type="button" onClick={() => moveCategory(c, -1)} disabled={i === 0} className="p-1" title="Subir"><ArrowUp className="h-4 w-4" /></button>
+                    <button type="button" onClick={() => moveCategory(c, 1)} disabled={i === categories.length - 1} className="p-1" title="Bajar"><ArrowDown className="h-4 w-4" /></button>
+                    <button type="button" onClick={() => setCatModal(c)} className="p-2 text-gray-600" title="Editar"><Pencil className="h-4 w-4" /></button>
+                    <button type="button" onClick={() => deleteCategory(c)} className="p-2 text-red-600" title="Eliminar"><Trash2 className="h-4 w-4" /></button>
+                    <button type="button" onClick={() => adminDuplicateCategory(c.id, branchId, user).then(() => { show('Categoría duplicada'); load(); })} className="p-2 text-blue-600" title="Duplicar"><Copy className="h-4 w-4" /></button>
+                  </>
+                )}
               </div>
             ))}
+            {!categories.length && (
+              <p className="py-8 text-center text-sm text-gray-500">
+                Sin categorías. {canManageMenu ? 'Crea la primera con el botón de arriba.' : ''}
+              </p>
+            )}
           </div>
         </div>
       )}

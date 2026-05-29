@@ -51,6 +51,9 @@ CREATE TABLE IF NOT EXISTS categories (
 CREATE INDEX IF NOT EXISTS idx_categories_branch ON categories(branch_id);
 CREATE INDEX IF NOT EXISTS idx_categories_branch_order ON categories(branch_id, display_order);
 
+-- Una categoría por nombre en cada sucursal (evita triplicados al re-ejecutar seed)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_branch_name_unique ON categories(branch_id, name);
+
 -- -----------------------------------------------------------------------------
 -- PRODUCTOS (por sucursal y categoría)
 -- -----------------------------------------------------------------------------
