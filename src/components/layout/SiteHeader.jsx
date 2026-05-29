@@ -5,10 +5,10 @@ import {
 } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { useBranch } from '../../context/BranchContext';
+import { useBranchMenu } from '../../context/BranchMenuContext';
 import { useAuth } from '../../context/AuthContext';
 import { isBranchOpenNow } from '../../services/branchService';
 import { money } from '../../utils/format';
-import { CATEGORY_ORDER, CATEGORY_META } from '../../utils/constants';
 import { AuthModal } from '../auth/AuthModal';
 
 function selectBranchWithCartConfirm(b, branch, setBranch, resetForBranch, items, cartBranchId, onDone) {
@@ -22,14 +22,19 @@ function selectBranchWithCartConfirm(b, branch, setBranch, resetForBranch, items
   onDone?.();
 }
 
-const NAV_MENU = [
-  { label: 'INICIO', path: '/', slug: null },
-  ...CATEGORY_ORDER.map((slug) => ({
-    label: CATEGORY_META[slug]?.title || slug,
-    path: `/tienda?cat=${slug}`,
-    slug,
-  })),
-];
+const NAV_HOME = { label: 'INICIO', path: '/', categoryId: null };
+
+function buildNavMenu(categories) {
+  return [
+    NAV_HOME,
+    ...categories.map((c) => ({
+      label: c.name,
+      path: `/tienda?cat=${c.id}`,
+      categoryId: c.id,
+      slug: c.slug,
+    })),
+  ];
+}
 
 function formatSchedule(branch) {
   const raw = branch?.schedule || branch?.opening_hours;
@@ -61,7 +66,8 @@ function isNavActive(item, location) {
   if (item.path === '/') return location.pathname === '/';
   if (location.pathname !== '/tienda') return false;
   const params = new URLSearchParams(location.search);
-  return params.get('cat') === item.slug;
+  const cat = params.get('cat');
+  return cat === item.categoryId || cat === item.slug;
 }
 
 function BranchDropdown({
@@ -132,6 +138,8 @@ function BranchDropdown({
 export function SiteHeader({ onOpenCart, variant = 'full' }) {
   const { itemCount, subtotal, items, cartBranchId, resetForBranch } = useCart();
   const { branch, branches, setBranch } = useBranch();
+  const { categories } = useBranchMenu();
+  const navMenu = buildNavMenu(categories);
   const { isAuthenticated, isCustomer, isStaff, profile } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -433,28 +441,30 @@ export function SiteHeader({ onOpenCart, variant = 'full' }) {
         {/* ═══════════════ PC: navegación + búsqueda (negro profundo) ═══════════════ */}
         {showNav && (
           <nav className="hidden border-b border-white/[0.06] bg-[#0a0a0a] lg:block">
-            <div className="mx-auto flex max-w-[1400px] items-center gap-2 px-4">
-              <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto scrollbar-hide py-1 pr-2">
-                {NAV_MENU.map((item) => {
-                  const active = isNavActive(item, location);
-                  return (
-                    <Link
-                      key={item.label}
-                      to={item.path}
-                      className={`font-brand shrink-0 whitespace-nowrap px-4 py-3.5 text-base font-bold antialiased transition xl:px-5 xl:text-[17px] ${
-                        active
-                          ? 'rounded-md bg-zinc-800 text-white shadow-sm ring-1 ring-white/15'
-                          : 'text-white hover:bg-white/10 hover:text-white'
-                      }`}
-                    >
-                      {item.label}
-                    </Link>
-                  );
-                })}
+            <div className="relative mx-auto max-w-[1400px] px-4">
+              <div className="flex items-center justify-center py-1 pr-14">
+                <div className="flex max-w-full flex-wrap items-center justify-center gap-1">
+                  {navMenu.map((item) => {
+                    const active = isNavActive(item, location);
+                    return (
+                      <Link
+                        key={item.categoryId || 'inicio'}
+                        to={item.path}
+                        className={`font-brand shrink-0 whitespace-nowrap px-4 py-3.5 text-base font-bold antialiased transition xl:px-5 xl:text-[17px] ${
+                          active
+                            ? 'rounded-md bg-zinc-800 text-white shadow-sm ring-1 ring-white/15'
+                            : 'text-white hover:bg-white/10 hover:text-white'
+                        }`}
+                      >
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                </div>
               </div>
 
-              {/* Buscador colapsable: solo icono → expande al hacer clic */}
-              <div className="relative shrink-0 py-2 pl-1">
+              {/* Buscador colapsable: anclado a la derecha */}
+              <div className="absolute right-4 top-1/2 z-[46] -translate-y-1/2 py-2">
                 {searchExpanded && (
                   <button
                     type="button"
@@ -542,11 +552,11 @@ export function SiteHeader({ onOpenCart, variant = 'full' }) {
 
               <p className="mt-6 mb-2 text-[10px] font-bold uppercase tracking-widest text-gray-400">Categorías</p>
               <nav className="space-y-0.5">
-                {NAV_MENU.map((item) => {
+                {navMenu.map((item) => {
                   const active = isNavActive(item, location);
                   return (
                     <Link
-                      key={item.label}
+                      key={item.categoryId || 'inicio'}
                       to={item.path}
                       onClick={() => setMobileOpen(false)}
                       className={`font-brand block rounded-lg px-3 py-3 text-[15px] font-semibold ${
@@ -606,5 +616,3 @@ export function SiteHeader({ onOpenCart, variant = 'full' }) {
     </>
   );
 }
-
-export { NAV_MENU as NAV_LINKS };

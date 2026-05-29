@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Flame, MapPin, Phone, Clock, Bike, ChevronRight, Plus, Star, Shield, ChefHat,
@@ -12,7 +11,7 @@ import { WhatsAppFab } from '../components/layout/WhatsAppFab';
 import { CartDrawer } from '../components/cart/CartDrawer';
 import { useCart } from '../context/CartContext';
 import { useBranch } from '../context/BranchContext';
-import { loadBranchMenu } from '../services/menuService';
+import { useBranchMenu } from '../context/BranchMenuContext';
 import { isBranchOpenNow } from '../services/branchService';
 import { money } from '../utils/format';
 
@@ -38,21 +37,17 @@ export function Home() {
   const { setIsOpen, addItem } = useCart();
   const { branch, branches, setBranch } = useBranch();
   const navigate = useNavigate();
-  const [menu, setMenu] = useState({ categories: [], productsByCategory: {}, products: [] });
-  useEffect(() => {
-    if (!branch?.id) return;
-    loadBranchMenu(branch.id).then(setMenu);
-  }, [branch?.id]);
+  const { categories, productsByCategory, products: menuProducts } = useBranchMenu();
 
   const promos = (() => {
-    const featured = menu.products.filter((p) => p.isPromotion || p.isFeatured);
+    const featured = menuProducts.filter((p) => p.isPromotion || p.isFeatured);
     if (featured.length) return featured.slice(0, 4);
-    const first = menu.productsByCategory[menu.categories[0]?.id] || [];
+    const first = productsByCategory[categories[0]?.id] || [];
     return first.slice(0, 4);
   })();
-  const bestsellers = menu.products.slice(0, 6);
-  const menuCircles = menu.categories.slice(0, 8).map((c) => ({
-    slug: c.slug || c.id,
+  const bestsellers = menuProducts.slice(0, 6);
+  const menuCircles = categories.slice(0, 8).map((c) => ({
+    id: c.id,
     label: c.name,
     img: imgSrc(c.imageUrl || c.image),
   }));
@@ -241,8 +236,8 @@ export function Home() {
           <div className="flex justify-center gap-6 overflow-x-auto pb-4 scrollbar-hide">
             {menuCircles.length ? menuCircles.map((c) => (
               <Link
-                key={c.slug}
-                to={`/tienda?cat=${c.slug}`}
+                key={c.id}
+                to={`/tienda?cat=${c.id}`}
                 className="group flex w-28 shrink-0 flex-col items-center gap-3"
               >
                 <div className="h-24 w-24 overflow-hidden rounded-full border-4 border-pollon-red/20 shadow-lg transition group-hover:border-pollon-red">

@@ -1,5 +1,6 @@
 import { getSupabase, isSupabaseConfigured } from './supabaseClient';
 import { logAudit } from './auditService';
+import { CORE_CATEGORY_NAMES, sortStoreCategories } from '../utils/constants';
 
 function sb() {
   const client = getSupabase();
@@ -62,7 +63,7 @@ export async function loadBranchMenu(branchId) {
     .order('display_order', { ascending: true });
   if (prodErr) throw prodErr;
 
-  const categories = dedupeCategories((cats || []).map(mapCategory));
+  const categories = sortStoreCategories(dedupeCategories((cats || []).map(mapCategory)));
   const products = (prods || []).map(mapProduct);
   const productsByCategory = {};
   categories.forEach((c) => { productsByCategory[c.id] = []; });
@@ -96,7 +97,7 @@ export async function adminListCategories(branchId) {
     .eq('branch_id', branchId)
     .order('display_order', { ascending: true });
   if (error) throw error;
-  return dedupeCategories((data || []).map(mapCategory));
+  return sortStoreCategories(dedupeCategories((data || []).map(mapCategory)));
 }
 
 export async function adminCountProductsInCategory(categoryId) {
@@ -123,13 +124,32 @@ export async function adminUpsertCategory(category, user) {
     throw new Error(`Ya existe la categoría "${name}" en esta sucursal`);
   }
 
+  const isCore = CORE_CATEGORY_NAMES.some((n) => n.toLowerCase() === name.toLowerCase());
+  let displayOrder = category.displayOrder ?? 0;
+  if (!category.id && !isCore) {
+    const coreIdx = CORE_CATEGORY_NAMES.findIndex((n) => n.toLowerCase() === name.toLowerCase());
+    if (coreIdx < 0) {
+      const { data: maxRow } = await sb()
+        .from('categories')
+        .select('display_order')
+        .eq('branch_id', category.branchId)
+        .order('display_order', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      displayOrder = Math.max(4, (maxRow?.display_order ?? 3) + 1);
+    }
+  } else if (isCore) {
+    const coreIdx = CORE_CATEGORY_NAMES.findIndex((n) => n.toLowerCase() === name.toLowerCase());
+    displayOrder = coreIdx + 1;
+  }
+
   const row = {
     id: category.id || undefined,
     branch_id: category.branchId,
     name,
     description: category.description || '',
     image_url: category.imageUrl || '',
-    display_order: category.displayOrder ?? 0,
+    display_order: displayOrder,
     is_active: category.isActive !== false,
   };
   const { data, error } = await sb().from('categories').upsert(row).select().single();
@@ -295,6 +315,27 @@ export async function adminDuplicateCategory(categoryId, targetBranchId, user) {
     await adminDuplicateProduct(p.id, targetBranchId, newCat.id, user);
   }
   return newCat;
+}
+
+/** Suscripción en tiempo real al menú de una sucursal */
+export function subscribeBranchMenu(branchId, onSync) {
+  if (!branchId || !isSupabaseConfigured()) return () => {};
+  const client = getSupabase();
+  if (!client) return () => {};
+  const channel = client
+    .channel(`menu-${branchId}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'categories', filter: `branch_id=eq.${branchId}` },
+      onSync,
+    )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'products', filter: `branch_id=eq.${branchId}` },
+      onSync,
+    )
+    .subscribe();
+  return () => { client.removeChannel(channel); };
 }
 
 export async function uploadProductImage(file, branchId) {

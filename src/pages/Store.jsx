@@ -8,7 +8,7 @@ import { ProductCard } from '../components/product/ProductCard';
 import { ProductModal } from '../components/product/ProductModal';
 import { useCart } from '../context/CartContext';
 import { useBranch } from '../context/BranchContext';
-import { loadBranchMenu } from '../services/menuService';
+import { useBranchMenu } from '../context/BranchMenuContext';
 import { Search } from 'lucide-react';
 
 export function Store() {
@@ -16,9 +16,7 @@ export function Store() {
   const catParam = searchParams.get('cat');
   const qParam = searchParams.get('q') || '';
 
-  const [categories, setCategories] = useState([]);
-  const [productsByCategory, setProductsByCategory] = useState({});
-  const [loading, setLoading] = useState(true);
+  const { categories, productsByCategory, loading: menuLoading } = useBranchMenu();
   const [categoryId, setCategoryId] = useState('');
   const [search, setSearch] = useState(qParam);
   const [selected, setSelected] = useState(null);
@@ -26,21 +24,19 @@ export function Store() {
   const { branch, branchOpen, loading: branchLoading } = useBranch();
 
   useEffect(() => {
-    if (!branch?.id) {
-      setLoading(false);
+    if (!categories.length) {
+      setCategoryId('');
       return;
     }
-    setLoading(true);
-    loadBranchMenu(branch.id).then(({ categories: cats, productsByCategory: grouped }) => {
-      setCategories(cats);
-      setProductsByCategory(grouped);
-      const first = catParam && cats.find((c) => c.id === catParam || c.slug === catParam)
-        ? cats.find((c) => c.id === catParam || c.slug === catParam)?.id
-        : cats[0]?.id;
-      setCategoryId(first || '');
-      setLoading(false);
-    }).catch(() => setLoading(false));
-  }, [branch?.id, catParam]);
+    const match = catParam
+      ? categories.find((c) => c.id === catParam || c.slug === catParam)
+      : null;
+    const nextId = match?.id || categories[0]?.id || '';
+    setCategoryId((prev) => {
+      if (prev && categories.some((c) => c.id === prev)) return prev;
+      return nextId;
+    });
+  }, [categories, catParam]);
 
   useEffect(() => { setSearch(qParam); }, [qParam]);
 
@@ -61,6 +57,7 @@ export function Store() {
     );
   }, [categories, productsByCategory, search]);
 
+  const loading = branchLoading || menuLoading;
 
   if (branchLoading) {
     return <div className="flex min-h-screen items-center justify-center">Cargando sucursal…</div>;
@@ -111,12 +108,16 @@ export function Store() {
               className="w-full rounded-xl border border-gray-200 py-2.5 pl-10 pr-4 text-sm"
             />
           </form>
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+          <div className="flex flex-wrap justify-center gap-2 pb-1">
             {categories.map((cat) => (
               <button
                 key={cat.id}
                 type="button"
-                onClick={() => { setCategoryId(cat.id); setSearch(''); setSearchParams({}); }}
+                onClick={() => {
+                  setCategoryId(cat.id);
+                  setSearch('');
+                  setSearchParams({ cat: cat.id });
+                }}
                 className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-bold whitespace-nowrap ${
                   categoryId === cat.id && !search ? 'bg-pollon-red text-white' : 'bg-gray-100 text-gray-700'
                 }`}

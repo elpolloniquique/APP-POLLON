@@ -5,24 +5,34 @@ export const BRANCH_KEY = 'pollon_branch_v1';
 export const CART_KEY = 'pollon_cart_v2';
 export const CUSTOMER_SESSION_KEY = 'pollon_customer_v1';
 
-export const CATEGORY_ORDER = [
-  'ofertas-familiares',
-  'ofertas-dos',
-  'ofertas-personales',
-  'platos-extras',
-  'agregados',
-  'bebidas',
-  'descartables',
+/** Categorías base: siempre primero en tienda y navegación */
+export const CORE_CATEGORY_NAMES = [
+  'Ofertas Familiares',
+  'Ofertas para Dos',
+  'Ofertas Personales',
 ];
+
+/** Orden fijo de las 3 categorías base; el resto va después por display_order */
+export function sortStoreCategories(categories) {
+  if (!categories?.length) return [];
+  const byCoreIndex = new Map();
+  const rest = [];
+  for (const c of categories) {
+    const idx = CORE_CATEGORY_NAMES.findIndex(
+      (n) => n.toLowerCase() === (c.name || '').trim().toLowerCase(),
+    );
+    if (idx >= 0) byCoreIndex.set(idx, c);
+    else rest.push(c);
+  }
+  const core = CORE_CATEGORY_NAMES.map((_, i) => byCoreIndex.get(i)).filter(Boolean);
+  rest.sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
+  return [...core, ...rest];
+}
 
 export const CATEGORY_META = {
   'ofertas-familiares': { title: 'Ofertas Familiares', emoji: '👨‍👩‍👧‍👦' },
   'ofertas-dos': { title: 'Ofertas para Dos', emoji: '👫' },
   'ofertas-personales': { title: 'Ofertas Personales', emoji: '🧑' },
-  'platos-extras': { title: 'Platos Extras', emoji: '🍽️' },
-  agregados: { title: 'Agregados', emoji: '➕' },
-  bebidas: { title: 'Bebidas', emoji: '🥤' },
-  descartables: { title: 'Descartables', emoji: '🍴' },
 };
 
 /** Estados internos del pedido */
