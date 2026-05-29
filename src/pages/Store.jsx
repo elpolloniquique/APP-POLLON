@@ -9,6 +9,7 @@ import { ProductModal } from '../components/product/ProductModal';
 import { useCart } from '../context/CartContext';
 import { useBranch } from '../context/BranchContext';
 import { useBranchMenu } from '../context/BranchMenuContext';
+import { CategoryScrollBar } from '../components/store/CategoryScrollBar';
 import { Search } from 'lucide-react';
 
 export function Store() {
@@ -108,24 +109,15 @@ export function Store() {
               className="w-full rounded-xl border border-gray-200 py-2.5 pl-10 pr-4 text-sm"
             />
           </form>
-          <div className="flex flex-wrap justify-center gap-2 pb-1">
-            {categories.map((cat) => (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => {
-                  setCategoryId(cat.id);
-                  setSearch('');
-                  setSearchParams({ cat: cat.id });
-                }}
-                className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-bold whitespace-nowrap ${
-                  categoryId === cat.id && !search ? 'bg-pollon-red text-white' : 'bg-gray-100 text-gray-700'
-                }`}
-              >
-                {cat.name}
-              </button>
-            ))}
-          </div>
+          <CategoryScrollBar
+            items={categories}
+            activeId={search ? null : categoryId}
+            onSelect={(cat) => {
+              setCategoryId(cat.id);
+              setSearch('');
+              setSearchParams({ cat: cat.id });
+            }}
+          />
         </div>
       </div>
 
