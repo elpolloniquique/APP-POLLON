@@ -1,3 +1,5 @@
+import { buildOrderReceiptText } from './orderReceipt';
+
 const CURRENCY = new Intl.NumberFormat('es-CL', {
   style: 'currency',
   currency: 'CLP',
@@ -81,41 +83,5 @@ export function wrapText(text, maxLen = TICKET_LINE_LENGTH) {
 }
 
 export function buildWhatsappMessage(order, branch) {
-  const customer = order.customer || {};
-  const items = order.items || [];
-  const fechaBase = order.createdAt ? new Date(order.createdAt) : new Date();
-  const fechaStr = fechaBase.toLocaleDateString('es-CL');
-  const horaStr = fechaBase.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
-  const ticket = String(order.ticketNumber || order.codigo_pedido || '001').padStart(3, '0');
-  const sucursal = branch?.name || 'El Pollón';
-
-  let msg = `◆ ${(order.orderType || 'delivery').toUpperCase()} - POLLERÍA EL POLLÓN ◆\n\n`;
-  msg += `Sucursal: ${sucursal}\n`;
-  msg += `${ticket}    ${fechaStr}    ${horaStr}\n`;
-  msg += `────────────────────────────────\n`;
-  msg += `◆ DATOS DEL CLIENTE\n`;
-  msg += `────────────────────────────────\n\n`;
-  msg += `◆ Nombre:   ${customer.name || '-'}\n`;
-  msg += `◆ Teléfono: ${customer.phone || '-'}\n`;
-  const addr = wrapText(customer.address);
-  msg += `◆ Dirección:\n${addr ? addr.split('\n').map((l) => `   ${l}`).join('\n') : '   -'}\n\n`;
-  if (customer.comments?.trim()) {
-    msg += `◆ Observaciones:\n${wrapText(customer.comments).split('\n').map((l) => `   ${l}`).join('\n')}\n\n`;
-  }
-  msg += `────────────────────────────────\n`;
-  msg += `◆ DETALLE DEL PEDIDO\n`;
-  msg += `────────────────────────────────\n\n`;
-  items.forEach((it) => {
-    const qty = it.qty ?? 1;
-    msg += `◆ ${qty}x ${it.name}\n`;
-    if (it.drink) msg += `   🥤 ${it.drink}\n`;
-    if (it.bagQty > 0) msg += `   ♻️ Bolsa x${it.bagQty}\n`;
-    if (it.notes) msg += `   📝 ${it.notes}\n`;
-    msg += `   $${(it.total || 0).toLocaleString('es-CL')}\n\n`;
-  });
-  if (order.deliveryFee > 0) msg += `Delivery: $${order.deliveryFee.toLocaleString('es-CL')}\n`;
-  msg += `────────────────────────────────\n`;
-  msg += `◆ TOTAL: $${(order.total || 0).toLocaleString('es-CL')}\n`;
-  msg += `◆ Pago: ${order.metodo_pago || 'whatsapp'}\n`;
-  return msg;
+  return buildOrderReceiptText(order, branch);
 }
