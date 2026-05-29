@@ -469,20 +469,88 @@ export function subscribeBranchMenu(branchId, onSync) {
   return () => { client.removeChannel(channel); };
 }
 
+const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif']);
+const EXT_TO_MIME = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  gif: 'image/gif',
+  heic: 'image/heic',
+  heif: 'image/heif',
+};
+
+function fileExtension(name) {
+  return (name.split('.').pop() || '').toLowerCase();
+}
+
+export function isImageFile(file) {
+  if (!file) return false;
+  if (file.type?.startsWith('image/')) return true;
+  return IMAGE_EXTENSIONS.has(fileExtension(file.name));
+}
+
+function resolveContentType(file) {
+  if (file.type?.startsWith('image/')) return file.type;
+  return EXT_TO_MIME[fileExtension(file.name)] || 'image/jpeg';
+}
+
+function mapStorageError(error) {
+  const msg = (error?.message || '').toLowerCase();
+  if (msg.includes('bucket') && msg.includes('not found')) {
+    return 'Bucket de imágenes no configurado. Ejecuta storage.sql en Supabase.';
+  }
+  if (msg.includes('row-level security') || msg.includes('policy')) {
+    return 'Sin permiso para subir. Cierra sesión, vuelve a entrar al admin e intenta de nuevo.';
+  }
+  if (msg.includes('payload too large') || msg.includes('file size')) {
+    return 'La imagen es muy pesada. Máximo 5 MB por archivo.';
+  }
+  if (msg.includes('mime') || msg.includes('invalid')) {
+    return 'Formato no permitido. Usa JPG, PNG, WebP o GIF.';
+  }
+  return error?.message || 'Error al subir la imagen';
+}
+
 export async function uploadProductImage(file, branchId) {
+  if (!isImageFile(file)) {
+    throw new Error(`"${file.name}" no es una imagen válida (JPG, PNG, WebP, GIF)`);
+  }
+
+  const client = sb();
+  const { data: { session } } = await client.auth.getSession();
+  if (!session) {
+    throw new Error('Sesión expirada. Vuelve a iniciar sesión en el panel admin.');
+  }
+
   const bucket = import.meta.env.VITE_STORAGE_BUCKET || 'product-images';
-  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
-  const path = `${branchId || 'general'}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-  const { error } = await sb().storage.from(bucket).upload(path, file, { cacheControl: '3600', upsert: true });
-  if (error) throw error;
-  const { data } = sb().storage.from(bucket).getPublicUrl(path);
+  const ext = fileExtension(file.name) || 'jpg';
+  const safeExt = IMAGE_EXTENSIONS.has(ext) ? ext : 'jpg';
+  const path = `${branchId || 'general'}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${safeExt}`;
+  const contentType = resolveContentType(file);
+
+  const { error } = await client.storage.from(bucket).upload(path, file, {
+    cacheControl: '3600',
+    upsert: true,
+    contentType,
+  });
+  if (error) throw new Error(mapStorageError(error));
+
+  const { data } = client.storage.from(bucket).getPublicUrl(path);
   return data.publicUrl;
 }
 
 export async function uploadProductImages(files, branchId) {
-  const list = [...files].filter((f) => f.type.startsWith('image/'));
-  if (!list.length) throw new Error('Selecciona al menos una imagen válida');
-  return Promise.all(list.map((f) => uploadProductImage(f, branchId)));
+  const list = [...files].filter(isImageFile);
+  if (!list.length) {
+    throw new Error('Ningún archivo válido. Selecciona JPG, PNG, WebP o GIF desde tu carpeta.');
+  }
+  const skipped = files.length - list.length;
+  const urls = await Promise.all(list.map((f) => uploadProductImage(f, branchId)));
+  if (skipped > 0 && urls.length) {
+    return { urls, warning: `${skipped} archivo(s) ignorado(s) por formato no válido` };
+  }
+  return { urls, warning: null };
 }
 
 export { isSupabaseConfigured };

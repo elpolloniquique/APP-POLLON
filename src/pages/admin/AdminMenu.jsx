@@ -158,17 +158,22 @@ export function AdminMenu() {
 
   const handleProductImagesUpload = async (files) => {
     if (!files?.length) return;
+    if (!branchId) {
+      show('Selecciona una sucursal antes de subir imágenes');
+      return;
+    }
     setUploadingImages(true);
     try {
-      const urls = await uploadProductImages(files, branchId);
+      const result = await uploadProductImages(files, branchId);
+      const urls = result.urls || result;
       setProdModal((p) => {
         const prev = p.imageUrls || (p.imageUrl ? [p.imageUrl] : []);
         const merged = [...prev, ...urls].slice(0, 12);
         return { ...p, imageUrls: merged, imageUrl: merged[0] || '' };
       });
-      show(`${urls.length} imagen(es) subida(s)`);
+      show(result.warning ? `${urls.length} imagen(es) subida(s). ${result.warning}` : `${urls.length} imagen(es) subida(s)`);
     } catch (err) {
-      show(err.message);
+      show(err.message || 'No se pudo subir la imagen');
     } finally {
       setUploadingImages(false);
     }
@@ -184,13 +189,19 @@ export function AdminMenu() {
   const handleImage = async (e, target) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!branchId) {
+      show('Selecciona una sucursal antes de subir imágenes');
+      return;
+    }
     try {
       const url = await uploadProductImage(file, branchId);
       if (target === 'cat') setCatModal((c) => ({ ...c, imageUrl: url }));
       else setProdModal((p) => ({ ...p, imageUrl: url }));
       show('Imagen subida');
     } catch (err) {
-      show(err.message);
+      show(err.message || 'No se pudo subir la imagen');
+    } finally {
+      e.target.value = '';
     }
   };
 
