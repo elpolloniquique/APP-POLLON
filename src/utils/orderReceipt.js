@@ -6,6 +6,11 @@ const WA_TEXT = '#e9edef';
 const WA_ACCENT = '#25d366';
 const WA_LINE = 'rgba(255,255,255,0.35)';
 
+/** 80mm ≈ 302px — ancho ticket térmico */
+const THERMAL_MM = '80mm';
+const THERMAL_PX = 302;
+const WIN_WIDTH = 340;
+
 export function paymentLabel(method) {
   const m = PAYMENT_METHODS.find((p) => p.id === method);
   return m?.label || (method === 'whatsapp' ? 'WhatsApp' : method || '—');
@@ -120,28 +125,41 @@ export function buildThermalReceiptHtml(order, branch) {
 <html lang="es">
 <head>
 <meta charset="utf-8"/>
-<meta name="viewport" content="width=302"/>
+<meta name="viewport" content="width=${THERMAL_PX}"/>
 <title>Pedido ${esc(m.ticket)}</title>
 <style>
-  @page { size: 80mm auto; margin: 0; }
-  html, body {
-    width: 80mm;
-    min-height: 40mm;
+  @page {
+    size: ${THERMAL_MM} auto;
+    margin: 0;
+  }
+  * { box-sizing: border-box; }
+  html {
+    width: ${THERMAL_MM};
+    max-width: ${THERMAL_MM};
+    min-width: ${THERMAL_MM};
     margin: 0;
     padding: 0;
-    background: ${WA_BG} !important;
-    color: ${WA_TEXT} !important;
+    overflow-x: hidden;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
-    color-adjust: exact !important;
   }
   body {
+    width: ${THERMAL_MM};
+    max-width: ${THERMAL_MM};
+    min-width: ${THERMAL_MM};
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-    font-size: 13px;
-    line-height: 1.45;
-    padding: 10px 12px 14px;
+    font-size: 12px;
+    line-height: 1.4;
+    background: ${WA_BG};
+    color: ${WA_TEXT};
   }
-  .ticket { width: 100%; max-width: 72mm; margin: 0 auto; }
+  .ticket {
+    width: 100%;
+    padding: 10px 10px 12px;
+  }
   .title {
     text-align: center;
     font-weight: 700;
@@ -179,29 +197,41 @@ export function buildThermalReceiptHtml(order, branch) {
   .delivery { margin: 6px 0; }
   .total-block { margin-top: 4px; }
   .total-block .row { font-weight: 700; font-size: 14px; }
-  .no-print {
-    margin-top: 12px;
-    text-align: center;
-    font-size: 11px;
-    opacity: 0.7;
+  .print-hint {
+    display: none;
   }
-  /* Pantalla previa: estilo WhatsApp verde */
   @media screen {
-    html, body { background: ${WA_BG}; color: ${WA_TEXT}; }
+    html {
+      background: #1a1a1a;
+    }
+    body {
+      box-shadow: 0 8px 32px rgba(0,0,0,0.45);
+    }
   }
-  /* Impresión térmica 80mm: texto negro sobre blanco (evita hoja en blanco) */
   @media print {
+    @page {
+      size: ${THERMAL_MM} auto;
+      margin: 0;
+    }
     html, body {
-      width: 80mm !important;
+      width: ${THERMAL_MM} !important;
+      max-width: ${THERMAL_MM} !important;
+      min-width: ${THERMAL_MM} !important;
+      height: auto !important;
+      min-height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
       background: #fff !important;
       color: #000 !important;
+      box-shadow: none !important;
     }
+    .ticket { padding: 6px 8px 8px !important; }
     .title, .row, .section-head, .sucursal, .meta-row, .sub, .price, .delivery, .addr-line {
       color: #000 !important;
     }
     .meta-date, .accent { color: #0d5c3d !important; font-weight: 700 !important; }
     .hr { border-top-color: #000 !important; }
-    .no-print { display: none !important; }
+    .print-hint { display: none !important; }
   }
 </style>
 </head>
@@ -238,84 +268,84 @@ export function buildThermalReceiptHtml(order, branch) {
     <div class="row">◆ Pago: ${esc(m.payment)}</div>
   </div>
 </div>
-<p class="no-print">Cerrar después de imprimir</p>
 </body>
 </html>`;
 }
 
-const PRINT_FRAME_ID = 'pollon-receipt-print-root';
+let printWinRef = null;
 
-/** Imprime ticket 80mm (iframe + ventana de respaldo) */
+/** Imprime ticket 80mm en ventana compacta (tamaño rollo térmico) */
 export function printThermalReceipt(order, branch) {
   if (!order) throw new Error('Pedido no válido');
-
   const html = buildThermalReceiptHtml(order, branch);
-
-  // Método 1: iframe oculto (más fiable en Chrome/Edge)
-  try {
-    let frame = document.getElementById(PRINT_FRAME_ID);
-    if (frame) frame.remove();
-
-    frame = document.createElement('iframe');
-    frame.id = PRINT_FRAME_ID;
-    frame.setAttribute('title', 'Imprimir pedido');
-    frame.style.cssText = 'position:fixed;left:-9999px;top:0;width:80mm;height:600px;border:0;';
-    document.body.appendChild(frame);
-
-    const doc = frame.contentDocument || frame.contentWindow?.document;
-    if (!doc) throw new Error('No iframe document');
-
-    doc.open();
-    doc.write(html);
-    doc.close();
-
-    const printFrame = () => {
-      setTimeout(() => {
-        try {
-          frame.contentWindow?.focus();
-          frame.contentWindow?.print();
-        } catch (e) {
-          console.warn('[Pollón] print iframe:', e);
-          openPrintWindow(html);
-        }
-      }, 500);
-    };
-
-    if (frame.contentWindow?.document?.readyState === 'complete') {
-      printFrame();
-    } else {
-      frame.onload = printFrame;
-      setTimeout(printFrame, 800);
-    }
-    return;
-  } catch (e) {
-    console.warn('[Pollón] iframe print failed:', e);
-  }
-
-  openPrintWindow(html);
+  openCompactPrintWindow(html);
 }
 
-function openPrintWindow(html) {
+function openCompactPrintWindow(html) {
+  if (printWinRef && !printWinRef.closed) {
+    try {
+      printWinRef.close();
+    } catch {
+      /* ignore */
+    }
+  }
+
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
   const url = URL.createObjectURL(blob);
-  const win = window.open(url, '_blank', 'noopener,noreferrer,width=400,height=700');
+
+  const left = Math.max(0, Math.round((window.screen.width - WIN_WIDTH) / 2));
+  const top = Math.max(0, 40);
+  const features = [
+    `width=${WIN_WIDTH}`,
+    'height=480',
+    `left=${left}`,
+    `top=${top}`,
+    'menubar=no',
+    'toolbar=no',
+    'location=no',
+    'status=no',
+    'resizable=yes',
+    'scrollbars=yes',
+  ].join(',');
+
+  const win = window.open(url, 'pollon_ticket_print', features);
 
   if (!win) {
     URL.revokeObjectURL(url);
     throw new Error('Permite ventanas emergentes para imprimir el ticket');
   }
 
-  const cleanup = () => URL.revokeObjectURL(url);
-  const trigger = () => {
+  printWinRef = win;
+
+  const fitWindowToTicket = () => {
+    try {
+      const doc = win.document;
+      const contentH = Math.max(
+        doc.body?.scrollHeight || 0,
+        doc.documentElement?.scrollHeight || 0,
+        320
+      );
+      const chrome = win.outerHeight - win.innerHeight;
+      const targetH = Math.min(contentH + chrome + 16, 720);
+      win.resizeTo(WIN_WIDTH, targetH);
+    } catch {
+      win.resizeTo(WIN_WIDTH, 480);
+    }
+  };
+
+  const runPrint = () => {
+    fitWindowToTicket();
     setTimeout(() => {
       try {
         win.focus();
         win.print();
-      } finally {
-        cleanup();
+      } catch (e) {
+        console.warn('[Pollón] print:', e);
       }
-    }, 700);
+      URL.revokeObjectURL(url);
+    }, 450);
   };
-  win.addEventListener('load', trigger);
-  setTimeout(trigger, 1200);
+
+  win.addEventListener('load', runPrint);
+  setTimeout(runPrint, 900);
 }
