@@ -17,8 +17,10 @@ import {
   adminDuplicateProduct,
   adminReorderCategory,
   uploadProductImage,
+  uploadProductImages,
   isSupabaseConfigured,
 } from '../../services/menuService';
+import { ProductImagesEditor } from '../../components/admin/ProductImagesEditor';
 import { getAuditLogs } from '../../services/auditService';
 import { money } from '../../utils/format';
 import { useToast } from '../../hooks/useToast';
@@ -32,7 +34,7 @@ const emptyCat = (branchId) => ({
 });
 
 const emptyProd = (branchId, categoryId) => ({
-  branchId, categoryId, name: '', description: '', imageUrl: '', price: 0,
+  branchId, categoryId, name: '', description: '', imageUrl: '', imageUrls: [], price: 0,
   oldPrice: null, available: true, isFeatured: false, isPromotion: false, displayOrder: 0,
 });
 
@@ -56,6 +58,7 @@ export function AdminMenu() {
   const [dupTargetBranch, setDupTargetBranch] = useState('');
   const [dupTargetCat, setDupTargetCat] = useState('');
   const [dupTargetCats, setDupTargetCats] = useState([]);
+  const [uploadingImages, setUploadingImages] = useState(false);
 
   const user = { id: profile?.id, email: profile?.email };
   const role = normalizeRole(profile?.rol || profile?.role);
@@ -138,13 +141,43 @@ export function AdminMenu() {
   const saveProduct = async (e) => {
     e.preventDefault();
     try {
-      await adminUpsertProduct(prodModal, user);
+      const imageUrls = prodModal.imageUrls || [];
+      await adminUpsertProduct({
+        ...prodModal,
+        imageUrls,
+        imageUrl: imageUrls[0] || prodModal.imageUrl || '',
+      }, user);
       setProdModal(null);
       show('Producto guardado');
       load();
     } catch (err) {
       show(err.message);
     }
+  };
+
+  const handleProductImagesUpload = async (files) => {
+    if (!files?.length) return;
+    setUploadingImages(true);
+    try {
+      const urls = await uploadProductImages(files, branchId);
+      setProdModal((p) => {
+        const prev = p.imageUrls || (p.imageUrl ? [p.imageUrl] : []);
+        const merged = [...prev, ...urls].slice(0, 12);
+        return { ...p, imageUrls: merged, imageUrl: merged[0] || '' };
+      });
+      show(`${urls.length} imagen(es) subida(s)`);
+    } catch (err) {
+      show(err.message);
+    } finally {
+      setUploadingImages(false);
+    }
+  };
+
+  const openProductModal = (product) => {
+    const imageUrls = product.imageUrls?.length
+      ? product.imageUrls
+      : (product.imageUrl ? [product.imageUrl] : []);
+    setProdModal({ ...product, imageUrls, imageUrl: imageUrls[0] || product.imageUrl || '' });
   };
 
   const handleImage = async (e, target) => {
@@ -296,13 +329,24 @@ export function AdminMenu() {
                 <tbody>
                   {products.map((p) => (
                     <tr key={p.id} className="border-t hover:bg-gray-50">
-                      <td className="p-3">{p.imageUrl ? <img src={p.imageUrl} alt="" className="h-10 w-10 rounded object-cover" /> : '—'}</td>
+                      <td className="p-3">
+                        {p.imageUrl ? (
+                          <div className="relative inline-block">
+                            <img src={p.imageUrl} alt="" className="h-10 w-10 rounded object-cover" />
+                            {(p.imageUrls?.length || 0) > 1 && (
+                              <span className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-pollon-red px-1 text-[9px] font-bold text-white">
+                                {p.imageUrls.length}
+                              </span>
+                            )}
+                          </div>
+                        ) : '—'}
+                      </td>
                       <td className="p-3 font-medium">{p.name}</td>
                       <td className="p-3 text-gray-500">{p.categoryName}</td>
                       <td className="p-3 font-bold text-pollon-red">{money(p.price)}</td>
                       <td className="p-3">{p.available ? '✅' : '❌'}</td>
                       <td className="p-3">
-                        <button type="button" onClick={() => setProdModal(p)} className="mr-2 text-gray-600" title="Editar"><Pencil className="h-4 w-4 inline" /></button>
+                        <button type="button" onClick={() => openProductModal(p)} className="mr-2 text-gray-600" title="Editar"><Pencil className="h-4 w-4 inline" /></button>
                         <button type="button" onClick={() => { setDupProduct(p); setDupTargetBranch(''); setDupTargetCat(''); }} className="mr-2 text-blue-600" title="Duplicar a otra sucursal"><Copy className="h-4 w-4 inline" /></button>
                         <button type="button" onClick={() => adminUpsertProduct({ ...p, available: !p.available }, user).then(load)} className="text-amber-600" title="Cambiar disponibilidad"><Ban className="h-4 w-4 inline" /></button>
                       </td>
@@ -481,14 +525,19 @@ export function AdminMenu() {
                 <input type="number" value={prodModal.oldPrice || ''} onChange={(e) => setProdModal({ ...prodModal, oldPrice: Number(e.target.value) || null })} placeholder="Precio anterior" className="rounded-lg border px-3 py-2" />
               </div>
               <input type="number" value={prodModal.displayOrder} onChange={(e) => setProdModal({ ...prodModal, displayOrder: Number(e.target.value) })} placeholder="Orden" className="w-full rounded-lg border px-3 py-2" />
-              <input type="file" accept="image/*" onChange={(e) => handleImage(e, 'prod')} />
-              {prodModal.imageUrl && <img src={prodModal.imageUrl} alt="" className="h-24 rounded object-cover" />}
+              <ProductImagesEditor
+                imageUrls={prodModal.imageUrls || []}
+                onChange={(imageUrls) => setProdModal({ ...prodModal, imageUrls, imageUrl: imageUrls[0] || '' })}
+                onUpload={handleProductImagesUpload}
+                onError={show}
+                uploading={uploadingImages}
+              />
               <label className="flex items-center gap-2"><input type="checkbox" checked={prodModal.available} onChange={(e) => setProdModal({ ...prodModal, available: e.target.checked })} /> Disponible</label>
               <label className="flex items-center gap-2"><input type="checkbox" checked={prodModal.isFeatured} onChange={(e) => setProdModal({ ...prodModal, isFeatured: e.target.checked })} /> Destacado</label>
               <label className="flex items-center gap-2"><input type="checkbox" checked={prodModal.isPromotion} onChange={(e) => setProdModal({ ...prodModal, isPromotion: e.target.checked })} /> Promoción</label>
             </div>
             <div className="mt-4 flex gap-2">
-              <button type="submit" className="flex-1 rounded-lg bg-pollon-red py-2 font-bold text-white">Guardar</button>
+              <button type="submit" disabled={uploadingImages} className="flex-1 rounded-lg bg-pollon-red py-2 font-bold text-white disabled:opacity-50">Guardar</button>
               <button type="button" onClick={() => setProdModal(null)} className="flex-1 rounded-lg border py-2">Cancelar</button>
             </div>
           </form>

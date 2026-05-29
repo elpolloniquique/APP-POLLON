@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { X, Minus, Plus } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { money } from '../../utils/format';
@@ -15,15 +15,28 @@ export function ProductModal({ product, category, categoryName = '', onClose, on
   const [drink, setDrink] = useState('');
   const [bagQty, setBagQty] = useState(0);
   const [notes, setNotes] = useState('');
+  const [activeIdx, setActiveIdx] = useState(0);
+
+  const gallery = useMemo(() => {
+    if (!product) return [];
+    const urls = product.imageUrls?.length
+      ? product.imageUrls
+      : (product.image ? [product.image] : []);
+    return urls.map((u) => (u?.startsWith('img/') ? `/${u}` : u)).filter(Boolean);
+  }, [product?.imageUrls, product?.image]);
 
   useEffect(() => {
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = ''; };
   }, []);
 
+  useEffect(() => {
+    setActiveIdx(0);
+  }, [product?.id]);
+
   if (!product) return null;
 
-  const img = product.image?.startsWith('img/') ? `/${product.image}` : product.image || '/img/todo el menu.png';
+  const img = gallery[activeIdx] || gallery[0] || '/img/todo el menu.png';
   const showDrink = DRINK_CATEGORIES.some((c) => catLabel.includes(c.replace(/-/g, ' '))) || catLabel.includes('oferta') || catLabel.includes('combo');
   const showBag = BAG_CATEGORIES.some((c) => catLabel.includes(c.replace(/-/g, ' '))) || catLabel.includes('oferta') || catLabel.includes('plato');
   const isFamiliares = catLabel.includes('familiar');
@@ -66,6 +79,22 @@ export function ProductModal({ product, category, categoryName = '', onClose, on
           <button type="button" onClick={onClose} className="absolute right-3 top-3 rounded-full bg-black/50 p-2 text-white">
             <X className="h-5 w-5" />
           </button>
+          {gallery.length > 1 && (
+            <div className="absolute bottom-0 left-0 right-0 flex gap-1.5 overflow-x-auto bg-gradient-to-t from-black/70 to-transparent p-3 pt-8">
+              {gallery.map((url, i) => (
+                <button
+                  key={url}
+                  type="button"
+                  onClick={() => setActiveIdx(i)}
+                  className={`h-12 w-12 shrink-0 overflow-hidden rounded-lg border-2 ${
+                    activeIdx === i ? 'border-pollon-red ring-2 ring-white' : 'border-white/50 opacity-80'
+                  }`}
+                >
+                  <img src={url} alt="" className="h-full w-full object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <div className="p-5">
           <h2 className="text-xl font-bold">{product.name}</h2>

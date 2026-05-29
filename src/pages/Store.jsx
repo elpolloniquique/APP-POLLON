@@ -176,6 +176,7 @@ export function Store() {
             description: selected.product.description,
             price: selected.product.price,
             image: selected.product.image || selected.product.imageUrl,
+            imageUrls: selected.product.imageUrls,
           }}
           category={selected.categoryId}
           categoryName={categories.find((c) => c.id === selected.categoryId)?.name}

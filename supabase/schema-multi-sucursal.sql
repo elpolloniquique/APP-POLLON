@@ -52,7 +52,7 @@ CREATE INDEX IF NOT EXISTS idx_categories_branch ON categories(branch_id);
 CREATE INDEX IF NOT EXISTS idx_categories_branch_order ON categories(branch_id, display_order);
 
 -- Una categoría por nombre en cada sucursal (evita triplicados al re-ejecutar seed)
-CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_branch_name_unique ON categories(branch_id, name);
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_branch_name_unique ON categories(branch_id, name);
 
 -- -----------------------------------------------------------------------------
 -- PRODUCTOS (por sucursal y categoría)
@@ -64,6 +64,7 @@ CREATE TABLE IF NOT EXISTS products (
   name TEXT NOT NULL,
   description TEXT DEFAULT '',
   image_url TEXT DEFAULT '',
+  gallery_urls JSONB NOT NULL DEFAULT '[]'::jsonb,
   price NUMERIC(12,0) NOT NULL DEFAULT 0 CHECK (price >= 0),
   old_price NUMERIC(12,0),
   is_available BOOLEAN DEFAULT true,

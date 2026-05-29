@@ -21,15 +21,45 @@ function mapCategory(row) {
   };
 }
 
+function parseGalleryUrls(raw) {
+  if (Array.isArray(raw)) return raw.map((u) => String(u || '').trim()).filter(Boolean);
+  if (typeof raw === 'string' && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed.map((u) => String(u || '').trim()).filter(Boolean);
+    } catch {
+      return [raw.trim()];
+    }
+  }
+  return [];
+}
+
+export function normalizeProductImageUrls(imageUrl, galleryUrls) {
+  const gallery = parseGalleryUrls(galleryUrls);
+  const primary = (imageUrl || '').trim();
+  if (gallery.length) {
+    const ordered = primary && !gallery.includes(primary)
+      ? [primary, ...gallery]
+      : primary
+        ? [primary, ...gallery.filter((u) => u !== primary)]
+        : gallery;
+    const unique = [...new Set(ordered)];
+    return { imageUrl: unique[0] || '', imageUrls: unique };
+  }
+  return { imageUrl: primary, imageUrls: primary ? [primary] : [] };
+}
+
 function mapProduct(row) {
+  const images = normalizeProductImageUrls(row.image_url, row.gallery_urls);
   return {
     id: row.id,
     branchId: row.branch_id,
     categoryId: row.category_id,
     name: row.name,
     description: row.description || '',
-    image: row.image_url || '',
-    imageUrl: row.image_url || '',
+    image: images.imageUrl,
+    imageUrl: images.imageUrl,
+    imageUrls: images.imageUrls,
     price: Number(row.price) || 0,
     oldPrice: row.old_price ? Number(row.old_price) : null,
     available: row.is_available !== false,
@@ -197,13 +227,18 @@ export async function adminListProducts(branchId, filters = {}) {
 }
 
 export async function adminUpsertProduct(product, user) {
+  const images = normalizeProductImageUrls(
+    product.imageUrl || product.image,
+    product.imageUrls,
+  );
   const row = {
     id: product.id || undefined,
     branch_id: product.branchId,
     category_id: product.categoryId,
     name: product.name,
     description: product.description || '',
-    image_url: product.imageUrl || product.image || '',
+    image_url: images.imageUrl,
+    gallery_urls: images.imageUrls,
     price: product.price,
     old_price: product.oldPrice || null,
     is_available: product.available !== false,
@@ -250,6 +285,7 @@ export async function adminDuplicateProduct(productId, targetBranchId, targetCat
     name: src.name,
     description: src.description,
     image_url: src.image_url,
+    gallery_urls: src.gallery_urls || (src.image_url ? [src.image_url] : []),
     price: src.price,
     old_price: src.old_price,
     is_available: src.is_available,
@@ -286,6 +322,7 @@ export async function adminCopyMenuFromBranch(sourceBranchId, targetBranchId, us
       name: p.name,
       description: p.description,
       image_url: p.imageUrl || p.image,
+      gallery_urls: p.imageUrls?.length ? p.imageUrls : (p.imageUrl ? [p.imageUrl] : []),
       price: p.price,
       old_price: p.oldPrice,
       is_available: p.available,
@@ -341,11 +378,17 @@ export function subscribeBranchMenu(branchId, onSync) {
 export async function uploadProductImage(file, branchId) {
   const bucket = import.meta.env.VITE_STORAGE_BUCKET || 'product-images';
   const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
-  const path = `${branchId || 'general'}/${Date.now()}.${ext}`;
+  const path = `${branchId || 'general'}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
   const { error } = await sb().storage.from(bucket).upload(path, file, { cacheControl: '3600', upsert: true });
   if (error) throw error;
   const { data } = sb().storage.from(bucket).getPublicUrl(path);
   return data.publicUrl;
+}
+
+export async function uploadProductImages(files, branchId) {
+  const list = [...files].filter((f) => f.type.startsWith('image/'));
+  if (!list.length) throw new Error('Selecciona al menos una imagen válida');
+  return Promise.all(list.map((f) => uploadProductImage(f, branchId)));
 }
 
 export { isSupabaseConfigured };
