@@ -55,6 +55,55 @@
   .admin-scroll-panel::-webkit-scrollbar-thumb:hover {
     background: #94a3b8;
   }
+
+  /* ── Panel admin: scroll adaptativo ── */
+  .admin-scroll-table {
+    max-height: clamp(
+      11rem,
+      calc(100dvh - 15rem),
+      calc(2.75rem + var(--admin-scroll-rows, 7) * 3.25rem)
+    );
+  }
+  .admin-scroll-card {
+    max-height: clamp(
+      12rem,
+      calc(100dvh - 16rem),
+      calc(var(--admin-scroll-rows, 7) * 4.75rem)
+    );
+  }
+  .admin-scroll-grid {
+    max-height: clamp(
+      14rem,
+      calc(100dvh - 13rem),
+      calc(var(--admin-scroll-rows, 6) * 11rem)
+    );
+  }
+  @media (max-width: 639px) {
+    .admin-scroll-table {
+      max-height: clamp(10rem, calc(100dvh - 13rem), calc(2.5rem + var(--admin-scroll-rows, 7) * 3rem));
+    }
+    .admin-scroll-card {
+      max-height: clamp(11rem, calc(100dvh - 14rem), calc(var(--admin-scroll-rows, 7) * 4.25rem));
+    }
+    .admin-scroll-grid {
+      max-height: clamp(12rem, calc(100dvh - 12rem), 70dvh);
+    }
+  }
+  @media (min-width: 640px) and (max-width: 1280px) {
+    .admin-scroll-table {
+      max-height: clamp(12rem, calc(100dvh - 14rem), calc(2.75rem + var(--admin-scroll-rows, 7) * 3.25rem));
+    }
+  }
+  .admin-page {
+    @apply min-w-0 w-full max-w-[1600px] space-y-4 sm:space-y-5 md:space-y-6;
+  }
+  .admin-toolbar {
+    @apply flex flex-wrap gap-2 rounded-xl bg-white p-3 shadow-sm ring-1 ring-gray-100 sm:rounded-2xl sm:p-4;
+  }
+  .admin-toolbar input,
+  .admin-toolbar select {
+    @apply min-w-0 rounded-lg border border-gray-200 px-2 py-1.5 text-sm sm:px-3 sm:py-2;
+  }
   .card-hover {
     @apply transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg;
   }

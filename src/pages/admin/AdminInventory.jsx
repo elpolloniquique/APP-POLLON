@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { Button } from '../../components/ui/Button';
+import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
+import { AdminScrollPanel } from '../../components/admin/AdminScrollPanel';
 
 const STOCK_KEY = 'pollon_stock_v1';
 
@@ -32,33 +34,49 @@ export function AdminInventory() {
   const bajo = items.filter((i) => i.cantidad <= i.minimo);
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold">Control de stock</h2>
+    <div className="admin-page">
+      <AdminPageHeader title="Control de stock" subtitle="Inventario de insumos por sucursal" />
+
       {bajo.length > 0 && (
-        <div className="rounded-xl bg-red-50 p-4 text-red-800">
+        <div className="rounded-xl bg-red-50 p-3 text-sm text-red-800 sm:p-4">
           <strong>⚠️ Alerta bajo stock:</strong> {bajo.map((i) => i.nombre).join(', ')}
         </div>
       )}
-      <div className="flex flex-wrap gap-2 rounded-2xl bg-white p-4 shadow-sm">
-        <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Insumo" className="rounded-lg border px-3 py-2" />
-        <input type="number" value={cantidad} onChange={(e) => setCantidad(Number(e.target.value))} placeholder="Cantidad" className="w-24 rounded-lg border px-3 py-2" />
-        <input type="number" value={minimo} onChange={(e) => setMinimo(Number(e.target.value))} placeholder="Mín." className="w-20 rounded-lg border px-3 py-2" />
+
+      <div className="admin-toolbar">
+        <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Insumo" className="min-w-[140px] flex-1" />
+        <input type="number" value={cantidad} onChange={(e) => setCantidad(Number(e.target.value))} placeholder="Cantidad" className="w-24" />
+        <input type="number" value={minimo} onChange={(e) => setMinimo(Number(e.target.value))} placeholder="Mín." className="w-20" />
         <Button onClick={agregar}>Agregar insumo</Button>
       </div>
-      <div className="space-y-2">
-        {items.map((i) => (
-          <div key={i.id} className="flex items-center justify-between rounded-xl bg-white p-4 shadow-sm">
-            <div>
-              <p className="font-semibold">{i.nombre}</p>
-              <p className="text-sm text-gray-500">Mín: {i.minimo} · Actual: <strong className={i.cantidad <= i.minimo ? 'text-red-600' : ''}>{i.cantidad}</strong></p>
-            </div>
-            <div className="flex gap-1">
-              <Button variant="ghost" className="!px-2" onClick={() => movimiento(i.id, -1)}>−</Button>
-              <Button variant="ghost" className="!px-2" onClick={() => movimiento(i.id, 1)}>+</Button>
-            </div>
+
+      <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
+        <div className="flex items-center justify-between border-b px-3 py-2.5 sm:px-4">
+          <p className="text-sm font-semibold text-gray-700">{items.length} insumo{items.length !== 1 ? 's' : ''}</p>
+          {items.length > 7 && <p className="text-xs text-gray-400">Desplaza ↓</p>}
+        </div>
+        <AdminScrollPanel maxRows={7} variant="card" className="rounded-none border-0 shadow-none">
+          <div className="space-y-2 p-2 sm:p-3">
+            {items.map((i) => (
+              <div key={i.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-100 bg-gray-50/50 p-3 sm:p-4">
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold">{i.nombre}</p>
+                  <p className="text-xs text-gray-500 sm:text-sm">
+                    Mín: {i.minimo} · Actual:{' '}
+                    <strong className={i.cantidad <= i.minimo ? 'text-red-600' : ''}>{i.cantidad}</strong>
+                  </p>
+                </div>
+                <div className="flex shrink-0 gap-1">
+                  <Button variant="ghost" className="!px-2" onClick={() => movimiento(i.id, -1)}>−</Button>
+                  <Button variant="ghost" className="!px-2" onClick={() => movimiento(i.id, 1)}>+</Button>
+                </div>
+              </div>
+            ))}
+            {!items.length && <p className="py-8 text-center text-sm text-gray-500">Sin insumos registrados</p>}
           </div>
-        ))}
+        </AdminScrollPanel>
       </div>
+
       <p className="text-xs text-gray-500">Sincronización con Supabase: tabla inventario_insumos en schema-enterprise.sql</p>
     </div>
   );

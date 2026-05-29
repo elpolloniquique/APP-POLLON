@@ -3,6 +3,8 @@ import { getSupabase, isSupabaseConfigured } from '../../services/supabaseClient
 import { Button } from '../../components/ui/Button';
 import { useBranch } from '../../context/BranchContext';
 
+import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
+
 export function AdminConfig() {
   const { branch } = useBranch();
   const [cfg, setCfg] = useState({
@@ -42,8 +44,8 @@ export function AdminConfig() {
   }
 
   return (
-    <div className="max-w-2xl space-y-4">
-      <h2 className="text-2xl font-bold">Configuración general</h2>
+    <div className="admin-page max-w-2xl">
+      <AdminPageHeader title="Configuración general" />
       <div className="space-y-3 rounded-2xl bg-white p-6 shadow-sm">
         {Object.entries({
           nombre_tienda: 'Nombre tienda',

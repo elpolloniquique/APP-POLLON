@@ -8,6 +8,8 @@ import { adminListAllBranches } from '../../services/branchService';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { OrderDetailModal } from '../../components/admin/OrderDetailModal';
+import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
+import { AdminTable } from '../../components/admin/AdminTable';
 import { ORDER_STATES } from '../../utils/constants';
 
 export function AdminOrders() {
@@ -28,7 +30,7 @@ export function AdminOrders() {
 
   const branchFor = useCallback(
     (order) => branches.find((b) => b.id === order.branchId) || { name: 'El Pollón' },
-    [branches]
+    [branches],
   );
 
   const filtered = useMemo(() => ordersScoped.filter((o) => {
@@ -57,9 +59,8 @@ export function AdminOrders() {
       o.createdAt,
     ]));
     const csv = rows.map((r) => r.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
     a.download = `pedidos-pollon-${Date.now()}.csv`;
     a.click();
   };
@@ -84,100 +85,80 @@ export function AdminOrders() {
     }
   };
 
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 className="text-2xl font-bold">Pedidos en tiempo real</h2>
-          {isBranchScoped && (
-            <p className="text-sm font-medium text-pollon-red">Sucursal: {branchName}</p>
-          )}
-          <p className="text-sm text-gray-500">
-            {ready && isBackendReady && realtimeStatus === 'live' && (
-              <span className="inline-flex items-center gap-1 text-green-700">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-green-500" /> En vivo — los pedidos nuevos aparecen solos
-              </span>
-            )}
-            {ready && !isBackendReady && (
-              <span className="text-amber-700">Modo local — ejecuta fix-realtime-pedidos.sql en Supabase</span>
-            )}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="ghost" onClick={refresh}>Actualizar</Button>
-          <Button onClick={exportCsv}>Exportar CSV</Button>
-        </div>
-      </div>
+  const statusLine = ready && isBackendReady && realtimeStatus === 'live' ? (
+    <span className="inline-flex items-center gap-1 text-green-700">
+      <span className="h-2 w-2 animate-pulse rounded-full bg-green-500" /> En vivo
+    </span>
+  ) : ready && !isBackendReady ? (
+    <span className="text-amber-700">Modo local</span>
+  ) : null;
 
-      <div className="flex flex-wrap gap-2 rounded-2xl bg-white p-4 shadow-sm">
-        <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} className="rounded-lg border px-2 py-1 text-sm" />
-        <input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} className="rounded-lg border px-2 py-1 text-sm" />
-        <select value={estado} onChange={(e) => setEstado(e.target.value)} className="rounded-lg border px-2 py-1 text-sm">
-          <option value="">Todos</option>
+  return (
+    <div className="admin-page">
+      <AdminPageHeader
+        title="Pedidos en tiempo real"
+        subtitle={statusLine}
+        branchLabel={isBranchScoped ? branchName : undefined}
+        actions={(
+          <>
+            <Button variant="ghost" onClick={refresh}>Actualizar</Button>
+            <Button onClick={exportCsv}>Exportar CSV</Button>
+          </>
+        )}
+      />
+
+      <div className="admin-toolbar">
+        <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} className="w-full min-w-[130px] flex-1 sm:w-auto sm:flex-none" />
+        <input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} className="w-full min-w-[130px] flex-1 sm:w-auto sm:flex-none" />
+        <select value={estado} onChange={(e) => setEstado(e.target.value)} className="w-full sm:w-auto">
+          <option value="">Todos los estados</option>
           {ORDER_STATES.map((s) => <option key={s} value={s}>{estadoLabel(s)}</option>)}
         </select>
-        <input type="search" placeholder="Buscar…" value={search} onChange={(e) => setSearch(e.target.value)} className="rounded-lg border px-3 py-1 text-sm" />
-        <button type="button" onClick={() => setAlarmOn(!alarmOn)} className={`rounded-lg px-3 py-1 text-sm ${alarmOn ? 'bg-pollon-red text-white' : 'bg-gray-100'}`}>
-          {alarmOn ? '🔔 Alarma ON' : '🔕 Alarma OFF'}
+        <input type="search" placeholder="Buscar cliente, teléfono…" value={search} onChange={(e) => setSearch(e.target.value)} className="min-w-[160px] flex-1" />
+        <button type="button" onClick={() => setAlarmOn(!alarmOn)} className={`rounded-lg px-3 py-1.5 text-sm font-medium sm:py-2 ${alarmOn ? 'bg-pollon-red text-white' : 'bg-gray-100'}`}>
+          {alarmOn ? '🔔 Alarma ON' : '🔕 OFF'}
         </button>
       </div>
 
-      <div className="overflow-x-auto rounded-2xl bg-white shadow-sm">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b bg-gray-50">
-            <tr>
-              <th className="p-3">Código</th>
-              <th className="p-3">Cliente</th>
-              <th className="p-3">Teléfono</th>
-              <th className="p-3">Total</th>
-              <th className="p-3">Estado</th>
-              <th className="p-3">Fecha</th>
-              <th className="p-3">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((o) => (
-              <tr key={o.id} className="border-b hover:bg-gray-50">
-                <td className="p-3 font-mono font-semibold">{o.codigo_pedido || o.ticketNumber}</td>
-                <td className="p-3">{o.customer?.name}</td>
-                <td className="p-3">{o.customer?.phone}</td>
-                <td className="p-3 font-semibold">{money(o.total)}</td>
-                <td className="p-3"><Badge estado={o.estado}>{estadoLabel(o.estado)}</Badge></td>
-                <td className="p-3 text-xs whitespace-nowrap">{formatDateTime(o.createdAt)}</td>
-                <td className="p-3">
-                  <div className="flex flex-wrap items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setViewOrder(o)}
-                      className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
-                      title="Ver detalle"
-                    >
-                      <Eye className="h-3.5 w-3.5" /> Ver
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handlePrint(o)}
-                      className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-100"
-                      title="Imprimir ticket 80mm"
-                    >
-                      <Printer className="h-3.5 w-3.5" /> Imprimir
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => changeEstado(o)}
-                      className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-pollon-red hover:bg-red-50"
-                      title="Siguiente estado"
-                    >
-                      <RefreshCw className="h-3.5 w-3.5" /> Estado
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {!filtered.length && <p className="p-8 text-center text-gray-500">Sin pedidos</p>}
-      </div>
+      <AdminTable
+        count={filtered.length}
+        countLabel={`${filtered.length} pedido${filtered.length !== 1 ? 's' : ''}`}
+        emptyMessage="Sin pedidos"
+        minWidth={720}
+        columns={[
+          { key: 'code', label: 'Código' },
+          { key: 'client', label: 'Cliente' },
+          { key: 'phone', label: 'Teléfono', className: 'hidden sm:table-cell' },
+          { key: 'total', label: 'Total' },
+          { key: 'status', label: 'Estado' },
+          { key: 'date', label: 'Fecha', className: 'hidden md:table-cell' },
+          { key: 'actions', label: 'Acciones' },
+        ]}
+      >
+        {filtered.map((o) => (
+          <tr key={o.id} className="border-t hover:bg-gray-50">
+            <td className="p-2 font-mono text-xs font-semibold sm:p-3 sm:text-sm">{o.codigo_pedido || o.ticketNumber}</td>
+            <td className="max-w-[120px] truncate p-2 sm:max-w-none sm:p-3">{o.customer?.name}</td>
+            <td className="hidden p-2 sm:table-cell sm:p-3">{o.customer?.phone}</td>
+            <td className="p-2 font-semibold sm:p-3">{money(o.total)}</td>
+            <td className="p-2 sm:p-3"><Badge estado={o.estado}>{estadoLabel(o.estado)}</Badge></td>
+            <td className="hidden whitespace-nowrap p-2 text-xs md:table-cell sm:p-3">{formatDateTime(o.createdAt)}</td>
+            <td className="p-2 sm:p-3">
+              <div className="flex flex-wrap items-center gap-1">
+                <button type="button" onClick={() => setViewOrder(o)} className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2 py-1 text-[10px] font-semibold sm:text-xs" title="Ver">
+                  <Eye className="h-3.5 w-3.5" /> Ver
+                </button>
+                <button type="button" onClick={() => handlePrint(o)} className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-900 sm:text-xs" title="Imprimir">
+                  <Printer className="h-3.5 w-3.5" />
+                </button>
+                <button type="button" onClick={() => changeEstado(o)} className="inline-flex items-center gap-1 rounded-lg px-1.5 py-1 text-[10px] font-semibold text-pollon-red sm:text-xs" title="Estado">
+                  <RefreshCw className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </td>
+          </tr>
+        ))}
+      </AdminTable>
 
       {viewOrder && (
         <OrderDetailModal

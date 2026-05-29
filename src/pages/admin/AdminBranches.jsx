@@ -5,6 +5,8 @@ import { isSupabaseConfigured } from '../../services/menuService';
 import { useToast } from '../../hooks/useToast';
 import { Plus, Pencil } from 'lucide-react';
 import { ROLES } from '../../utils/constants';
+import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
+import { AdminScrollPanel } from '../../components/admin/AdminScrollPanel';
 
 const emptyBranch = () => ({
   name: '',
@@ -74,42 +76,51 @@ export function AdminBranches() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="admin-page">
       {Toast}
       {loadError && (
         <p className="rounded-xl bg-red-50 p-3 text-sm text-red-800">{loadError}. Verifica que exista la tabla <code>branches</code> (schema-multi-sucursal.sql).</p>
       )}
-      <div className="flex justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">Sucursales</h2>
-          <p className="text-sm text-gray-500">Cada sucursal opera de forma independiente</p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setModal(emptyBranch())}
-          className="flex items-center gap-2 rounded-xl bg-pollon-red px-4 py-2 text-sm font-bold text-white hover:bg-red-700"
-        >
-          <Plus className="h-4 w-4" /> Nueva sucursal
-        </button>
-      </div>
+      <AdminPageHeader
+        title="Sucursales"
+        subtitle="Cada sucursal opera de forma independiente"
+        actions={(
+          <button
+            type="button"
+            onClick={() => setModal(emptyBranch())}
+            className="flex items-center gap-2 rounded-xl bg-pollon-red px-4 py-2 text-sm font-bold text-white hover:bg-red-700"
+          >
+            <Plus className="h-4 w-4" /> Nueva sucursal
+          </button>
+        )}
+      />
 
-      <div className="grid gap-4 md:grid-cols-2">
-        {list.map((b) => (
-          <article key={b.id} className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
-            <div className="flex justify-between">
-              <h3 className="font-bold">{b.name}</h3>
-              <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${b.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100'}`}>
-                {b.isActive ? 'Activa' : 'Inactiva'}
-              </span>
-            </div>
-            <p className="mt-1 text-sm text-gray-500">{b.city} · {b.address}</p>
-            <p className="text-sm">WhatsApp: {b.whatsapp}</p>
-            <p className="text-sm">Delivery: ${b.deliveryCost?.toLocaleString('es-CL')}</p>
-            <button type="button" onClick={() => setModal({ ...b, schedule: b.schedule })} className="mt-3 flex items-center gap-1 text-sm font-semibold text-pollon-red">
-              <Pencil className="h-4 w-4" /> Editar
-            </button>
-          </article>
-        ))}
+      <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
+        <div className="flex items-center justify-between border-b px-3 py-2.5 sm:px-4">
+          <p className="text-sm font-semibold text-gray-700">{list.length} sucursal{list.length !== 1 ? 'es' : ''}</p>
+          {list.length > 4 && <p className="text-xs text-gray-400">Desplaza ↓</p>}
+        </div>
+        <AdminScrollPanel maxRows={4} variant="grid" className="rounded-none border-0 shadow-none">
+          <div className="grid gap-3 p-3 sm:grid-cols-2 sm:gap-4 sm:p-4">
+            {list.map((b) => (
+              <article key={b.id} className="rounded-xl bg-gray-50/80 p-4 ring-1 ring-gray-100 sm:rounded-2xl sm:p-5">
+                <div className="flex justify-between gap-2">
+                  <h3 className="min-w-0 truncate font-bold">{b.name}</h3>
+                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${b.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100'}`}>
+                    {b.isActive ? 'Activa' : 'Inactiva'}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-gray-500 sm:text-sm">{b.city} · {b.address}</p>
+                <p className="text-xs sm:text-sm">WhatsApp: {b.whatsapp}</p>
+                <p className="text-xs sm:text-sm">Delivery: ${b.deliveryCost?.toLocaleString('es-CL')}</p>
+                <button type="button" onClick={() => setModal({ ...b, schedule: b.schedule })} className="mt-3 flex items-center gap-1 text-sm font-semibold text-pollon-red">
+                  <Pencil className="h-4 w-4" /> Editar
+                </button>
+              </article>
+            ))}
+            {!list.length && <p className="col-span-full py-8 text-center text-sm text-gray-500">Sin sucursales</p>}
+          </div>
+        </AdminScrollPanel>
       </div>
 
       {modal && (

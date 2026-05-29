@@ -1,6 +1,6 @@
 /**
- * Panel con scroll vertical — muestra ~maxRows filas y el resto al desplazar.
- * Usar en tablas (sticky thead) o listas de tarjetas.
+ * Contenedor con scroll vertical adaptativo (móvil, tablet, laptop 12", desktop).
+ * variant: "table" (thead sticky) | "card" (listas/tarjetas) | "grid" (grillas cocina/sucursales)
  */
 export function AdminScrollPanel({
   children,
@@ -8,16 +8,18 @@ export function AdminScrollPanel({
   variant = 'table',
   className = '',
 }) {
-  const rowRem = variant === 'card' ? 4.75 : 3.25;
-  const headRem = variant === 'card' ? 0 : 2.75;
-  const maxHeight = variant === 'card'
-    ? `calc(${maxRows} * ${rowRem}rem)`
-    : `calc(${headRem}rem + ${maxRows} * ${rowRem}rem)`;
+  const variantClass = {
+    table: 'admin-scroll-table',
+    card: 'admin-scroll-card',
+    grid: 'admin-scroll-grid',
+  }[variant] || 'admin-scroll-table';
+
+  const rows = Math.min(Math.max(maxRows, 3), 12);
 
   return (
     <div
-      className={`admin-scroll-panel overflow-auto rounded-2xl border border-gray-100 bg-white shadow-sm ${className}`}
-      style={{ maxHeight }}
+      className={`admin-scroll-panel ${variantClass} overflow-auto ${className}`}
+      style={{ '--admin-scroll-rows': rows }}
     >
       {children}
     </div>

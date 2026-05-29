@@ -22,6 +22,8 @@ import {
 } from '../../services/menuService';
 import { ProductImagesEditor } from '../../components/admin/ProductImagesEditor';
 import { AdminScrollPanel } from '../../components/admin/AdminScrollPanel';
+import { AdminTable } from '../../components/admin/AdminTable';
+import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { getAuditLogs } from '../../services/auditService';
 import { money } from '../../utils/format';
 import { useToast } from '../../hooks/useToast';
@@ -228,42 +230,41 @@ export function AdminMenu() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="admin-page">
       {Toast}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-pollon-black">Menú por sucursal</h2>
-          <p className="text-sm text-gray-500">Cada sucursal tiene su propio menú, precios y categorías</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="text-sm font-medium">Sucursal:</label>
-          <select
-            value={branchId}
-            onChange={(e) => setBranchId(e.target.value)}
-            disabled={!isSuper && !!adminBranchId}
-            className="rounded-xl border px-4 py-2 text-sm font-semibold"
-          >
-            {branches.map((b) => (
-              <option key={b.id} value={b.id}>{b.name}</option>
-            ))}
-          </select>
-          <Link
-            to={`/tienda?branch=${branchId}`}
-            target="_blank"
-            className="inline-flex items-center gap-2 rounded-xl border border-pollon-red px-4 py-2 text-sm font-semibold text-pollon-red"
-          >
-            <Eye className="h-4 w-4" /> Vista previa
-          </Link>
-        </div>
-      </div>
+      <AdminPageHeader
+        title="Menú por sucursal"
+        subtitle="Cada sucursal tiene su propio menú, precios y categorías"
+        actions={(
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={branchId}
+              onChange={(e) => setBranchId(e.target.value)}
+              disabled={!isSuper && !!adminBranchId}
+              className="max-w-[200px] rounded-xl border px-3 py-2 text-sm font-semibold sm:max-w-none sm:px-4"
+            >
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+            <Link
+              to={`/tienda?branch=${branchId}`}
+              target="_blank"
+              className="inline-flex items-center gap-2 rounded-xl border border-pollon-red px-3 py-2 text-sm font-semibold text-pollon-red sm:px-4"
+            >
+              <Eye className="h-4 w-4" /> Vista previa
+            </Link>
+          </div>
+        )}
+      />
 
-      <div className="flex flex-wrap gap-2 border-b">
+      <div className="-mx-1 flex gap-1 overflow-x-auto border-b pb-px scrollbar-hide sm:mx-0 sm:gap-2">
         {['categorias', 'productos', 'herramientas', 'historial'].map((t) => (
           <button
             key={t}
             type="button"
             onClick={() => setTab(t)}
-            className={`border-b-2 px-4 py-2 text-sm font-bold capitalize ${tab === t ? 'border-pollon-red text-pollon-red' : 'border-transparent text-gray-500'}`}
+            className={`shrink-0 border-b-2 px-3 py-2 text-xs font-bold capitalize sm:px-4 sm:text-sm ${tab === t ? 'border-pollon-red text-pollon-red' : 'border-transparent text-gray-500'}`}
           >
             {t}
           </button>
@@ -317,74 +318,68 @@ export function AdminMenu() {
 
       {tab === 'productos' && (
         <div className="space-y-4">
-          <div className="flex flex-wrap gap-2 rounded-2xl bg-white p-4 shadow-sm">
-            <select value={selectedCatId} onChange={(e) => setSelectedCatId(e.target.value)} className="rounded-lg border px-3 py-2 text-sm">
+          <div className="admin-toolbar">
+            <select value={selectedCatId} onChange={(e) => setSelectedCatId(e.target.value)} className="w-full sm:w-auto">
               <option value="">Todas las categorías</option>
               {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
-            <div className="relative flex-1 min-w-[200px]">
+            <div className="relative min-w-[160px] flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar producto..." className="w-full rounded-lg border py-2 pl-9 pr-3 text-sm" />
+              <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar producto..." className="w-full rounded-lg border py-2 pl-9 pr-3" />
             </div>
-            <select value={filterAvail} onChange={(e) => setFilterAvail(e.target.value)} className="rounded-lg border px-3 py-2 text-sm">
+            <select value={filterAvail} onChange={(e) => setFilterAvail(e.target.value)} className="w-full sm:w-auto">
               <option value="all">Todos</option>
               <option value="yes">Disponibles</option>
               <option value="no">No disponibles</option>
             </select>
-            <button type="button" onClick={() => setProdModal(emptyProd(branchId, selectedCatId || categories[0]?.id))} className="flex items-center gap-1 rounded-lg bg-pollon-red px-4 py-2 text-sm text-white">
+            <button type="button" onClick={() => setProdModal(emptyProd(branchId, selectedCatId || categories[0]?.id))} className="flex w-full items-center justify-center gap-1 rounded-lg bg-pollon-red px-4 py-2 text-sm text-white sm:w-auto">
               <Plus className="h-4 w-4" /> Nuevo producto
             </button>
           </div>
 
           {loading ? <p className="text-center text-gray-500">Cargando…</p> : (
-            <div className="rounded-2xl bg-white shadow-sm">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2.5">
-                <p className="text-sm font-semibold text-gray-700">
-                  {products.length} producto{products.length !== 1 ? 's' : ''}
-                </p>
-                {products.length > 7 && (
-                  <p className="text-xs text-gray-400">Mostrando 7 filas · desplaza para ver el resto</p>
-                )}
-              </div>
-              <AdminScrollPanel maxRows={7} variant="table" className="rounded-t-none border-0 shadow-none">
-              <table className="w-full text-left text-sm">
-                <thead className="sticky top-0 z-10 bg-gray-50 text-xs uppercase shadow-sm">
-                  <tr>
-                    <th className="p-3">Img</th><th className="p-3">Nombre</th><th className="p-3">Categoría</th>
-                    <th className="p-3">Precio</th><th className="p-3">Estado</th><th className="p-3">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {products.map((p) => (
-                    <tr key={p.id} className="border-t hover:bg-gray-50">
-                      <td className="p-3">
-                        {p.imageUrl ? (
-                          <div className="relative inline-block">
-                            <img src={p.imageUrl} alt="" className="h-10 w-10 rounded object-cover" />
-                            {(p.imageUrls?.length || 0) > 1 && (
-                              <span className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-pollon-red px-1 text-[9px] font-bold text-white">
-                                {p.imageUrls.length}
-                              </span>
-                            )}
-                          </div>
-                        ) : '—'}
-                      </td>
-                      <td className="p-3 font-medium">{p.name}</td>
-                      <td className="p-3 text-gray-500">{p.categoryName}</td>
-                      <td className="p-3 font-bold text-pollon-red">{money(p.price)}</td>
-                      <td className="p-3">{p.available ? '✅' : '❌'}</td>
-                      <td className="p-3">
-                        <button type="button" onClick={() => openProductModal(p)} className="mr-2 text-gray-600" title="Editar"><Pencil className="h-4 w-4 inline" /></button>
-                        <button type="button" onClick={() => { setDupProduct(p); setDupTargetBranch(''); setDupTargetCat(''); }} className="mr-2 text-blue-600" title="Duplicar a otra sucursal"><Copy className="h-4 w-4 inline" /></button>
-                        <button type="button" onClick={() => adminUpsertProduct({ ...p, available: !p.available }, user).then(load)} className="text-amber-600" title="Cambiar disponibilidad"><Ban className="h-4 w-4 inline" /></button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              </AdminScrollPanel>
-              {!products.length && <p className="p-8 text-center text-gray-500">Sin productos</p>}
-            </div>
+            <AdminTable
+              count={products.length}
+              countLabel={`${products.length} producto${products.length !== 1 ? 's' : ''}`}
+              emptyMessage="Sin productos"
+              minWidth={680}
+              columns={[
+                { key: 'img', label: 'Img' },
+                { key: 'name', label: 'Nombre' },
+                { key: 'cat', label: 'Categoría', className: 'hidden md:table-cell' },
+                { key: 'price', label: 'Precio' },
+                { key: 'status', label: 'Estado' },
+                { key: 'actions', label: 'Acciones' },
+              ]}
+            >
+              {products.map((p) => (
+                <tr key={p.id} className="border-t hover:bg-gray-50">
+                  <td className="p-2 sm:p-3">
+                    {p.imageUrl ? (
+                      <div className="relative inline-block">
+                        <img src={p.imageUrl} alt="" className="h-8 w-8 rounded object-cover sm:h-10 sm:w-10" />
+                        {(p.imageUrls?.length || 0) > 1 && (
+                          <span className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-pollon-red px-1 text-[9px] font-bold text-white">
+                            {p.imageUrls.length}
+                          </span>
+                        )}
+                      </div>
+                    ) : '—'}
+                  </td>
+                  <td className="max-w-[140px] truncate p-2 font-medium sm:max-w-none sm:p-3">{p.name}</td>
+                  <td className="hidden p-2 text-gray-500 md:table-cell sm:p-3">{p.categoryName}</td>
+                  <td className="p-2 font-bold text-pollon-red sm:p-3">{money(p.price)}</td>
+                  <td className="p-2 sm:p-3">{p.available ? '✅' : '❌'}</td>
+                  <td className="p-2 sm:p-3">
+                    <div className="flex flex-wrap gap-1">
+                      <button type="button" onClick={() => openProductModal(p)} className="text-gray-600" title="Editar"><Pencil className="h-4 w-4" /></button>
+                      <button type="button" onClick={() => { setDupProduct(p); setDupTargetBranch(''); setDupTargetCat(''); }} className="text-blue-600" title="Duplicar"><Copy className="h-4 w-4" /></button>
+                      <button type="button" onClick={() => adminUpsertProduct({ ...p, available: !p.available }, user).then(load)} className="text-amber-600" title="Disponibilidad"><Ban className="h-4 w-4" /></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </AdminTable>
           )}
         </div>
       )}

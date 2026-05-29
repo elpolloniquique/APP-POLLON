@@ -4,6 +4,8 @@ import { useAuth } from '../../context/AuthContext';
 import { listCampaigns, createCampaign, prepareCampaignRecipients, markCampaignSent } from '../../services/campaignService';
 import { isSupabaseConfigured } from '../../services/supabaseClient';
 import { useToast } from '../../hooks/useToast';
+import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
+import { AdminTable } from '../../components/admin/AdminTable';
 
 const empty = { title: '', subject: '', message: '', campaignType: 'promotion', branchId: '' };
 
@@ -41,7 +43,7 @@ export function AdminCampaigns() {
   };
 
   const send = async (id) => {
-    if (!confirm('¿Marcar campaña como enviada? (Integración email vía Edge Function en producción)')) return;
+    if (!confirm('¿Marcar campaña como enviada?')) return;
     try {
       await markCampaignSent(id);
       show('Campaña enviada');
@@ -53,7 +55,7 @@ export function AdminCampaigns() {
 
   if (!isSupabaseConfigured()) {
     return (
-      <div className="rounded-2xl bg-amber-50 p-6 text-amber-900">
+      <div className="admin-page rounded-2xl bg-amber-50 p-6 text-amber-900">
         <h2 className="text-xl font-bold">Campañas</h2>
         <p className="mt-2 text-sm">Ejecuta schema-auth.sql en Supabase.</p>
       </div>
@@ -61,15 +63,15 @@ export function AdminCampaigns() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="admin-page">
       {Toast}
-      <div>
-        <h2 className="text-2xl font-bold">Campañas y ofertas</h2>
-        <p className="text-sm text-gray-500">Enviar promociones, novedades y cupones por correo</p>
-      </div>
+      <AdminPageHeader
+        title="Campañas y ofertas"
+        subtitle="Enviar promociones, novedades y cupones por correo"
+      />
 
-      <form onSubmit={create} className="rounded-2xl bg-white p-6 shadow-sm space-y-4 max-w-2xl">
-        <h3 className="font-bold flex items-center gap-2"><Mail className="h-5 w-5 text-pollon-red" /> Nueva campaña</h3>
+      <form onSubmit={create} className="max-w-2xl space-y-4 rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-100 sm:rounded-2xl sm:p-6">
+        <h3 className="flex items-center gap-2 font-bold"><Mail className="h-5 w-5 text-pollon-red" /> Nueva campaña</h3>
         <input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Título interno" className="w-full rounded-xl border px-4 py-2 text-sm" />
         <input required value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} placeholder="Asunto del correo" className="w-full rounded-xl border px-4 py-2 text-sm" />
         <textarea required value={form.message} onChange={(e) => setForm({ ...form, message: e.target.value })} placeholder="Mensaje / oferta / cupón…" rows={5} className="w-full rounded-xl border px-4 py-2 text-sm" />
@@ -78,13 +80,13 @@ export function AdminCampaigns() {
           <option value="news">Novedad</option>
           <option value="coupon">Cupón</option>
         </select>
-        <div className="rounded-xl bg-gray-50 p-4 space-y-2 text-sm">
+        <div className="space-y-2 rounded-xl bg-gray-50 p-4 text-sm">
           <p className="font-semibold">Segmentación</p>
           <label className="flex items-center gap-2">
             <input type="checkbox" checked={segment.acceptsEmailOnly} onChange={(e) => setSegment({ ...segment, acceptsEmailOnly: e.target.checked })} />
             Solo clientes que aceptaron promociones por email
           </label>
-          <label className="flex items-center gap-2">
+          <label className="flex flex-wrap items-center gap-2">
             Mín. pedidos en sucursal:
             <input type="number" min={0} value={segment.minOrders} onChange={(e) => setSegment({ ...segment, minOrders: Number(e.target.value) })} className="w-20 rounded border px-2 py-1" />
           </label>
@@ -92,35 +94,33 @@ export function AdminCampaigns() {
         <button type="submit" className="rounded-xl bg-pollon-red px-6 py-2.5 text-sm font-bold text-white">Crear campaña</button>
       </form>
 
-      <div className="rounded-2xl bg-white shadow-sm overflow-hidden">
-        <table className="w-full text-sm text-left">
-          <thead className="bg-gray-50 text-xs uppercase">
-            <tr>
-              <th className="p-3">Título</th>
-              <th className="p-3">Tipo</th>
-              <th className="p-3">Estado</th>
-              <th className="p-3">Acción</th>
-            </tr>
-          </thead>
-          <tbody>
-            {campaigns.map((c) => (
-              <tr key={c.id} className="border-t">
-                <td className="p-3 font-medium">{c.title}</td>
-                <td className="p-3"><Tag className="h-4 w-4 inline text-gray-400" /> {c.campaign_type}</td>
-                <td className="p-3 capitalize">{c.status}</td>
-                <td className="p-3">
-                  {c.status !== 'sent' && (
-                    <button type="button" onClick={() => send(c.id)} className="flex items-center gap-1 text-pollon-red font-semibold text-xs">
-                      <Send className="h-3 w-3" /> Enviar
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {!campaigns.length && <p className="p-8 text-center text-gray-500">Sin campañas</p>}
-      </div>
+      <AdminTable
+        count={campaigns.length}
+        countLabel={`${campaigns.length} campaña${campaigns.length !== 1 ? 's' : ''}`}
+        emptyMessage="Sin campañas"
+        minWidth={520}
+        columns={[
+          { key: 'title', label: 'Título' },
+          { key: 'type', label: 'Tipo', className: 'hidden sm:table-cell' },
+          { key: 'status', label: 'Estado' },
+          { key: 'action', label: 'Acción' },
+        ]}
+      >
+        {campaigns.map((c) => (
+          <tr key={c.id} className="border-t hover:bg-gray-50">
+            <td className="max-w-[180px] truncate p-2 font-medium sm:max-w-none sm:p-3">{c.title}</td>
+            <td className="hidden p-2 sm:table-cell sm:p-3"><Tag className="inline h-4 w-4 text-gray-400" /> {c.campaign_type}</td>
+            <td className="p-2 capitalize sm:p-3">{c.status}</td>
+            <td className="p-2 sm:p-3">
+              {c.status !== 'sent' && (
+                <button type="button" onClick={() => send(c.id)} className="flex items-center gap-1 text-xs font-semibold text-pollon-red">
+                  <Send className="h-3 w-3" /> Enviar
+                </button>
+              )}
+            </td>
+          </tr>
+        ))}
+      </AdminTable>
     </div>
   );
 }

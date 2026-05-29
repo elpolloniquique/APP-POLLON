@@ -3,6 +3,7 @@ import { useOrders } from '../../hooks/useOrders';
 import { useStaffBranch } from '../../hooks/useStaffBranch';
 import { money, todayISO } from '../../utils/format';
 import { Button } from '../../components/ui/Button';
+import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 
 const CAJA_KEY = 'pollon_caja_v1';
 
@@ -40,31 +41,41 @@ export function AdminCash() {
   };
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold">Caja diaria</h2>
-      {isBranchScoped && (
-        <p className="text-sm font-medium text-pollon-red">Sucursal: {branchName}</p>
-      )}
-      <div className="flex gap-2">
-        {!caja.abierta ? <Button onClick={abrirCaja}>Abrir caja</Button> : <Button variant="dark" onClick={cerrarCaja}>Cerrar caja</Button>}
-        <span className={`self-center rounded-full px-3 py-1 text-sm font-semibold ${caja.abierta ? 'bg-green-100 text-green-800' : 'bg-gray-100'}`}>
-          {caja.abierta ? 'Caja abierta' : 'Caja cerrada'}
-        </span>
-      </div>
-      <div className="grid gap-4 sm:grid-cols-3">
+    <div className="admin-page">
+      <AdminPageHeader
+        title="Caja diaria"
+        branchLabel={isBranchScoped ? branchName : undefined}
+        actions={(
+          <div className="flex flex-wrap items-center gap-2">
+            {!caja.abierta ? (
+              <Button onClick={abrirCaja}>Abrir caja</Button>
+            ) : (
+              <Button variant="dark" onClick={cerrarCaja}>Cerrar caja</Button>
+            )}
+            <span className={`rounded-full px-3 py-1 text-xs font-semibold sm:text-sm ${caja.abierta ? 'bg-green-100 text-green-800' : 'bg-gray-100'}`}>
+              {caja.abierta ? 'Caja abierta' : 'Caja cerrada'}
+            </span>
+          </div>
+        )}
+      />
+
+      <div className="grid gap-3 sm:grid-cols-3 sm:gap-4">
         {[
           ['Efectivo', ventasHoy.efectivo],
           ['Transferencia', ventasHoy.transferencia],
           ['Total del día', ventasHoy.total],
         ].map(([l, v]) => (
-          <div key={l} className="rounded-2xl bg-white p-5 shadow-sm">
-            <p className="text-sm text-gray-500">{l}</p>
-            <p className="text-xl font-bold text-pollon-red">{money(v)}</p>
+          <div key={l} className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-100 sm:rounded-2xl sm:p-5">
+            <p className="text-xs text-gray-500 sm:text-sm">{l}</p>
+            <p className="text-lg font-bold text-pollon-red sm:text-xl">{money(v)}</p>
           </div>
         ))}
       </div>
+
       {caja.abierta && (
-        <p className="text-sm text-gray-600">Monto inicial: {money(caja.montoInicial || 0)} · Pedidos entregados hoy: {ventasHoy.count}</p>
+        <p className="text-xs text-gray-600 sm:text-sm">
+          Monto inicial: {money(caja.montoInicial || 0)} · Pedidos entregados hoy: {ventasHoy.count}
+        </p>
       )}
     </div>
   );

@@ -16,7 +16,11 @@ import {
   Legend,
 } from 'chart.js';
 
+import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
+
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ArcElement, BarElement, Title, Tooltip, Legend);
+
+const chartOpts = { responsive: true, maintainAspectRatio: true };
 
 export function AdminDashboard() {
   const { orders } = useOrders();
@@ -62,12 +66,12 @@ export function AdminDashboard() {
   }, [ordersScoped]);
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold">Dashboard</h2>
-      {isBranchScoped && (
-        <p className="text-sm font-medium text-pollon-red">Mostrando datos de: {branchName}</p>
-      )}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+    <div className="admin-page">
+      <AdminPageHeader
+        title="Dashboard"
+        branchLabel={isBranchScoped ? branchName : undefined}
+      />
+      <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-5">
         {[
           ['Pedidos hoy', stats.hoy],
           ['Ventas hoy', money(stats.ventasHoy)],
@@ -75,17 +79,26 @@ export function AdminDashboard() {
           ['Total pedidos', stats.total],
           ['Ticket promedio', money(stats.ticket)],
         ].map(([label, val]) => (
-          <div key={label} className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-black/5">
-            <p className="text-sm text-gray-500">{label}</p>
-            <p className="mt-1 text-2xl font-bold text-pollon-red">{val}</p>
+          <div key={label} className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-black/5 sm:rounded-2xl sm:p-5">
+            <p className="text-xs text-gray-500 sm:text-sm">{label}</p>
+            <p className="mt-1 text-xl font-bold text-pollon-red sm:text-2xl">{val}</p>
           </div>
         ))}
       </div>
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-2xl bg-white p-5 shadow-sm"><h3 className="mb-4 font-semibold">Ventas 7 días</h3><Line data={lineData} options={{ responsive: true, plugins: { legend: { display: false } } }} /></div>
-        <div className="rounded-2xl bg-white p-5 shadow-sm"><h3 className="mb-4 font-semibold">Por estado</h3><Doughnut data={estadoData} /></div>
+      <div className="grid gap-4 lg:grid-cols-2 lg:gap-6">
+        <div className="min-h-[220px] rounded-xl bg-white p-4 shadow-sm sm:rounded-2xl sm:p-5">
+          <h3 className="mb-3 text-sm font-semibold sm:mb-4">Ventas 7 días</h3>
+          <Line data={lineData} options={{ ...chartOpts, plugins: { legend: { display: false } } }} />
+        </div>
+        <div className="min-h-[220px] rounded-xl bg-white p-4 shadow-sm sm:rounded-2xl sm:p-5">
+          <h3 className="mb-3 text-sm font-semibold sm:mb-4">Por estado</h3>
+          <Doughnut data={estadoData} options={chartOpts} />
+        </div>
       </div>
-      <div className="rounded-2xl bg-white p-5 shadow-sm"><h3 className="mb-4 font-semibold">Productos más vendidos</h3><Bar data={topProducts} options={{ responsive: true, plugins: { legend: { display: false } } }} /></div>
+      <div className="min-h-[240px] rounded-xl bg-white p-4 shadow-sm sm:rounded-2xl sm:p-5">
+        <h3 className="mb-3 text-sm font-semibold sm:mb-4">Productos más vendidos</h3>
+        <Bar data={topProducts} options={{ ...chartOpts, plugins: { legend: { display: false } } }} />
+      </div>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useOrders } from '../../hooks/useOrders';
 import { money, todayISO } from '../../utils/format';
+import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 
 export function AdminReports() {
   const { orders } = useOrders();
@@ -34,8 +35,8 @@ export function AdminReports() {
   }, [orders, today]);
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold">Reportes</h2>
+    <div className="admin-page">
+      <AdminPageHeader title="Reportes" />
       <div className="grid gap-4 md:grid-cols-3">
         <div className="rounded-2xl bg-white p-6 shadow-sm">
           <h3 className="font-semibold text-pollon-red">Hoy</h3>
