@@ -92,6 +92,17 @@ export async function adminSaveBranch(branch, user) {
   const sb = getSupabase();
   if (!sb) throw new Error('Sin conexión Supabase');
 
+  let displayOrder = branch.displayOrder ?? 0;
+  if (!branch.id) {
+    const { data: maxRow } = await sb
+      .from('branches')
+      .select('display_order')
+      .order('display_order', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    displayOrder = (maxRow?.display_order ?? 0) + 1;
+  }
+
   const row = {
     id: branch.id || undefined,
     slug: branch.slug || branch.name.toLowerCase().replace(/\s+/g, '-'),
@@ -107,13 +118,38 @@ export async function adminSaveBranch(branch, user) {
     delivery_cost: branch.deliveryCost ?? 0,
     delivery_eta: branch.deliveryEta || '30-45 min',
     is_active: branch.isActive !== false,
-    display_order: branch.displayOrder ?? 0,
+    display_order: displayOrder,
   };
 
   const { data, error } = await sb.from('branches').upsert(row).select().single();
   if (error) throw error;
   await logAudit({ user, branchId: data.id, entityType: 'branch', entityId: data.id, action: branch.id ? 'update' : 'create', newData: data });
   return mapBranch(data);
+}
+
+export async function adminDeleteBranch(branchId, user) {
+  const sb = getSupabase();
+  if (!sb) throw new Error('Sin conexión Supabase');
+
+  const { data: branch, error: fetchErr } = await sb
+    .from('branches')
+    .select('id, name')
+    .eq('id', branchId)
+    .single();
+  if (fetchErr) throw fetchErr;
+
+  const { error } = await sb.from('branches').delete().eq('id', branchId);
+  if (error) throw error;
+
+  await logAudit({
+    user,
+    branchId,
+    entityType: 'branch',
+    entityId: branchId,
+    action: 'delete',
+    oldData: branch,
+  });
+  return branch;
 }
 
 /** Parsea horario tipo "Lun-Dom: 11:30 - 23:00" o "11:30 - 23:00" */

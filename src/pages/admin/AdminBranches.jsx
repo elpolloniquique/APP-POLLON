@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { adminListAllBranches, adminSaveBranch } from '../../services/branchService';
+import { adminListAllBranches, adminSaveBranch, adminDeleteBranch } from '../../services/branchService';
 import { isSupabaseConfigured } from '../../services/menuService';
 import { useToast } from '../../hooks/useToast';
-import { Plus, Pencil } from 'lucide-react';
+import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { ROLES } from '../../utils/constants';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { AdminScrollPanel } from '../../components/admin/AdminScrollPanel';
@@ -31,6 +31,7 @@ export function AdminBranches() {
   const { show, Toast } = useToast();
   const [list, setList] = useState([]);
   const [modal, setModal] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
   const [loadError, setLoadError] = useState('');
   const user = { id: profile?.id, email: profile?.email };
   const canManage = can('branches');
@@ -52,12 +53,27 @@ export function AdminBranches() {
         deliveryCost: Number(modal.deliveryCost),
         isActive: modal.isActive,
       }, user);
-      show('Sucursal guardada');
+      show(modal.id ? 'Sucursal actualizada' : 'Sucursal creada al final de la lista');
       setModal(null);
       load();
     } catch (err) {
       const msg = err.message || 'Error al guardar';
       show(msg.includes('branches') ? `${msg} — ¿Ejecutaste schema-multi-sucursal.sql?` : msg);
+    }
+  };
+
+  const removeBranch = async (b) => {
+    const msg = `¿Eliminar la sucursal "${b.name}"?\n\nSe borrarán también su menú, categorías y productos. Los pedidos antiguos se conservan sin sucursal.\n\nEsta acción no se puede deshacer.`;
+    if (!window.confirm(msg)) return;
+    setDeletingId(b.id);
+    try {
+      await adminDeleteBranch(b.id, user);
+      show(`Sucursal "${b.name}" eliminada`);
+      load();
+    } catch (err) {
+      show(err.message || 'No se pudo eliminar la sucursal');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -113,9 +129,24 @@ export function AdminBranches() {
                 <p className="mt-1 text-xs text-gray-500 sm:text-sm">{b.city} · {b.address}</p>
                 <p className="text-xs sm:text-sm">WhatsApp: {b.whatsapp}</p>
                 <p className="text-xs sm:text-sm">Delivery: ${b.deliveryCost?.toLocaleString('es-CL')}</p>
-                <button type="button" onClick={() => setModal({ ...b, schedule: b.schedule })} className="mt-3 flex items-center gap-1 text-sm font-semibold text-pollon-red">
-                  <Pencil className="h-4 w-4" /> Editar
-                </button>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setModal({ ...b, schedule: b.schedule })}
+                    className="flex items-center gap-1 text-sm font-semibold text-pollon-red hover:underline"
+                  >
+                    <Pencil className="h-4 w-4" /> Editar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => removeBranch(b)}
+                    disabled={deletingId === b.id}
+                    className="flex items-center gap-1 text-sm font-semibold text-red-600 hover:text-red-700 disabled:opacity-50"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    {deletingId === b.id ? 'Eliminando…' : 'Eliminar'}
+                  </button>
+                </div>
               </article>
             ))}
             {!list.length && <p className="col-span-full py-8 text-center text-sm text-gray-500">Sin sucursales</p>}
