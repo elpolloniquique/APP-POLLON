@@ -93,8 +93,18 @@ export async function loadBranchMenu(branchId) {
     .order('display_order', { ascending: true });
   if (prodErr) throw prodErr;
 
-  const categories = sortStoreCategories(dedupeCategories((cats || []).map(mapCategory)));
-  const products = (prods || []).map(mapProduct);
+  const rawCategories = (cats || []).map(mapCategory);
+  const categories = sortStoreCategories(dedupeCategories(rawCategories));
+  const aliasToKeeper = buildCategoryAliasMap(rawCategories, categories);
+  const categoryNameById = Object.fromEntries(rawCategories.map((c) => [c.id, c.name.trim().toLowerCase()]));
+
+  const products = dedupeProducts(
+    (prods || []).map((row) => {
+      const p = mapProduct(row);
+      return { ...p, categoryId: aliasToKeeper.get(p.categoryId) || p.categoryId };
+    }),
+    categoryNameById,
+  );
   const productsByCategory = {};
   categories.forEach((c) => { productsByCategory[c.id] = []; });
   products.forEach((p) => {
@@ -116,6 +126,43 @@ function dedupeCategories(categories) {
     }
   }
   return [...byKey.values()].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
+}
+
+function productDedupeScore(p) {
+  return (
+    (p.imageUrl ? 0 : 10)
+    + (p.available ? 0 : 5)
+    + (p.displayOrder ?? 0) * 0.01
+  );
+}
+
+/** Elimina productos duplicados por sucursal + categoría + nombre */
+function dedupeProducts(products, categoryNameById = {}) {
+  const byKey = new Map();
+  for (const p of products) {
+    const catKey = categoryNameById[p.categoryId]
+      || categoryNameById[p.categoryId?.toLowerCase?.()]
+      || p.categoryId;
+    const key = `${p.branchId}:${catKey}:${(p.name || '').trim().toLowerCase()}`;
+    const prev = byKey.get(key);
+    if (!prev || productDedupeScore(p) < productDedupeScore(prev)) {
+      byKey.set(key, p);
+    }
+  }
+  return [...byKey.values()].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
+}
+
+function buildCategoryAliasMap(rawCategories, dedupedCategories) {
+  const keeperByName = new Map();
+  for (const c of dedupedCategories) {
+    keeperByName.set(`${c.branchId}:${(c.name || '').trim().toLowerCase()}`, c.id);
+  }
+  const aliasToKeeper = new Map();
+  for (const c of rawCategories) {
+    const keeper = keeperByName.get(`${c.branchId}:${(c.name || '').trim().toLowerCase()}`);
+    if (keeper) aliasToKeeper.set(c.id, keeper);
+  }
+  return aliasToKeeper;
 }
 
 /** Admin: categorías de una sucursal (incluye inactivas, sin duplicados por nombre) */
@@ -213,20 +260,62 @@ export async function adminReorderCategory(id, displayOrder) {
   if (error) throw error;
 }
 
-/** Admin: productos */
+/** Admin: productos (sin duplicados por nombre en la misma categoría) */
 export async function adminListProducts(branchId, filters = {}) {
   if (!isSupabaseConfigured()) return [];
   let q = sb().from('products').select('*, categories(id, name)').eq('branch_id', branchId);
-  if (filters.categoryId) q = q.eq('category_id', filters.categoryId);
+
+  if (filters.categoryId) {
+    const { data: cat } = await sb()
+      .from('categories')
+      .select('name')
+      .eq('id', filters.categoryId)
+      .maybeSingle();
+    if (cat?.name) {
+      const { data: siblingCats } = await sb()
+        .from('categories')
+        .select('id')
+        .eq('branch_id', branchId)
+        .eq('name', cat.name);
+      const ids = (siblingCats || []).map((c) => c.id);
+      q = ids.length ? q.in('category_id', ids) : q.eq('category_id', filters.categoryId);
+    } else {
+      q = q.eq('category_id', filters.categoryId);
+    }
+  }
+
   if (filters.available === true) q = q.eq('is_available', true);
   if (filters.available === false) q = q.eq('is_available', false);
   if (filters.search) q = q.ilike('name', `%${filters.search}%`);
   const { data, error } = await q.order('display_order', { ascending: true });
   if (error) throw error;
-  return (data || []).map((r) => ({ ...mapProduct(r), categoryName: r.categories?.name }));
+
+  const mapped = (data || []).map((r) => ({
+    ...mapProduct(r),
+    categoryName: r.categories?.name,
+  }));
+  const categoryNameById = Object.fromEntries(
+    mapped.map((p) => [p.categoryId, (p.categoryName || '').trim().toLowerCase()]),
+  );
+  return dedupeProducts(mapped, categoryNameById);
 }
 
 export async function adminUpsertProduct(product, user) {
+  const name = (product.name || '').trim();
+  if (!name) throw new Error('El nombre del producto es obligatorio');
+
+  const { data: duplicate } = await sb()
+    .from('products')
+    .select('id')
+    .eq('branch_id', product.branchId)
+    .eq('category_id', product.categoryId)
+    .eq('name', name)
+    .maybeSingle();
+
+  if (duplicate && duplicate.id !== product.id) {
+    throw new Error(`Ya existe el producto "${name}" en esta categoría`);
+  }
+
   const images = normalizeProductImageUrls(
     product.imageUrl || product.image,
     product.imageUrls,
@@ -235,7 +324,7 @@ export async function adminUpsertProduct(product, user) {
     id: product.id || undefined,
     branch_id: product.branchId,
     category_id: product.categoryId,
-    name: product.name,
+    name,
     description: product.description || '',
     image_url: images.imageUrl,
     gallery_urls: images.imageUrls,
@@ -248,7 +337,12 @@ export async function adminUpsertProduct(product, user) {
     preparation_time: product.preparationTime ?? 15,
   };
   const { data, error } = await sb().from('products').upsert(row).select().single();
-  if (error) throw error;
+  if (error) {
+    if (error.code === '23505') {
+      throw new Error(`Ya existe el producto "${name}" en esta categoría`);
+    }
+    throw error;
+  }
   await logAudit({ user, branchId: product.branchId, entityType: 'product', entityId: data.id, action: product.id ? 'update' : 'create', newData: { price: data.price, name: data.name } });
   return mapProduct(data);
 }

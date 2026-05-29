@@ -21,6 +21,7 @@ import {
   isSupabaseConfigured,
 } from '../../services/menuService';
 import { ProductImagesEditor } from '../../components/admin/ProductImagesEditor';
+import { AdminScrollPanel } from '../../components/admin/AdminScrollPanel';
 import { getAuditLogs } from '../../services/auditService';
 import { money } from '../../utils/format';
 import { useToast } from '../../hooks/useToast';
@@ -260,15 +261,14 @@ export function AdminMenu() {
 
       {tab === 'categorias' && (
         <div className="rounded-2xl bg-white p-4 shadow-sm">
-          <div className="mb-4 flex justify-between">
+          <div className="mb-3 flex items-center justify-between px-1">
             <h3 className="font-bold">Categorías ({categories.length})</h3>
-            {canManageMenu && (
-              <button type="button" onClick={() => setCatModal(emptyCat(branchId))} className="flex items-center gap-1 rounded-lg bg-pollon-red px-3 py-2 text-sm text-white">
-                <Plus className="h-4 w-4" /> Nueva categoría
-              </button>
+            {categories.length > 7 && (
+              <span className="text-xs text-gray-400">Desplaza para ver más</span>
             )}
           </div>
-          <div className="space-y-2">
+          <AdminScrollPanel maxRows={7} variant="card" className={categories.length ? '' : 'border-0 shadow-none'}>
+            <div className="space-y-2 p-2">
             {categories.map((c, i) => (
               <div key={c.id} className="flex flex-wrap items-center gap-2 rounded-xl border p-3">
                 {c.imageUrl && <img src={c.imageUrl} alt="" className="h-10 w-10 rounded object-cover" />}
@@ -292,7 +292,15 @@ export function AdminMenu() {
                 Sin categorías. {canManageMenu ? 'Crea la primera con el botón de arriba.' : ''}
               </p>
             )}
-          </div>
+            </div>
+          </AdminScrollPanel>
+          {canManageMenu && (
+            <div className="mt-3 flex justify-end">
+              <button type="button" onClick={() => setCatModal(emptyCat(branchId))} className="flex items-center gap-1 rounded-lg bg-pollon-red px-3 py-2 text-sm text-white">
+                <Plus className="h-4 w-4" /> Nueva categoría
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -318,9 +326,18 @@ export function AdminMenu() {
           </div>
 
           {loading ? <p className="text-center text-gray-500">Cargando…</p> : (
-            <div className="overflow-x-auto rounded-2xl bg-white shadow-sm">
+            <div className="rounded-2xl bg-white shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2.5">
+                <p className="text-sm font-semibold text-gray-700">
+                  {products.length} producto{products.length !== 1 ? 's' : ''}
+                </p>
+                {products.length > 7 && (
+                  <p className="text-xs text-gray-400">Mostrando 7 filas · desplaza para ver el resto</p>
+                )}
+              </div>
+              <AdminScrollPanel maxRows={7} variant="table" className="rounded-t-none border-0 shadow-none">
               <table className="w-full text-left text-sm">
-                <thead className="bg-gray-50 text-xs uppercase">
+                <thead className="sticky top-0 z-10 bg-gray-50 text-xs uppercase shadow-sm">
                   <tr>
                     <th className="p-3">Img</th><th className="p-3">Nombre</th><th className="p-3">Categoría</th>
                     <th className="p-3">Precio</th><th className="p-3">Estado</th><th className="p-3">Acciones</th>
@@ -354,6 +371,7 @@ export function AdminMenu() {
                   ))}
                 </tbody>
               </table>
+              </AdminScrollPanel>
               {!products.length && <p className="p-8 text-center text-gray-500">Sin productos</p>}
             </div>
           )}
@@ -419,16 +437,21 @@ export function AdminMenu() {
 
       {tab === 'historial' && (
         <div className="rounded-2xl bg-white p-4 shadow-sm">
-          <h3 className="mb-4 font-bold">Historial de cambios</h3>
-          <div className="max-h-96 space-y-2 overflow-y-auto">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="font-bold">Historial de cambios</h3>
+            {audit.length > 7 && <span className="text-xs text-gray-400">Desplaza para ver más</span>}
+          </div>
+          <AdminScrollPanel maxRows={7} variant="card">
+            <div className="space-y-2 p-2">
             {audit.map((a) => (
               <div key={a.id} className="rounded-lg border p-3 text-sm">
                 <p className="font-semibold">{a.action} · {a.entity_type}</p>
                 <p className="text-xs text-gray-500">{a.user_email} · {new Date(a.created_at).toLocaleString('es-CL')}</p>
               </div>
             ))}
-            {!audit.length && <p className="text-gray-500">Sin registros</p>}
-          </div>
+            {!audit.length && <p className="py-8 text-center text-gray-500">Sin registros</p>}
+            </div>
+          </AdminScrollPanel>
         </div>
       )}
 

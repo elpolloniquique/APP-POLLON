@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS products (
 CREATE INDEX IF NOT EXISTS idx_products_branch ON products(branch_id);
 CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id);
 CREATE INDEX IF NOT EXISTS idx_products_branch_available ON products(branch_id, is_available);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_products_branch_category_name_unique ON products(branch_id, category_id, name);
 
 -- -----------------------------------------------------------------------------
 -- EXTRAS / AGREGADOS

@@ -36,6 +36,25 @@
     scrollbar-width: none;
   }
   .scrollbar-hide::-webkit-scrollbar { display: none; }
+  .admin-scroll-panel {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 #f1f5f9;
+  }
+  .admin-scroll-panel::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .admin-scroll-panel::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 9999px;
+  }
+  .admin-scroll-panel::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 9999px;
+  }
+  .admin-scroll-panel::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
   .card-hover {
     @apply transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg;
   }
