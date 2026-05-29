@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useOrders } from '../../hooks/useOrders';
+import { useStaffBranch } from '../../hooks/useStaffBranch';
 import { elapsedMinutes, estadoLabel } from '../../utils/format';
 import { Button } from '../../components/ui/Button';
 
@@ -7,12 +8,14 @@ const KITCHEN_STATES = ['pendiente', 'confirmado', 'preparando'];
 
 export function KitchenScreen() {
   const { orders, updateOrder, refresh } = useOrders();
+  const { filterOrders, branchName, isBranchScoped } = useStaffBranch();
+  const ordersScoped = useMemo(() => filterOrders(orders), [orders, filterOrders]);
 
   const pending = useMemo(
-    () => orders
+    () => ordersScoped
       .filter((o) => KITCHEN_STATES.includes(o.estado))
       .sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || '')),
-    [orders]
+    [ordersScoped]
   );
 
   const markReady = async (order) => {
@@ -23,6 +26,9 @@ export function KitchenScreen() {
   return (
     <div className="space-y-4">
       <h2 className="font-display text-3xl text-pollon-black">🍳 Cocina digital</h2>
+      {isBranchScoped && (
+        <p className="text-sm font-medium text-pollon-red">Sucursal: {branchName}</p>
+      )}
       <p className="text-gray-600">{pending.length} pedidos en cola</p>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

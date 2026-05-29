@@ -277,4 +277,36 @@ export function canAccessBranch(profile, branchId) {
   return profile.branchId === branchId || profile.branch_id === branchId;
 }
 
+/** Roles que solo ven datos de su sucursal (branch_id en profiles) */
+export function isBranchScopedStaff(role) {
+  const r = normalizeRole(role);
+  return [
+    ROLES.ADMIN_SUCURSAL,
+    ROLES.CAJERA,
+    ROLES.COCINA,
+    ROLES.DELIVERY,
+    ROLES.ADMINISTRADOR,
+    'cajero',
+    'repartidor',
+  ].includes(r);
+}
+
+export function getProfileBranchId(profile) {
+  return profile?.branchId || profile?.branch_id || null;
+}
+
+/** Filtra pedidos (u otros recursos) por sucursal del personal */
+export function filterByStaffBranch(items, profile, getBranchId = (item) => item.branchId || item.branch_id) {
+  if (!profile || !Array.isArray(items)) return items || [];
+  const role = normalizeRole(profile.rol || profile.role);
+  if (role === ROLES.SUPER_ADMIN) return items;
+  if (!isBranchScopedStaff(role)) return items;
+  const bid = getProfileBranchId(profile);
+  if (!bid) return items;
+  return items.filter((item) => {
+    const itemBranch = getBranchId(item);
+    return itemBranch === bid;
+  });
+}
+
 export { isSupabaseConfigured };

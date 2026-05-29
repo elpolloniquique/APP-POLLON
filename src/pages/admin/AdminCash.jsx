@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useOrders } from '../../hooks/useOrders';
+import { useStaffBranch } from '../../hooks/useStaffBranch';
 import { money, todayISO } from '../../utils/format';
 import { Button } from '../../components/ui/Button';
 
@@ -11,16 +12,18 @@ function loadCaja() {
 
 export function AdminCash() {
   const { orders } = useOrders();
+  const { filterOrders, branchName, isBranchScoped } = useStaffBranch();
+  const ordersScoped = useMemo(() => filterOrders(orders), [orders, filterOrders]);
   const [caja, setCaja] = useState(loadCaja);
   const today = todayISO();
 
   const ventasHoy = useMemo(() => {
-    const pedidos = orders.filter((o) => (o.createdAt || '').startsWith(today) && o.estado === 'entregado');
+    const pedidos = ordersScoped.filter((o) => (o.createdAt || '').startsWith(today) && o.estado === 'entregado');
     const efectivo = pedidos.filter((o) => o.metodo_pago === 'efectivo').reduce((s, o) => s + o.total, 0);
     const transferencia = pedidos.filter((o) => o.metodo_pago === 'transferencia').reduce((s, o) => s + o.total, 0);
     const total = pedidos.reduce((s, o) => s + o.total, 0);
     return { efectivo, transferencia, total, count: pedidos.length };
-  }, [orders, today]);
+  }, [ordersScoped, today]);
 
   const abrirCaja = () => {
     const monto = prompt('Monto inicial de caja (CLP):', '0');
@@ -39,6 +42,9 @@ export function AdminCash() {
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold">Caja diaria</h2>
+      {isBranchScoped && (
+        <p className="text-sm font-medium text-pollon-red">Sucursal: {branchName}</p>
+      )}
       <div className="flex gap-2">
         {!caja.abierta ? <Button onClick={abrirCaja}>Abrir caja</Button> : <Button variant="dark" onClick={cerrarCaja}>Cerrar caja</Button>}
         <span className={`self-center rounded-full px-3 py-1 text-sm font-semibold ${caja.abierta ? 'bg-green-100 text-green-800' : 'bg-gray-100'}`}>

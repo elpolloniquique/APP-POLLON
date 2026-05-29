@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Eye, Printer, RefreshCw } from 'lucide-react';
 import { useOrders } from '../../hooks/useOrders';
+import { useStaffBranch } from '../../hooks/useStaffBranch';
 import { money, formatDateTime, nextEstado, estadoLabel } from '../../utils/format';
 import { printThermalReceipt } from '../../utils/orderReceipt';
 import { adminListAllBranches } from '../../services/branchService';
@@ -11,7 +12,9 @@ import { ORDER_STATES } from '../../utils/constants';
 
 export function AdminOrders() {
   const [alarmOn, setAlarmOn] = useState(true);
+  const { branchName, isBranchScoped, filterOrders } = useStaffBranch();
   const { orders, updateOrder, refresh, ready, realtimeStatus, isBackendReady } = useOrders({ alarmEnabled: alarmOn });
+  const ordersScoped = useMemo(() => filterOrders(orders), [orders, filterOrders]);
   const [estado, setEstado] = useState('');
   const [search, setSearch] = useState('');
   const [desde, setDesde] = useState('');
@@ -28,7 +31,7 @@ export function AdminOrders() {
     [branches]
   );
 
-  const filtered = useMemo(() => orders.filter((o) => {
+  const filtered = useMemo(() => ordersScoped.filter((o) => {
     const d = (o.createdAt || '').substring(0, 10);
     if (desde && d < desde) return false;
     if (hasta && d > hasta) return false;
@@ -41,7 +44,7 @@ export function AdminOrders() {
       if (!n.includes(q) && !t.includes(q) && !c.includes(q)) return false;
     }
     return true;
-  }), [orders, estado, search, desde, hasta]);
+  }), [ordersScoped, estado, search, desde, hasta]);
 
   const exportCsv = () => {
     const rows = [['Código', 'Cliente', 'Teléfono', 'Total', 'Estado', 'Fecha']];
@@ -86,6 +89,9 @@ export function AdminOrders() {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-2xl font-bold">Pedidos en tiempo real</h2>
+          {isBranchScoped && (
+            <p className="text-sm font-medium text-pollon-red">Sucursal: {branchName}</p>
+          )}
           <p className="text-sm text-gray-500">
             {ready && isBackendReady && realtimeStatus === 'live' && (
               <span className="inline-flex items-center gap-1 text-green-700">
