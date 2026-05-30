@@ -1,5 +1,5 @@
 import { money } from '../../utils/format';
-import { Plus } from 'lucide-react';
+import { ShoppingCart } from 'lucide-react';
 
 export function ProductCard({ product, onSelect }) {
   const img = product.image?.startsWith('img/') ? `/${product.image}` : product.image || '/img/todo el menu.png';
@@ -31,10 +31,11 @@ export function ProductCard({ product, onSelect }) {
         {product.description && (
           <p className="mt-1 line-clamp-2 text-xs text-gray-500">{product.description}</p>
         )}
-        <div className="mt-auto flex items-center justify-between pt-3">
-          <span className="font-display text-2xl text-pollon-gold">{money(product.price)}</span>
-          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-pollon-red text-white shadow-md transition group-hover:bg-pollon-red-dark">
-            <Plus className="h-5 w-5" />
+        <div className="mt-auto flex items-end justify-between gap-2 pt-3">
+          <span className="font-display text-xl text-pollon-gold sm:text-2xl">{money(product.price)}</span>
+          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-pollon-red px-3 py-2 text-xs font-bold text-white shadow-md transition group-hover:bg-pollon-red-dark sm:px-3.5 sm:text-sm">
+            <ShoppingCart className="h-3.5 w-3.5 sm:h-4 sm:w-4" strokeWidth={2.25} />
+            Agregar
           </span>
         </div>
       </div>
