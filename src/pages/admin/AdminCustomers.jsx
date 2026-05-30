@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Search, Mail, Phone, ShoppingBag } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useStaffBranch } from '../../hooks/useStaffBranch';
+import { normalizeRole } from '../../services/authService';
 import { adminListCustomers, adminGetCustomerOrders } from '../../services/customerService';
 import { isSupabaseConfigured } from '../../services/supabaseClient';
 import { money, formatDateTime } from '../../utils/format';
@@ -9,7 +11,8 @@ import { AdminTable } from '../../components/admin/AdminTable';
 import { AdminScrollPanel } from '../../components/admin/AdminScrollPanel';
 
 export function AdminCustomers() {
-  const { profile } = useAuth();
+  const { profile, role } = useAuth();
+  const { branchName, isBranchScoped } = useStaffBranch();
   const [customers, setCustomers] = useState([]);
   const [search, setSearch] = useState('');
   const [filterPromo, setFilterPromo] = useState('all');
@@ -24,7 +27,7 @@ export function AdminCustomers() {
     setLoading(true);
     try {
       const list = await adminListCustomers({
-        branchId: profile?.rol === 'super_admin' ? undefined : branchId,
+        branchId: normalizeRole(role) === 'super_admin' ? undefined : branchId,
         search: search || undefined,
         acceptsPromotions: filterPromo === 'promo' ? true : undefined,
       });
@@ -58,6 +61,7 @@ export function AdminCustomers() {
       <AdminPageHeader
         title="Clientes registrados"
         subtitle="Buscar, segmentar y ver historial de compras"
+        branchLabel={isBranchScoped ? branchName : undefined}
       />
 
       <div className="admin-toolbar">

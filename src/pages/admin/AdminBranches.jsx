@@ -4,7 +4,7 @@ import { adminListAllBranches, adminSaveBranch, adminDeleteBranch } from '../../
 import { isSupabaseConfigured } from '../../services/menuService';
 import { useToast } from '../../hooks/useToast';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
-import { ROLES } from '../../utils/constants';
+import { canManageAllBranches } from '../../services/authService';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { AdminScrollPanel } from '../../components/admin/AdminScrollPanel';
 
@@ -34,7 +34,9 @@ export function AdminBranches() {
   const [deletingId, setDeletingId] = useState(null);
   const [loadError, setLoadError] = useState('');
   const user = { id: profile?.id, email: profile?.email };
-  const canManage = can('branches');
+  const canView = can('branches');
+  const canManage = canManageAllBranches(role);
+  const myBranchId = profile?.branchId || profile?.branch_id;
 
   const load = () => {
     setLoadError('');
@@ -81,12 +83,11 @@ export function AdminBranches() {
     return <p className="rounded-xl bg-amber-50 p-4">Configura Supabase y ejecuta schema-multi-sucursal.sql</p>;
   }
 
-  if (!canManage) {
+  if (!canView) {
     return (
       <div className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">
-        <p className="font-bold">Sin permiso para gestionar sucursales</p>
-        <p className="mt-2">Tu rol actual es <strong>{role}</strong>. Solo <strong>{ROLES.SUPER_ADMIN}</strong> puede crear sucursales.</p>
-        <p className="mt-2">En Supabase ejecuta <code>supabase/fix-perfil-admin.sql</code> y vuelve a iniciar sesión.</p>
+        <p className="font-bold">Sin permiso para ver sucursales</p>
+        <p className="mt-2">Tu rol actual es <strong>{role}</strong>.</p>
       </div>
     );
   }
@@ -99,8 +100,8 @@ export function AdminBranches() {
       )}
       <AdminPageHeader
         title="Sucursales"
-        subtitle="Cada sucursal opera de forma independiente"
-        actions={(
+        subtitle={canManage ? 'Cada sucursal opera de forma independiente' : 'Consulta de sucursales — solo lectura'}
+        actions={canManage ? (
           <button
             type="button"
             onClick={() => setModal(emptyBranch())}
@@ -108,7 +109,7 @@ export function AdminBranches() {
           >
             <Plus className="h-4 w-4" /> Nueva sucursal
           </button>
-        )}
+        ) : undefined}
       />
 
       <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
@@ -119,9 +120,17 @@ export function AdminBranches() {
         <AdminScrollPanel maxRows={4} variant="grid" className="rounded-none border-0 shadow-none">
           <div className="grid gap-3 p-3 sm:grid-cols-2 sm:gap-4 sm:p-4">
             {list.map((b) => (
-              <article key={b.id} className="rounded-xl bg-gray-50/80 p-4 ring-1 ring-gray-100 sm:rounded-2xl sm:p-5">
+              <article
+                key={b.id}
+                className={`rounded-xl p-4 ring-1 sm:rounded-2xl sm:p-5 ${
+                  b.id === myBranchId ? 'bg-pollon-red/5 ring-pollon-red/30' : 'bg-gray-50/80 ring-gray-100'
+                }`}
+              >
                 <div className="flex justify-between gap-2">
-                  <h3 className="min-w-0 truncate font-bold">{b.name}</h3>
+                  <h3 className="min-w-0 truncate font-bold">
+                    {b.name}
+                    {b.id === myBranchId && <span className="ml-2 text-xs font-normal text-pollon-red">(Tu local)</span>}
+                  </h3>
                   <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${b.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100'}`}>
                     {b.isActive ? 'Activa' : 'Inactiva'}
                   </span>
@@ -129,24 +138,26 @@ export function AdminBranches() {
                 <p className="mt-1 text-xs text-gray-500 sm:text-sm">{b.city} · {b.address}</p>
                 <p className="text-xs sm:text-sm">WhatsApp: {b.whatsapp}</p>
                 <p className="text-xs sm:text-sm">Delivery: ${b.deliveryCost?.toLocaleString('es-CL')}</p>
-                <div className="mt-3 flex flex-wrap items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setModal({ ...b, schedule: b.schedule })}
-                    className="flex items-center gap-1 text-sm font-semibold text-pollon-red hover:underline"
-                  >
-                    <Pencil className="h-4 w-4" /> Editar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => removeBranch(b)}
-                    disabled={deletingId === b.id}
-                    className="flex items-center gap-1 text-sm font-semibold text-red-600 hover:text-red-700 disabled:opacity-50"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    {deletingId === b.id ? 'Eliminando…' : 'Eliminar'}
-                  </button>
-                </div>
+                {canManage && (
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setModal({ ...b, schedule: b.schedule })}
+                      className="flex items-center gap-1 text-sm font-semibold text-pollon-red hover:underline"
+                    >
+                      <Pencil className="h-4 w-4" /> Editar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeBranch(b)}
+                      disabled={deletingId === b.id}
+                      className="flex items-center gap-1 text-sm font-semibold text-red-600 hover:text-red-700 disabled:opacity-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      {deletingId === b.id ? 'Eliminando…' : 'Eliminar'}
+                    </button>
+                  </div>
+                )}
               </article>
             ))}
             {!list.length && <p className="col-span-full py-8 text-center text-sm text-gray-500">Sin sucursales</p>}

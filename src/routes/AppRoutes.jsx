@@ -6,7 +6,6 @@ import { Checkout } from '../pages/Checkout';
 import { OrderSuccess } from '../pages/OrderSuccess';
 import { AdminLogin } from '../pages/AdminLogin';
 import { AdminLayout } from '../components/admin/AdminLayout';
-import { AdminDashboard } from '../pages/admin/AdminDashboard';
 import { AdminOrders } from '../pages/admin/AdminOrders';
 import { AdminMenu } from '../pages/admin/AdminMenu';
 import { AdminBranches } from '../pages/admin/AdminBranches';
@@ -17,7 +16,7 @@ import { AdminConfig } from '../pages/admin/AdminConfig';
 import { AdminCustomers } from '../pages/admin/AdminCustomers';
 import { AdminCampaigns } from '../pages/admin/AdminCampaigns';
 import { KitchenScreen } from '../pages/admin/KitchenScreen';
-import { ProtectedRoute } from '../components/admin/ProtectedRoute';
+import { ProtectedRoute, AdminHome } from '../components/admin/ProtectedRoute';
 import { CustomerRoute } from '../components/auth/CustomerRoute';
 import { AccountLayout } from '../pages/account/AccountLayout';
 import { AccountProfile } from '../pages/account/AccountProfile';
@@ -57,7 +56,7 @@ export function AppRoutes() {
           </ProtectedRoute>
         )}
       >
-        <Route index element={<AdminDashboard />} />
+        <Route index element={<AdminHome />} />
         <Route path="pedidos" element={<ProtectedRoute perm="orders"><AdminOrders /></ProtectedRoute>} />
         <Route path="cocina" element={<ProtectedRoute perm="kitchen"><KitchenScreen /></ProtectedRoute>} />
         <Route path="menu" element={<ProtectedRoute perm="menu"><AdminMenu /></ProtectedRoute>} />

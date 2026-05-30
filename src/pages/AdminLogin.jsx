@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/Button';
 import { isSupabaseConfigured } from '../services/supabaseClient';
 import { LEGACY_ADMIN_PASSWORD } from '../services/authService';
-import { isStaffRole, normalizeRole } from '../services/authService';
+import { isStaffRole, normalizeRole, getDefaultAdminPath } from '../services/authService';
 
 const LOGIN_TIMEOUT_MS = 25000;
 
@@ -29,7 +29,7 @@ export function AdminLogin() {
     if (authLoading || !session || !profile) return;
     const role = normalizeRole(profile.rol || profile.role);
     if (isStaffRole(role) || session.legacy) {
-      navigate('/admin', { replace: true });
+      navigate(getDefaultAdminPath(role), { replace: true });
     }
   }, [authLoading, session, profile, navigate]);
 
@@ -55,7 +55,7 @@ export function AdminLogin() {
         );
         return;
       }
-      navigate('/admin', { replace: true });
+      navigate(getDefaultAdminPath(role), { replace: true });
     } catch (err) {
       setError(err.message || 'Credenciales incorrectas');
     } finally {

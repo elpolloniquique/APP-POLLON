@@ -1,15 +1,26 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useStaffBranch } from '../../hooks/useStaffBranch';
 import { ADMIN_NAV } from '../../utils/constants';
 import { LogOut, Menu, X } from 'lucide-react';
 import { useState } from 'react';
 
 export function AdminLayout() {
-  const { profile, signOut, can } = useAuth();
+  const { profile, signOut, can, role } = useAuth();
+  const { branchName, isBranchScoped, branchId } = useStaffBranch();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const nav = ADMIN_NAV.filter((n) => can(n.perm));
+
+  const roleLabels = {
+    super_admin: 'Super Admin',
+    admin_sucursal: 'Admin sucursal',
+    cajera: 'Cajera',
+    cocina: 'Cocina',
+    delivery: 'Delivery',
+  };
+  const roleLabel = roleLabels[role] || role;
 
   const handleLogout = async () => {
     await signOut();
@@ -62,7 +73,12 @@ export function AdminLayout() {
 
         <div className="shrink-0 border-t border-white/10 p-3 sm:p-4">
           <p className="truncate text-[10px] text-white/60 sm:text-xs">{profile?.email}</p>
-          <p className="text-[10px] capitalize text-pollon-orange sm:text-xs">{profile?.rol}</p>
+          <p className="text-[10px] font-medium text-pollon-orange sm:text-xs">{roleLabel}</p>
+          {isBranchScoped && (
+            <p className="mt-0.5 truncate text-[10px] text-white/70 sm:text-xs">
+              {branchId ? `Local: ${branchName}` : '⚠ Sin sucursal asignada'}
+            </p>
+          )}
           <button
             type="button"
             onClick={handleLogout}
@@ -97,6 +113,11 @@ export function AdminLayout() {
         </header>
 
         <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-3 sm:p-4 md:p-5 lg:p-6">
+          {isBranchScoped && !branchId && (
+            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              Tu cuenta no tiene sucursal asignada. Solo verás datos vacíos hasta que el super admin configure tu <code>branch_id</code> en Supabase.
+            </div>
+          )}
           <Outlet />
         </main>
       </div>

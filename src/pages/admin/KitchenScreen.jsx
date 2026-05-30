@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useOrders } from '../../hooks/useOrders';
-import { useStaffBranch } from '../../hooks/useStaffBranch';
+import { useAdminBranchFilter } from '../../hooks/useAdminBranchFilter';
 import { elapsedMinutes, estadoLabel } from '../../utils/format';
 import { Button } from '../../components/ui/Button';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
@@ -10,8 +10,8 @@ const KITCHEN_STATES = ['pendiente', 'confirmado', 'preparando'];
 
 export function KitchenScreen() {
   const { orders, updateOrder, refresh } = useOrders();
-  const { filterOrders, branchName, isBranchScoped } = useStaffBranch();
-  const ordersScoped = useMemo(() => filterOrders(orders), [orders, filterOrders]);
+  const { applyBranchFilter, headerBranchLabel, isBranchScoped } = useAdminBranchFilter();
+  const ordersScoped = useMemo(() => applyBranchFilter(orders), [orders, applyBranchFilter]);
 
   const pending = useMemo(
     () => ordersScoped
@@ -30,7 +30,7 @@ export function KitchenScreen() {
       <AdminPageHeader
         title="🍳 Cocina digital"
         subtitle={`${pending.length} pedido${pending.length !== 1 ? 's' : ''} en cola`}
-        branchLabel={isBranchScoped ? branchName : undefined}
+        branchLabel={headerBranchLabel}
       />
 
       {pending.length > 0 ? (

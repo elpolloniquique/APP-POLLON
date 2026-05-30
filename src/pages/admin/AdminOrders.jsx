@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Eye, Printer, RefreshCw } from 'lucide-react';
 import { useOrders } from '../../hooks/useOrders';
 import { useStaffBranch } from '../../hooks/useStaffBranch';
+import { useAdminBranchFilter } from '../../hooks/useAdminBranchFilter';
 import { money, formatDateTime, nextEstado, estadoLabel } from '../../utils/format';
 import { printThermalReceipt } from '../../utils/orderReceipt';
 import { adminListAllBranches } from '../../services/branchService';
@@ -9,14 +10,23 @@ import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { OrderDetailModal } from '../../components/admin/OrderDetailModal';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
+import { AdminBranchFilter } from '../../components/admin/AdminBranchFilter';
 import { AdminTable } from '../../components/admin/AdminTable';
 import { ORDER_STATES } from '../../utils/constants';
 
 export function AdminOrders() {
   const [alarmOn, setAlarmOn] = useState(true);
-  const { branchName, isBranchScoped, filterOrders } = useStaffBranch();
+  const { isBranchScoped } = useStaffBranch();
+  const {
+    applyBranchFilter,
+    showBranchFilter,
+    branches: branchList,
+    selectedBranchId,
+    setSelectedBranchId,
+    headerBranchLabel,
+  } = useAdminBranchFilter();
   const { orders, updateOrder, refresh, ready, realtimeStatus, isBackendReady } = useOrders({ alarmEnabled: alarmOn });
-  const ordersScoped = useMemo(() => filterOrders(orders), [orders, filterOrders]);
+  const ordersScoped = useMemo(() => applyBranchFilter(orders), [orders, applyBranchFilter]);
   const [estado, setEstado] = useState('');
   const [search, setSearch] = useState('');
   const [desde, setDesde] = useState('');
@@ -25,8 +35,12 @@ export function AdminOrders() {
   const [branches, setBranches] = useState([]);
 
   useEffect(() => {
-    adminListAllBranches().then(setBranches).catch(() => {});
-  }, []);
+    if (showBranchFilter) {
+      setBranches(branchList);
+    } else {
+      adminListAllBranches().then(setBranches).catch(() => {});
+    }
+  }, [showBranchFilter, branchList]);
 
   const branchFor = useCallback(
     (order) => branches.find((b) => b.id === order.branchId) || { name: 'El Pollón' },
@@ -98,9 +112,16 @@ export function AdminOrders() {
       <AdminPageHeader
         title="Pedidos en tiempo real"
         subtitle={statusLine}
-        branchLabel={isBranchScoped ? branchName : undefined}
+        branchLabel={isBranchScoped || selectedBranchId ? headerBranchLabel : undefined}
         actions={(
           <>
+            {showBranchFilter && (
+              <AdminBranchFilter
+                branches={branchList}
+                value={selectedBranchId}
+                onChange={setSelectedBranchId}
+              />
+            )}
             <Button variant="ghost" onClick={refresh}>Actualizar</Button>
             <Button onClick={exportCsv}>Exportar CSV</Button>
           </>
@@ -127,6 +148,7 @@ export function AdminOrders() {
         minWidth={720}
         columns={[
           { key: 'code', label: 'Código' },
+          { key: 'branch', label: 'Sucursal', className: 'hidden lg:table-cell' },
           { key: 'client', label: 'Cliente' },
           { key: 'phone', label: 'Teléfono', className: 'hidden sm:table-cell' },
           { key: 'total', label: 'Total' },
@@ -138,6 +160,7 @@ export function AdminOrders() {
         {filtered.map((o) => (
           <tr key={o.id} className="border-t hover:bg-gray-50">
             <td className="p-2 font-mono text-xs font-semibold sm:p-3 sm:text-sm">{o.codigo_pedido || o.ticketNumber}</td>
+            <td className="hidden p-2 text-xs lg:table-cell sm:p-3">{branchFor(o).name}</td>
             <td className="max-w-[120px] truncate p-2 sm:max-w-none sm:p-3">{o.customer?.name}</td>
             <td className="hidden p-2 sm:table-cell sm:p-3">{o.customer?.phone}</td>
             <td className="p-2 font-semibold sm:p-3">{money(o.total)}</td>

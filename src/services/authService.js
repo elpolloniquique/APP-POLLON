@@ -1,5 +1,5 @@
 import { getSupabase, isSupabaseConfigured } from './supabaseClient';
-import { ROLE_PERMISSIONS, ROLES, STAFF_ROLES, CUSTOMER_SESSION_KEY } from '../utils/constants';
+import { ADMIN_NAV, ROLE_PERMISSIONS, ROLES, STAFF_ROLES, CUSTOMER_SESSION_KEY } from '../utils/constants';
 
 const LEGACY_SESSION_KEY = 'pollon_admin_legacy_v1';
 export const LEGACY_ADMIN_PASSWORD = import.meta.env.VITE_LEGACY_ADMIN_PASSWORD || 'HUILLCA123';
@@ -27,6 +27,7 @@ export function normalizeRole(role) {
   if (!role) return ROLES.CLIENTE;
   if (role === 'administrador') return ROLES.ADMIN_SUCURSAL;
   if (role === 'cajero') return ROLES.CAJERA;
+  if (role === 'cocinero') return ROLES.COCINA;
   if (role === 'repartidor') return ROLES.DELIVERY;
   return role;
 }
@@ -267,6 +268,28 @@ export function hasPermission(role, perm) {
   const r = normalizeRole(role);
   const perms = ROLE_PERMISSIONS[r] || [];
   return perms.includes(perm);
+}
+
+/** Primera ruta del panel permitida para el rol (post-login y accesos denegados). */
+export function getDefaultAdminPath(role) {
+  const r = normalizeRole(role);
+  const defaults = {
+    [ROLES.SUPER_ADMIN]: '/admin',
+    [ROLES.ADMIN_SUCURSAL]: '/admin',
+    [ROLES.CAJERA]: '/admin',
+    [ROLES.COCINA]: '/admin/cocina',
+    [ROLES.DELIVERY]: '/admin/pedidos',
+  };
+  if (defaults[r]) return defaults[r];
+
+  const perms = ROLE_PERMISSIONS[r] || [];
+  const nav = ADMIN_NAV.find((item) => perms.includes(item.perm));
+  return nav?.path || '/admin/login';
+}
+
+/** Solo super admin puede crear, editar o eliminar sucursales. */
+export function canManageAllBranches(role) {
+  return normalizeRole(role) === ROLES.SUPER_ADMIN;
 }
 
 export function canAccessBranch(profile, branchId) {

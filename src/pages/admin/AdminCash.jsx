@@ -1,22 +1,28 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useOrders } from '../../hooks/useOrders';
-import { useStaffBranch } from '../../hooks/useStaffBranch';
+import { useAdminBranchFilter } from '../../hooks/useAdminBranchFilter';
 import { money, todayISO } from '../../utils/format';
 import { Button } from '../../components/ui/Button';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 
-const CAJA_KEY = 'pollon_caja_v1';
+function cajaKey(branchId) {
+  return branchId ? `pollon_caja_v1_${branchId}` : 'pollon_caja_v1';
+}
 
-function loadCaja() {
-  try { return JSON.parse(localStorage.getItem(CAJA_KEY) || '{}'); } catch { return {}; }
+function loadCaja(branchId) {
+  try { return JSON.parse(localStorage.getItem(cajaKey(branchId)) || '{}'); } catch { return {}; }
 }
 
 export function AdminCash() {
   const { orders } = useOrders();
-  const { filterOrders, branchName, isBranchScoped } = useStaffBranch();
-  const ordersScoped = useMemo(() => filterOrders(orders), [orders, filterOrders]);
-  const [caja, setCaja] = useState(loadCaja);
+  const { applyBranchFilter, headerBranchLabel, isBranchScoped, branchId } = useAdminBranchFilter();
+  const ordersScoped = useMemo(() => applyBranchFilter(orders), [orders, applyBranchFilter]);
+  const [caja, setCaja] = useState(() => loadCaja(branchId));
   const today = todayISO();
+
+  useEffect(() => {
+    setCaja(loadCaja(branchId));
+  }, [branchId]);
 
   const ventasHoy = useMemo(() => {
     const pedidos = ordersScoped.filter((o) => (o.createdAt || '').startsWith(today) && o.estado === 'entregado');
@@ -29,13 +35,13 @@ export function AdminCash() {
   const abrirCaja = () => {
     const monto = prompt('Monto inicial de caja (CLP):', '0');
     const data = { abierta: true, apertura: new Date().toISOString(), montoInicial: Number(monto) || 0, egresos: [] };
-    localStorage.setItem(CAJA_KEY, JSON.stringify(data));
+    localStorage.setItem(cajaKey(branchId), JSON.stringify(data));
     setCaja(data);
   };
 
   const cerrarCaja = () => {
     const data = { ...caja, abierta: false, cierre: new Date().toISOString(), ventas: ventasHoy };
-    localStorage.setItem(CAJA_KEY, JSON.stringify(data));
+    localStorage.setItem(cajaKey(branchId), JSON.stringify(data));
     setCaja(data);
     alert(`Caja cerrada. Total vendido: ${money(ventasHoy.total)}`);
   };
@@ -44,7 +50,7 @@ export function AdminCash() {
     <div className="admin-page">
       <AdminPageHeader
         title="Caja diaria"
-        branchLabel={isBranchScoped ? branchName : undefined}
+        branchLabel={headerBranchLabel}
         actions={(
           <div className="flex flex-wrap items-center gap-2">
             {!caja.abierta ? (
