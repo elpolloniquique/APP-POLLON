@@ -15,12 +15,27 @@ export function resolveProductOptions(product, categoryName = '') {
     bagEnabled,
     bagRequired: product?.bagRequired ?? (bagEnabled && isFamiliares),
     bagPrice: Number(product?.bagPrice ?? BAG_PRICE) || BAG_PRICE,
+    bagUnitsPerBag: Math.max(1, Math.floor(Number(product?.bagUnitsPerBag ?? 1) || 1)),
   };
 }
 
-export function calcLineTotal({ unitPrice, qty, bagPrice, includeBag }) {
+/** Cantidad de bolsas según unidades pedidas (1 bolsa cada N unidades). */
+export function calcBagQty(qty, includeBag, unitsPerBag = 1) {
+  if (!includeBag) return 0;
   const q = Math.max(1, qty || 1);
-  const bags = includeBag ? q : 0;
+  const ratio = Math.max(1, Math.floor(Number(unitsPerBag) || 1));
+  return Math.ceil(q / ratio);
+}
+
+export function formatBagRatioLabel(unitsPerBag = 1) {
+  const n = Math.max(1, Math.floor(Number(unitsPerBag) || 1));
+  if (n === 1) return '1 bolsa por unidad';
+  return `1 bolsa cada ${n} unidades`;
+}
+
+export function calcLineTotal({ unitPrice, qty, bagPrice, includeBag, bagUnitsPerBag = 1 }) {
+  const q = Math.max(1, qty || 1);
+  const bags = calcBagQty(q, includeBag, bagUnitsPerBag);
   return (Number(unitPrice) || 0) * q + (Number(bagPrice) || 0) * bags;
 }
 
@@ -49,5 +64,6 @@ export function defaultProductOptionsForCategory(categoryName = '') {
     bagEnabled: isFamiliares,
     bagRequired: isFamiliares,
     bagPrice: BAG_PRICE,
+    bagUnitsPerBag: 1,
   };
 }

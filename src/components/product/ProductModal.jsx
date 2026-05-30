@@ -2,7 +2,9 @@ import { useState, useEffect, useMemo } from 'react';
 import { X, Minus, Plus } from 'lucide-react';
 import { money } from '../../utils/format';
 import {
+  calcBagQty,
   calcLineTotal,
+  formatBagRatioLabel,
   formatDrinksLabel,
   MODAL_DRINK_OPTIONS,
   resolveProductOptions,
@@ -47,12 +49,13 @@ export function ProductModal({ product, category, categoryName = '', onClose, on
   if (!product) return null;
 
   const unitPrice = product.price;
-  const bagQty = bagSelected ? qty : 0;
+  const bagQty = calcBagQty(qty, bagSelected, opts.bagUnitsPerBag);
   const lineTotal = calcLineTotal({
     unitPrice,
     qty,
     bagPrice: opts.bagPrice,
     includeBag: bagSelected,
+    bagUnitsPerBag: opts.bagUnitsPerBag,
   });
 
   const drinksValid = !opts.drinkEnabled || !opts.drinkRequired || drinks.every((d) => d.trim());
@@ -82,6 +85,7 @@ export function ProductModal({ product, category, categoryName = '', onClose, on
       qty,
       unitPrice,
       bagPrice: opts.bagPrice,
+      bagUnitsPerBag: opts.bagUnitsPerBag,
       includeBag: bagSelected,
       total: lineTotal,
       drink: opts.drinkEnabled ? drinkLabel : null,
@@ -212,14 +216,20 @@ export function ProductModal({ product, category, categoryName = '', onClose, on
                   <>
                     * Esta categoría requiere agregar bolsa. Costo por bolsa:{' '}
                     <strong className="text-pollon-black">{money(opts.bagPrice)}</strong>.
-                    {bagSelected && (
-                      <> Se agregará <strong>{qty} bolsa{qty !== 1 ? 's' : ''}</strong> (1 por unidad).</>
+                    {' '}
+                    Regla: <strong className="text-pollon-black">{formatBagRatioLabel(opts.bagUnitsPerBag)}</strong>.
+                    {bagSelected && bagQty > 0 && (
+                      <> Se agregarán <strong>{bagQty} bolsa{bagQty !== 1 ? 's' : ''}</strong>.</>
                     )}
                   </>
                 ) : (
                   <>
                     Costo por bolsa: <strong className="text-pollon-black">{money(opts.bagPrice)}</strong>.
-                    {bagSelected && <> Se sumará al total ({qty} unidad{qty !== 1 ? 'es' : ''}).</>}
+                    {' '}
+                    {formatBagRatioLabel(opts.bagUnitsPerBag)}.
+                    {bagSelected && bagQty > 0 && (
+                      <> Se sumarán <strong>{bagQty} bolsa{bagQty !== 1 ? 's' : ''}</strong> al total.</>
+                    )}
                   </>
                 )}
               </p>

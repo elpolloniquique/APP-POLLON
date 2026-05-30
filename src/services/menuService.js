@@ -72,6 +72,7 @@ function mapProduct(row) {
     bagEnabled: row.bag_enabled === true,
     bagRequired: row.bag_required === true,
     bagPrice: Number(row.bag_price ?? 200) || 200,
+    bagUnitsPerBag: Math.max(1, Math.floor(Number(row.bag_units_per_bag ?? 1) || 1)),
   };
 }
 
@@ -345,6 +346,7 @@ export async function adminUpsertProduct(product, user) {
     bag_enabled: !!product.bagEnabled,
     bag_required: !!product.bagRequired,
     bag_price: Number(product.bagPrice ?? 200) || 200,
+    bag_units_per_bag: Math.max(1, Math.floor(Number(product.bagUnitsPerBag ?? 1) || 1)),
   };
   const { data, error } = await sb().from('products').upsert(row).select().single();
   if (error) {
@@ -402,6 +404,7 @@ export async function adminDuplicateProduct(productId, targetBranchId, targetCat
     bag_enabled: src.bag_enabled ?? false,
     bag_required: src.bag_required ?? false,
     bag_price: src.bag_price ?? 200,
+    bag_units_per_bag: Math.max(1, Math.floor(Number(src.bag_units_per_bag ?? 1) || 1)),
   }).select().single();
   if (insErr) throw insErr;
   await logAudit({ user, branchId: targetBranchId, entityType: 'product', entityId: data.id, action: 'duplicate', newData: { from: productId } });
@@ -444,6 +447,7 @@ export async function adminCopyMenuFromBranch(sourceBranchId, targetBranchId, us
       bag_enabled: !!p.bagEnabled,
       bag_required: !!p.bagRequired,
       bag_price: Number(p.bagPrice ?? 200) || 200,
+      bag_units_per_bag: Math.max(1, Math.floor(Number(p.bagUnitsPerBag ?? 1) || 1)),
     });
   }
   await logAudit({ user, branchId: targetBranchId, entityType: 'menu', action: 'copy_from_branch', newData: { sourceBranchId } });

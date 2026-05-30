@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { BAG_PRICE, CART_KEY } from '../utils/constants';
+import { calcBagQty } from '../utils/productOptions';
 import { useBranch } from './BranchContext';
 
 const CartContext = createContext(null);
@@ -76,7 +77,8 @@ export function CartProvider({ children }) {
           const unit = i.unitPrice ?? Math.round((i.total || 0) / (i.qty || 1));
           const includeBag = i.includeBag ?? (i.bagQty > 0);
           const bagPrice = i.bagPrice ?? BAG_PRICE;
-          const bagQty = includeBag ? qty : 0;
+          const bagUnitsPerBag = Math.max(1, Math.floor(Number(i.bagUnitsPerBag ?? 1) || 1));
+          const bagQty = calcBagQty(qty, includeBag, bagUnitsPerBag);
           let drinks = i.drinks?.length ? [...i.drinks] : (i.drink ? i.drink.split(' · ').map((s) => s.replace(/^#\d+:\s*/, '')) : []);
           while (drinks.length < qty) drinks.push(drinks[drinks.length - 1] || '');
           drinks = drinks.slice(0, qty);
@@ -85,6 +87,7 @@ export function CartProvider({ children }) {
             ...i,
             qty,
             bagQty,
+            bagUnitsPerBag,
             drinks,
             drink,
             total: unit * qty + bagPrice * bagQty,

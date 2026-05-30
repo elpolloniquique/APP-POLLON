@@ -667,15 +667,38 @@ export function AdminMenu() {
                         />
                         <span className="text-xs text-gray-600">Obligatoria al agregar al carrito</span>
                       </label>
-                      <div className="ml-6">
-                        <label className="text-xs font-medium text-gray-600">Precio por bolsa (CLP)</label>
-                        <input
-                          type="number"
-                          min={0}
-                          value={prodModal.bagPrice ?? BAG_PRICE}
-                          onChange={(e) => setProdModal({ ...prodModal, bagPrice: Number(e.target.value) || 0 })}
-                          className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
-                        />
+                      <div className="ml-6 space-y-3">
+                        <div>
+                          <label className="text-xs font-medium text-gray-600">Precio por bolsa (CLP)</label>
+                          <input
+                            type="number"
+                            min={0}
+                            value={prodModal.bagPrice ?? BAG_PRICE}
+                            onChange={(e) => setProdModal({ ...prodModal, bagPrice: Number(e.target.value) || 0 })}
+                            className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-gray-600">Unidades por bolsa</label>
+                          <div className="mt-1 flex items-center gap-2">
+                            <span className="shrink-0 text-xs text-gray-500">1 bolsa cada</span>
+                            <input
+                              type="number"
+                              min={1}
+                              step={1}
+                              value={prodModal.bagUnitsPerBag ?? 1}
+                              onChange={(e) => setProdModal({
+                                ...prodModal,
+                                bagUnitsPerBag: Math.max(1, Math.floor(Number(e.target.value) || 1)),
+                              })}
+                              className="w-20 rounded-lg border px-3 py-2 text-sm text-center"
+                            />
+                            <span className="text-xs text-gray-500">unidad(es)</span>
+                          </div>
+                          <p className="mt-1.5 text-[11px] leading-relaxed text-gray-500">
+                            Ej: 1 = una bolsa por unidad · 2 = una bolsa cada 2 unidades · 4 = una bolsa cada 4 unidades.
+                          </p>
+                        </div>
                       </div>
                     </>
                   )}
