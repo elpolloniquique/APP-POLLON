@@ -22,6 +22,7 @@ import {
   isSupabaseConfigured,
 } from '../../services/menuService';
 import { ProductImagesEditor } from '../../components/admin/ProductImagesEditor';
+import { CategoryImageEditor } from '../../components/admin/CategoryImageEditor';
 import { AdminScrollPanel } from '../../components/admin/AdminScrollPanel';
 import { AdminTable } from '../../components/admin/AdminTable';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
@@ -66,6 +67,7 @@ export function AdminMenu() {
   const [dupTargetCat, setDupTargetCat] = useState('');
   const [dupTargetCats, setDupTargetCats] = useState([]);
   const [uploadingImages, setUploadingImages] = useState(false);
+  const [uploadingCatImage, setUploadingCatImage] = useState(false);
 
   const user = { id: profile?.id, email: profile?.email };
   const role = normalizeRole(profile?.rol || profile?.role);
@@ -203,25 +205,6 @@ export function AdminMenu() {
     setProdModal({ ...product, imageUrls, imageUrl: imageUrls[0] || product.imageUrl || '' });
   };
 
-  const handleImage = async (e, target) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!activeBranchId) {
-      show('Selecciona una sucursal antes de subir imágenes');
-      return;
-    }
-    try {
-      const url = await uploadProductImage(file, activeBranchId);
-      if (target === 'cat') setCatModal((c) => ({ ...c, imageUrl: url }));
-      else setProdModal((p) => ({ ...p, imageUrl: url }));
-      show('Imagen subida');
-    } catch (err) {
-      show(err.message || 'No se pudo subir la imagen');
-    } finally {
-      e.target.value = '';
-    }
-  };
-
   const moveCategory = async (cat, dir) => {
     const idx = categories.findIndex((c) => c.id === cat.id);
     const swap = categories[idx + dir];
@@ -315,7 +298,6 @@ export function AdminMenu() {
             <div className="space-y-2 p-2">
             {categories.map((c, i) => (
               <div key={c.id} className="flex flex-wrap items-center gap-2 rounded-xl border p-3">
-                {c.imageUrl && <img src={c.imageUrl} alt="" className="h-10 w-10 rounded object-cover" />}
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold">{c.name}</p>
                   <p className="text-xs text-gray-500">Orden {c.displayOrder} · {c.isActive ? 'Activa' : 'Inactiva'}</p>
@@ -503,8 +485,21 @@ export function AdminMenu() {
               <input required value={catModal.name} onChange={(e) => setCatModal({ ...catModal, name: e.target.value })} placeholder="Nombre" className="w-full rounded-lg border px-3 py-2" />
               <textarea value={catModal.description} onChange={(e) => setCatModal({ ...catModal, description: e.target.value })} placeholder="Descripción" className="w-full rounded-lg border px-3 py-2" rows={2} />
               <input type="number" value={catModal.displayOrder} onChange={(e) => setCatModal({ ...catModal, displayOrder: Number(e.target.value) })} placeholder="Orden" className="w-full rounded-lg border px-3 py-2" />
-              <input type="file" accept="image/*" onChange={(e) => handleImage(e, 'cat')} />
-              {catModal.imageUrl && <img src={catModal.imageUrl} alt="" className="h-20 rounded object-cover" />}
+              <CategoryImageEditor
+                imageUrl={catModal.imageUrl || ''}
+                onChange={(url) => setCatModal({ ...catModal, imageUrl: url })}
+                onUpload={async (file) => {
+                  if (!activeBranchId) throw new Error('Selecciona una sucursal antes de subir imágenes');
+                  setUploadingCatImage(true);
+                  try {
+                    return await uploadProductImage(file, activeBranchId);
+                  } finally {
+                    setUploadingCatImage(false);
+                  }
+                }}
+                onError={show}
+                uploading={uploadingCatImage}
+              />
               <label className="flex items-center gap-2"><input type="checkbox" checked={catModal.isActive} onChange={(e) => setCatModal({ ...catModal, isActive: e.target.checked })} /> Activa</label>
             </div>
             <div className="mt-4 flex gap-2">

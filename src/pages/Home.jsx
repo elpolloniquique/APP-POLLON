@@ -33,14 +33,17 @@ function imgSrc(path) {
   return path.startsWith('/') ? path : `/${path}`;
 }
 
-/** Imagen de portada: primer producto de la categoría, o imagen de categoría como respaldo. */
-function categoryCoverImage(category, productsByCategory) {
+/** Imagen para círculos 「Explora nuestro menú」: foto de categoría (admin) o primer plato como respaldo. */
+function categoryExploreImage(category, productsByCategory) {
+  const adminImage = category.imageUrl || category.image;
+  if (adminImage) return imgSrc(adminImage);
+
   const products = [...(productsByCategory[category.id] || [])]
     .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
   const coverProduct = products.find((p) => p.imageUrl || p.image) || products[0];
   const productImage = coverProduct?.imageUrl || coverProduct?.image;
   if (productImage) return imgSrc(productImage);
-  return imgSrc(category.imageUrl || category.image);
+  return '/img/todo el menu.png';
 }
 
 export function Home() {
@@ -59,7 +62,7 @@ export function Home() {
   const menuCircles = categories.slice(0, 8).map((c) => ({
     id: c.id,
     label: c.name,
-    img: categoryCoverImage(c, productsByCategory),
+    img: categoryExploreImage(c, productsByCategory),
   }));
 
   const quickAdd = (p, category) => {
