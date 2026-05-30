@@ -205,16 +205,14 @@ export function Home() {
                 <div className="p-4">
                   <h3 className="font-bold uppercase tracking-wide text-pollon-black">{p.name}</h3>
                   <p className="mt-1 line-clamp-2 text-xs text-gray-500">{p.description}</p>
-                  <div className="mt-3 flex items-center justify-between">
+                  <div className="mt-3 flex items-center justify-between gap-2">
                     <span className="font-display text-2xl text-pollon-gold">{money(p.price)}</span>
-                    <button
-                      type="button"
-                      onClick={() => quickAdd(p, p.categoryId)}
-                      className="flex h-10 w-10 items-center justify-center rounded-full bg-pollon-red text-white shadow-md hover:bg-pollon-red-dark"
-                      aria-label="Agregar"
+                    <Link
+                      to={p.categoryId ? `/tienda?cat=${encodeURIComponent(p.categoryId)}` : '/tienda'}
+                      className="inline-flex shrink-0 items-center justify-center rounded-full bg-pollon-red px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-white shadow-md transition hover:bg-pollon-red-dark"
                     >
-                      <Plus className="h-5 w-5" />
-                    </button>
+                      Ver más
+                    </Link>
                   </div>
                 </div>
               </article>
