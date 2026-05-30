@@ -106,8 +106,8 @@ export const STAFF_ROLES = [
 
 export const ROLE_PERMISSIONS = {
   super_admin: ['dashboard', 'menu', 'orders', 'kitchen', 'products', 'categories', 'branches', 'cash', 'inventory', 'reports', 'settings', 'users', 'customers', 'campaigns'],
-  admin_sucursal: ['dashboard', 'orders', 'kitchen', 'customers', 'branches', 'cash', 'inventory', 'reports', 'settings'],
-  administrador: ['dashboard', 'orders', 'kitchen', 'customers', 'branches', 'cash', 'inventory', 'reports', 'settings'],
+  admin_sucursal: ['dashboard', 'menu', 'orders', 'kitchen', 'customers', 'branches', 'cash', 'inventory', 'reports', 'settings'],
+  administrador: ['dashboard', 'menu', 'orders', 'kitchen', 'customers', 'branches', 'cash', 'inventory', 'reports', 'settings'],
   cajera: ['dashboard', 'orders', 'kitchen'],
   cajero: ['dashboard', 'orders', 'kitchen'],
   cocina: ['kitchen'],

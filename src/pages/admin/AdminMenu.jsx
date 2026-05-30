@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { normalizeRole } from '../../services/authService';
+import { useStaffBranch } from '../../hooks/useStaffBranch';
 import { adminListAllBranches } from '../../services/branchService';
 import {
   adminListCategories,
@@ -67,23 +68,33 @@ export function AdminMenu() {
   const role = normalizeRole(profile?.rol || profile?.role);
   const isSuper = role === 'super_admin';
   const adminBranchId = profile?.branch_id || profile?.branchId;
+  const { branchName, isBranchScoped } = useStaffBranch();
   const canManageMenu = role === 'super_admin' || role === 'admin_sucursal' || role === 'administrador';
+  const activeBranchId = isSuper ? branchId : (adminBranchId || branchId);
 
   useEffect(() => {
     adminListAllBranches().then((list) => {
-      setBranches(list);
-      const initial = isSuper ? (list[0]?.id || '') : (adminBranchId || list[0]?.id || '');
+      const visible = isSuper ? list : list.filter((b) => b.id === adminBranchId);
+      setBranches(visible.length ? visible : list);
+      const initial = isSuper ? (list[0]?.id || '') : (adminBranchId || '');
       setBranchId(initial);
     });
   }, [isSuper, adminBranchId]);
 
+  useEffect(() => {
+    if (!isSuper && adminBranchId && branchId !== adminBranchId) {
+      setBranchId(adminBranchId);
+    }
+  }, [isSuper, adminBranchId, branchId]);
+
   const load = useCallback(async () => {
-    if (!branchId) return;
+    const bid = activeBranchId;
+    if (!bid) return;
     setLoading(true);
     try {
       const [cats, prods] = await Promise.all([
-        adminListCategories(branchId),
-        adminListProducts(branchId, {
+        adminListCategories(bid),
+        adminListProducts(bid, {
           categoryId: selectedCatId || undefined,
           search: search || undefined,
           available: filterAvail === 'all' ? undefined : filterAvail === 'yes',
@@ -97,7 +108,7 @@ export function AdminMenu() {
     } finally {
       setLoading(false);
     }
-  }, [branchId, selectedCatId, search, filterAvail, show]);
+  }, [activeBranchId, selectedCatId, search, filterAvail, show]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -108,15 +119,15 @@ export function AdminMenu() {
   }, [dupProduct, dupTargetBranch, branchId]);
 
   useEffect(() => {
-    if (branchId && tab === 'historial') {
-      getAuditLogs(branchId).then(setAudit);
+    if (activeBranchId && tab === 'historial') {
+      getAuditLogs(activeBranchId).then(setAudit);
     }
-  }, [branchId, tab]);
+  }, [activeBranchId, tab]);
 
   const saveCategory = async (e) => {
     e.preventDefault();
     try {
-      await adminUpsertCategory(catModal, user);
+      await adminUpsertCategory({ ...catModal, branchId: activeBranchId }, user);
       setCatModal(null);
       show('Categoría guardada');
       load();
@@ -132,7 +143,7 @@ export function AdminMenu() {
       : `¿Eliminar la categoría "${cat.name}"?`;
     if (!window.confirm(msg)) return;
     try {
-      await adminDeleteCategory(cat.id, branchId, user);
+      await adminDeleteCategory(cat.id, activeBranchId, user);
       show('Categoría eliminada');
       if (selectedCatId === cat.id) setSelectedCatId('');
       load();
@@ -147,6 +158,7 @@ export function AdminMenu() {
       const imageUrls = prodModal.imageUrls || [];
       await adminUpsertProduct({
         ...prodModal,
+        branchId: activeBranchId,
         imageUrls,
         imageUrl: imageUrls[0] || prodModal.imageUrl || '',
       }, user);
@@ -160,13 +172,13 @@ export function AdminMenu() {
 
   const handleProductImagesUpload = async (files) => {
     if (!files?.length) return;
-    if (!branchId) {
+    if (!activeBranchId) {
       show('Selecciona una sucursal antes de subir imágenes');
       return;
     }
     setUploadingImages(true);
     try {
-      const result = await uploadProductImages(files, branchId);
+      const result = await uploadProductImages(files, activeBranchId);
       const urls = result.urls || result;
       setProdModal((p) => {
         const prev = p.imageUrls || (p.imageUrl ? [p.imageUrl] : []);
@@ -191,12 +203,12 @@ export function AdminMenu() {
   const handleImage = async (e, target) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!branchId) {
+    if (!activeBranchId) {
       show('Selecciona una sucursal antes de subir imágenes');
       return;
     }
     try {
-      const url = await uploadProductImage(file, branchId);
+      const url = await uploadProductImage(file, activeBranchId);
       if (target === 'cat') setCatModal((c) => ({ ...c, imageUrl: url }));
       else setProdModal((p) => ({ ...p, imageUrl: url }));
       show('Imagen subida');
@@ -229,26 +241,43 @@ export function AdminMenu() {
     );
   }
 
+  if (isBranchScoped && !adminBranchId) {
+    return (
+      <div className="admin-page rounded-xl bg-amber-50 p-6 text-amber-900">
+        <h2 className="text-xl font-bold">Menú por sucursal</h2>
+        <p className="mt-2 text-sm">Tu cuenta no tiene sucursal asignada. Contacta al super admin para vincular tu perfil a un local.</p>
+      </div>
+    );
+  }
+
+  const currentBranch = branches.find((b) => b.id === activeBranchId);
+
   return (
     <div className="admin-page">
       {Toast}
       <AdminPageHeader
         title="Menú por sucursal"
-        subtitle="Cada sucursal tiene su propio menú, precios y categorías"
+        subtitle={isSuper ? 'Gestiona el menú de cualquier sucursal' : 'Solo puedes editar el menú de tu local'}
+        branchLabel={!isSuper ? (currentBranch?.name || branchName) : undefined}
         actions={(
           <div className="flex flex-wrap items-center gap-2">
-            <select
-              value={branchId}
-              onChange={(e) => setBranchId(e.target.value)}
-              disabled={!isSuper && !!adminBranchId}
-              className="max-w-[200px] rounded-xl border px-3 py-2 text-sm font-semibold sm:max-w-none sm:px-4"
-            >
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>{b.name}</option>
-              ))}
-            </select>
+            {isSuper ? (
+              <select
+                value={branchId}
+                onChange={(e) => setBranchId(e.target.value)}
+                className="max-w-[200px] rounded-xl border px-3 py-2 text-sm font-semibold sm:max-w-none sm:px-4"
+              >
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+            ) : (
+              <span className="rounded-xl bg-pollon-red/10 px-3 py-2 text-sm font-semibold text-pollon-red">
+                {currentBranch?.name || branchName}
+              </span>
+            )}
             <Link
-              to={`/tienda?branch=${branchId}`}
+              to={`/tienda?branch=${activeBranchId}`}
               target="_blank"
               className="inline-flex items-center gap-2 rounded-xl border border-pollon-red px-3 py-2 text-sm font-semibold text-pollon-red sm:px-4"
             >
@@ -294,7 +323,7 @@ export function AdminMenu() {
                     <button type="button" onClick={() => moveCategory(c, 1)} disabled={i === categories.length - 1} className="p-1" title="Bajar"><ArrowDown className="h-4 w-4" /></button>
                     <button type="button" onClick={() => setCatModal(c)} className="p-2 text-gray-600" title="Editar"><Pencil className="h-4 w-4" /></button>
                     <button type="button" onClick={() => deleteCategory(c)} className="p-2 text-red-600" title="Eliminar"><Trash2 className="h-4 w-4" /></button>
-                    <button type="button" onClick={() => adminDuplicateCategory(c.id, branchId, user).then(() => { show('Categoría duplicada'); load(); })} className="p-2 text-blue-600" title="Duplicar"><Copy className="h-4 w-4" /></button>
+                    <button type="button" onClick={() => adminDuplicateCategory(c.id, activeBranchId, user).then(() => { show('Categoría duplicada'); load(); })} className="p-2 text-blue-600" title="Duplicar"><Copy className="h-4 w-4" /></button>
                   </>
                 )}
               </div>
@@ -308,7 +337,7 @@ export function AdminMenu() {
           </AdminScrollPanel>
           {canManageMenu && (
             <div className="mt-3 flex justify-end">
-              <button type="button" onClick={() => setCatModal(emptyCat(branchId))} className="flex items-center gap-1 rounded-lg bg-pollon-red px-3 py-2 text-sm text-white">
+              <button type="button" onClick={() => setCatModal(emptyCat(activeBranchId))} className="flex items-center gap-1 rounded-lg bg-pollon-red px-3 py-2 text-sm text-white">
                 <Plus className="h-4 w-4" /> Nueva categoría
               </button>
             </div>
@@ -332,7 +361,7 @@ export function AdminMenu() {
               <option value="yes">Disponibles</option>
               <option value="no">No disponibles</option>
             </select>
-            <button type="button" onClick={() => setProdModal(emptyProd(branchId, selectedCatId || categories[0]?.id))} className="flex w-full items-center justify-center gap-1 rounded-lg bg-pollon-red px-4 py-2 text-sm text-white sm:w-auto">
+            <button type="button" onClick={() => setProdModal(emptyProd(activeBranchId, selectedCatId || categories[0]?.id))} className="flex w-full items-center justify-center gap-1 rounded-lg bg-pollon-red px-4 py-2 text-sm text-white sm:w-auto">
               <Plus className="h-4 w-4" /> Nuevo producto
             </button>
           </div>
@@ -386,24 +415,26 @@ export function AdminMenu() {
 
       {tab === 'herramientas' && (
         <div className="grid gap-4 md:grid-cols-2">
-          <div className="rounded-2xl bg-white p-6 shadow-sm">
-            <h3 className="flex items-center gap-2 font-bold"><Copy className="h-5 w-5 text-pollon-red" /> Copiar menú de otra sucursal</h3>
-            <p className="mt-1 text-sm text-gray-500">Importa categorías y productos completos</p>
-            <select value={copyFromId} onChange={(e) => setCopyFromId(e.target.value)} className="mt-3 w-full rounded-lg border px-3 py-2 text-sm">
-              <option value="">Seleccionar origen</option>
-              {branches.filter((b) => b.id !== branchId).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-            </select>
-            <button
-              type="button"
-              className="mt-3 w-full rounded-lg bg-pollon-red py-2 text-sm font-bold text-white"
-              onClick={() => {
-                if (!copyFromId || !confirm('¿Copiar todo el menú? Se agregarán categorías y productos.')) return;
-                adminCopyMenuFromBranch(copyFromId, branchId, user).then(() => { show('Menú copiado'); load(); });
-              }}
-            >
-              Copiar menú
-            </button>
-          </div>
+          {isSuper && (
+            <div className="rounded-2xl bg-white p-6 shadow-sm">
+              <h3 className="flex items-center gap-2 font-bold"><Copy className="h-5 w-5 text-pollon-red" /> Copiar menú de otra sucursal</h3>
+              <p className="mt-1 text-sm text-gray-500">Importa categorías y productos completos (solo super admin)</p>
+              <select value={copyFromId} onChange={(e) => setCopyFromId(e.target.value)} className="mt-3 w-full rounded-lg border px-3 py-2 text-sm">
+                <option value="">Seleccionar origen</option>
+                {branches.filter((b) => b.id !== activeBranchId).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+              <button
+                type="button"
+                className="mt-3 w-full rounded-lg bg-pollon-red py-2 text-sm font-bold text-white"
+                onClick={() => {
+                  if (!copyFromId || !confirm('¿Copiar todo el menú? Se agregarán categorías y productos.')) return;
+                  adminCopyMenuFromBranch(copyFromId, activeBranchId, user).then(() => { show('Menú copiado'); load(); });
+                }}
+              >
+                Copiar menú
+              </button>
+            </div>
+          )}
           <div className="rounded-2xl bg-white p-6 shadow-sm">
             <h3 className="flex items-center gap-2 font-bold"><Percent className="h-5 w-5 text-pollon-red" /> Aumento de precios</h3>
             <p className="mt-1 text-sm text-gray-500">Aplica un % a todos los productos de esta sucursal</p>
@@ -414,7 +445,7 @@ export function AdminMenu() {
               onClick={() => {
                 const pct = document.getElementById('price-percent')?.value;
                 if (!pct || !confirm(`¿Aumentar ${pct}% todos los precios?`)) return;
-                adminBulkPriceIncrease(branchId, pct, user).then(() => { show('Precios actualizados'); load(); });
+                adminBulkPriceIncrease(activeBranchId, pct, user).then(() => { show('Precios actualizados'); load(); });
               }}
             >
               Aplicar aumento
@@ -428,7 +459,7 @@ export function AdminMenu() {
               className="mt-3 w-full rounded-lg bg-red-600 py-2 text-sm font-bold text-white"
               onClick={() => {
                 if (!confirm('¿Desactivar TODOS los productos de esta sucursal?')) return;
-                adminBulkSetUnavailable(branchId).then(() => { show('Productos desactivados'); load(); });
+                adminBulkSetUnavailable(activeBranchId).then(() => { show('Productos desactivados'); load(); });
               }}
             >
               Desactivar productos
@@ -485,18 +516,22 @@ export function AdminMenu() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-md rounded-2xl bg-white p-6">
             <h3 className="text-lg font-bold">Duplicar producto</h3>
-            <p className="mt-1 text-sm text-gray-500">Copiar &ldquo;{dupProduct.name}&rdquo; a otra sucursal</p>
+            <p className="mt-1 text-sm text-gray-500">
+              {isSuper ? 'Copiar a otra sucursal' : 'Duplicar dentro de tu local'}
+            </p>
             <div className="mt-4 space-y-3">
-              <select
-                value={dupTargetBranch}
-                onChange={(e) => setDupTargetBranch(e.target.value)}
-                className="w-full rounded-lg border px-3 py-2 text-sm"
-              >
-                <option value="">Sucursal destino</option>
-                {branches.filter((b) => b.id !== branchId).map((b) => (
-                  <option key={b.id} value={b.id}>{b.name}</option>
-                ))}
-              </select>
+              {isSuper && (
+                <select
+                  value={dupTargetBranch}
+                  onChange={(e) => setDupTargetBranch(e.target.value)}
+                  className="w-full rounded-lg border px-3 py-2 text-sm"
+                >
+                  <option value="">Sucursal destino</option>
+                  {branches.filter((b) => b.id !== activeBranchId).map((b) => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
+              )}
               <select
                 value={dupTargetCat}
                 onChange={(e) => setDupTargetCat(e.target.value)}
@@ -514,7 +549,7 @@ export function AdminMenu() {
                 className="flex-1 rounded-lg bg-pollon-red py-2 font-bold text-white"
                 onClick={async () => {
                   try {
-                    let targetBranch = dupTargetBranch || branchId;
+                    let targetBranch = isSuper ? (dupTargetBranch || activeBranchId) : activeBranchId;
                     let targetCat = dupTargetCat;
                     if (dupTargetBranch && !dupTargetCat) {
                       const remoteCats = await adminListCategories(dupTargetBranch);
