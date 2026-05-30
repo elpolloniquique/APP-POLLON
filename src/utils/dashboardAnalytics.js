@@ -286,18 +286,52 @@ export function buildWeekdayChart(orders) {
 }
 
 export function buildTopProducts(orders, limit = 6) {
-  const count = {};
-  orders.forEach((o) => {
+  const items = buildTopProductItems(orders, limit);
+  return {
+    labels: items.map((i) => (i.name.length > 18 ? `${i.name.slice(0, 18)}…` : i.name)),
+    data: items.map((i) => i.qty),
+    items,
+  };
+}
+
+/** Ranking de productos más vendidos (cantidad de unidades). */
+export function buildTopProductItems(orders, limit = 6) {
+  const stats = new Map();
+  (orders || []).forEach((o) => {
+    if (o.estado === 'cancelado') return;
     (o.items || []).forEach((it) => {
-      const name = it.name || 'Producto';
-      count[name] = (count[name] || 0) + (it.qty || 1);
+      const name = (it.name || 'Producto').trim();
+      if (!name) return;
+      const productId = it.id || it.producto_id || it.productId || null;
+      const key = productId || name.toLowerCase();
+      const prev = stats.get(key) || { name, productId, qty: 0 };
+      prev.qty += Number(it.qty) || 1;
+      if (productId && !prev.productId) prev.productId = productId;
+      stats.set(key, prev);
     });
   });
-  const top = Object.entries(count).sort((a, b) => b[1] - a[1]).slice(0, limit);
-  return {
-    labels: top.map(([n]) => (n.length > 18 ? `${n.slice(0, 18)}…` : n)),
-    data: top.map(([, q]) => q),
-  };
+  return [...stats.values()]
+    .sort((a, b) => b.qty - a.qty)
+    .slice(0, limit);
+}
+
+/** Cruza ranking de ventas con productos del menú activo. */
+export function resolveBestsellerProducts(topItems, menuProducts, limit = 6) {
+  if (!menuProducts?.length) return [];
+  const byId = new Map(menuProducts.map((p) => [p.id, p]));
+  const byName = new Map(menuProducts.map((p) => [(p.name || '').trim().toLowerCase(), p]));
+  const resolved = [];
+  const used = new Set();
+
+  for (const item of topItems || []) {
+    let product = item.productId ? byId.get(item.productId) : null;
+    if (!product) product = byName.get((item.name || '').trim().toLowerCase());
+    if (!product || !product.available || used.has(product.id)) continue;
+    used.add(product.id);
+    resolved.push({ ...product, soldQty: item.qty });
+    if (resolved.length >= limit) break;
+  }
+  return resolved;
 }
 
 export function buildBranchStats(orders, branches, periodId) {

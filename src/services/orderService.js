@@ -1,5 +1,6 @@
 import { getSupabase, isSupabaseConfigured } from './supabaseClient';
 import { ORDERS_KEY } from '../utils/constants';
+import { filterOrdersInRange, getPeriodRange } from '../utils/dashboardAnalytics';
 
 let orders = [];
 let channel = null;
@@ -303,6 +304,30 @@ export async function fetchOrdersAdmin() {
   const sb = getSupabase();
   if (!sb) return getOrders();
   return fetchAll(sb);
+}
+
+/** Pedidos de una sucursal para analytics públicos (ej. más vendidos en inicio). */
+export async function fetchBranchOrdersForPeriod(branchId, periodId = 'month') {
+  const sb = getSupabase();
+  if (!sb || !branchId) return [];
+
+  const { start, end } = getPeriodRange(periodId);
+
+  const { data, error } = await sb
+    .from('pedidos')
+    .select('*')
+    .eq('branch_id', branchId)
+    .gte('creado_en', start.toISOString())
+    .order('creado_en', { ascending: false })
+    .limit(2000);
+
+  if (error) {
+    console.warn('[Pollón] fetchBranchOrdersForPeriod:', error.message);
+    return [];
+  }
+
+  const orders = (data || []).map(rowToOrder).filter((o) => o.estado !== 'cancelado');
+  return filterOrdersInRange(orders, start, end);
 }
 
 export function generateOrderId() {

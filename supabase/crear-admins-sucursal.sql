@@ -118,7 +118,7 @@ SELECT
   true
 FROM auth.users u
 CROSS JOIN branches b
-WHERE u.email = 'admin.arica.saucache@elpollon.cl'
+WHERE u.email = 'admin.saucache@elpollon.cl'
   AND b.slug = 'arica-saucache'
 ON CONFLICT (auth_user_id) DO UPDATE SET
   role = 'admin_sucursal',
@@ -131,7 +131,7 @@ INSERT INTO administradores (id, email, nombre, rol, activo, branch_id)
 SELECT u.id, u.email, 'Admin Arica Saucache', 'administrador', true, b.id
 FROM auth.users u
 CROSS JOIN branches b
-WHERE u.email = 'admin.arica.saucache@elpollon.cl' AND b.slug = 'arica-saucache'
+WHERE u.email = 'admin.saucache@elpollon.cl' AND b.slug = 'arica-saucache'
 ON CONFLICT (id) DO UPDATE SET
   rol = 'administrador',
   branch_id = EXCLUDED.branch_id,

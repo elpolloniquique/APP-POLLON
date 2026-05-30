@@ -1,4 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 import {
   Flame, MapPin, Phone, Clock, Bike, ChevronRight, Plus, Star, Shield, ChefHat,
   MapPinned, ShoppingBag, CreditCard, MessageCircle, PackageSearch,
@@ -9,11 +10,14 @@ import { SiteHeader } from '../components/layout/SiteHeader';
 import { SiteFooter } from '../components/layout/SiteFooter';
 import { WhatsAppFab } from '../components/layout/WhatsAppFab';
 import { CartDrawer } from '../components/cart/CartDrawer';
+import { CheckoutModal } from '../components/cart/CheckoutModal';
+import { ProductModal } from '../components/product/ProductModal';
 import { useCart } from '../context/CartContext';
 import { useBranch } from '../context/BranchContext';
 import { useBranchMenu } from '../context/BranchMenuContext';
 import { isBranchOpenNow } from '../services/branchService';
 import { money, resolveMediaUrl } from '../utils/format';
+import { useBestsellers } from '../hooks/useBestsellers';
 
 const WHY_US = [
   { icon: ChefHat, title: 'Pollo fresco del día', desc: 'Marinado y cocinado al carbón cada día con receta peruana auténtica.' },
@@ -46,10 +50,12 @@ function categoryExploreImage(category, productsByCategory) {
 }
 
 export function Home() {
-  const { setIsOpen, addItem } = useCart();
+  const { setIsOpen } = useCart();
   const { branch, branches, setBranch } = useBranch();
   const navigate = useNavigate();
   const { categories, productsByCategory, products: menuProducts } = useBranchMenu();
+  const { bestsellers } = useBestsellers(branch?.id, menuProducts);
+  const [selectedProduct, setSelectedProduct] = useState(null);
 
   const promos = (() => {
     const featured = menuProducts.filter((p) => p.isPromotion || p.isFeatured);
@@ -57,29 +63,21 @@ export function Home() {
     const first = productsByCategory[categories[0]?.id] || [];
     return first.slice(0, 4);
   })();
-  const bestsellers = menuProducts.slice(0, 6);
   const menuCircles = categories.slice(0, 8).map((c) => ({
     id: c.id,
     label: c.name,
     img: categoryExploreImage(c, productsByCategory),
   }));
 
-  const quickAdd = (p, category) => {
-    addItem({
-      name: p.name,
-      qty: 1,
-      unitPrice: p.price,
-      total: p.price,
-      categoryId: category,
-      available: true,
-    });
-    setIsOpen(true);
+  const openProductModal = (p) => {
+    setSelectedProduct({ product: p, categoryId: p.categoryId });
   };
 
   return (
     <div className="flex min-h-screen flex-col bg-white">
       <SiteHeader onOpenCart={() => setIsOpen(true)} />
       <CartDrawer />
+      <CheckoutModal />
       <WhatsAppFab />
 
       {/* HERO */}
@@ -298,14 +296,17 @@ export function Home() {
         <div className="mx-auto grid max-w-[1400px] gap-8 px-4 lg:grid-cols-3">
           {/* Más vendidos */}
           <div className="rounded-2xl bg-white p-6 shadow-sm">
-            <h3 className="mb-4 border-b-2 border-pollon-red pb-2 font-display text-2xl text-pollon-black">
+            <h3 className="mb-1 border-b-2 border-pollon-red pb-2 font-display text-2xl text-pollon-black">
               MÁS VENDIDOS
             </h3>
+            <p className="mb-4 text-[11px] font-medium uppercase tracking-wide text-gray-400">
+              Actualizado según ventas de la semana
+            </p>
             <ul className="space-y-4">
-              {bestsellers.map((p, i) => (
-                <li key={p.name + i} className="flex items-center gap-3">
+              {bestsellers.map((p) => (
+                <li key={p.id} className="flex items-center gap-3">
                   <img
-                    src={imgSrc(p.image)}
+                    src={imgSrc(p.image || p.imageUrl)}
                     alt=""
                     className="h-14 w-14 shrink-0 rounded-lg object-cover"
                     onError={(e) => { e.target.src = '/img/todo el menu.png'; }}
@@ -317,13 +318,17 @@ export function Home() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => quickAdd(p, p.categoryId)}
+                    onClick={() => openProductModal(p)}
                     className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-pollon-red text-white hover:bg-pollon-red-dark"
+                    aria-label={`Agregar ${p.name}`}
                   >
                     <Plus className="h-4 w-4" />
                   </button>
                 </li>
               ))}
+              {!bestsellers.length && (
+                <li className="py-6 text-center text-sm text-gray-500">Sin datos de ventas aún</li>
+              )}
             </ul>
             <Link to="/tienda" className="mt-4 block text-center text-sm font-semibold text-pollon-red hover:underline">
               Ver menú completo →
@@ -554,6 +559,15 @@ export function Home() {
           </div>
         </div>
       </section>
+
+      {selectedProduct && (
+        <ProductModal
+          product={{ ...selectedProduct.product, image: selectedProduct.product.image || selectedProduct.product.imageUrl }}
+          category={selectedProduct.categoryId}
+          categoryName={categories.find((c) => c.id === selectedProduct.categoryId)?.name}
+          onClose={() => setSelectedProduct(null)}
+        />
+      )}
 
       <SiteFooter />
     </div>

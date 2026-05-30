@@ -308,7 +308,7 @@ Sin esto, recuperar contraseña y algunos logins fallan.
 INSERT INTO profiles (auth_user_id, full_name, email, role, is_active)
 SELECT
   id,
-  'Administrador Principal',
+  'Administrador Principal',  
   email,
   'super_admin',
   true

@@ -7,7 +7,7 @@ Guía para crear **4 cuentas** (una por sucursal) en Supabase con rol **admin_su
 | Iquique - Vivar | `iquique-vivar` | `admin.iquique@elpollon.cl` |
 | Alto Hospicio | `alto-hospicio` | `admin.altohospicio@elpollon.cl` |
 | Arica Santa María | `arica-santa-maria` | `admin.arica.sm@elpollon.cl` |
-| Arica Saucache | `arica-saucache` | `admin.arica.saucache@elpollon.cl` |
+| Arica Saucache | `arica-saucache` | `admin.saucache@elpollon.cl` |
 
 Puedes usar otros correos (Gmail, etc.); solo deben coincidir en Auth y en el script SQL.
 
@@ -86,7 +86,7 @@ Recomendación: que cambien la contraseña después del primer acceso (desde Sup
 
 | Problema | Solución |
 |----------|----------|
-| **“Database error creating new user”** | Ejecuta **`supabase/fix-trigger-crear-usuario.sql`** en SQL Editor y vuelve a crear el usuario |
+| **“Database error creating new user”** | Ejecuta **`supabase/ `** en SQL Editor y vuelve a crear el usuario |
 | “Esta cuenta es de cliente” | Ejecuta de nuevo `crear-admins-sucursal.sql` |
 | Login colgado en “Entrando…” | Revisa variables en Vercel y `fix-perfil-admin.sql` para super_admin |
 | Script no asigna sucursal | Confirma que `branches` tiene datos (`seed-multi-sucursal.sql`) |
