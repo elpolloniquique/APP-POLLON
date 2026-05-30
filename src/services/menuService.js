@@ -67,6 +67,11 @@ function mapProduct(row) {
     isPromotion: !!row.is_promotion,
     displayOrder: row.display_order ?? 0,
     preparationTime: row.preparation_time ?? 15,
+    drinkEnabled: row.drink_enabled === true,
+    drinkRequired: row.drink_required === true,
+    bagEnabled: row.bag_enabled === true,
+    bagRequired: row.bag_required === true,
+    bagPrice: Number(row.bag_price ?? 200) || 200,
   };
 }
 
@@ -335,6 +340,11 @@ export async function adminUpsertProduct(product, user) {
     is_promotion: !!product.isPromotion,
     display_order: product.displayOrder ?? 0,
     preparation_time: product.preparationTime ?? 15,
+    drink_enabled: !!product.drinkEnabled,
+    drink_required: !!product.drinkRequired,
+    bag_enabled: !!product.bagEnabled,
+    bag_required: !!product.bagRequired,
+    bag_price: Number(product.bagPrice ?? 200) || 200,
   };
   const { data, error } = await sb().from('products').upsert(row).select().single();
   if (error) {
@@ -387,6 +397,11 @@ export async function adminDuplicateProduct(productId, targetBranchId, targetCat
     is_promotion: false,
     display_order: src.display_order,
     preparation_time: src.preparation_time,
+    drink_enabled: src.drink_enabled ?? false,
+    drink_required: src.drink_required ?? false,
+    bag_enabled: src.bag_enabled ?? false,
+    bag_required: src.bag_required ?? false,
+    bag_price: src.bag_price ?? 200,
   }).select().single();
   if (insErr) throw insErr;
   await logAudit({ user, branchId: targetBranchId, entityType: 'product', entityId: data.id, action: 'duplicate', newData: { from: productId } });
@@ -424,6 +439,11 @@ export async function adminCopyMenuFromBranch(sourceBranchId, targetBranchId, us
       is_promotion: p.isPromotion,
       display_order: p.displayOrder,
       preparation_time: p.preparationTime,
+      drink_enabled: !!p.drinkEnabled,
+      drink_required: !!p.drinkRequired,
+      bag_enabled: !!p.bagEnabled,
+      bag_required: !!p.bagRequired,
+      bag_price: Number(p.bagPrice ?? 200) || 200,
     });
   }
   await logAudit({ user, branchId: targetBranchId, entityType: 'menu', action: 'copy_from_branch', newData: { sourceBranchId } });

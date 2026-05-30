@@ -161,15 +161,7 @@ export function Store() {
 
       {selected && (
         <ProductModal
-          product={{
-            ...selected.product,
-            id: selected.product.id,
-            name: selected.product.name,
-            description: selected.product.description,
-            price: selected.product.price,
-            image: selected.product.image || selected.product.imageUrl,
-            imageUrls: selected.product.imageUrls,
-          }}
+          product={selected.product}
           category={selected.categoryId}
           categoryName={categories.find((c) => c.id === selected.categoryId)?.name}
           onClose={() => setSelected(null)}

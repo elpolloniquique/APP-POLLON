@@ -274,6 +274,24 @@
   .dashboard-summary-item {
     @apply flex flex-col gap-0.5 rounded-xl bg-white px-3 py-2.5 shadow-sm ring-1 ring-black/5;
   }
+
+  /* ── Modal producto (personalización) ── */
+  .product-modal-option {
+    @apply flex items-center gap-3 rounded-xl border-2 border-gray-200 bg-white px-4 py-3.5 transition;
+  }
+  .product-modal-option:hover {
+    @apply border-gray-300;
+  }
+  .product-modal-option--active {
+    @apply border-pollon-red bg-pollon-red/[0.03];
+  }
+  .product-modal-radio {
+    @apply flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 border-gray-300 bg-white;
+  }
+  .product-modal-radio--active {
+    @apply border-pollon-red;
+    box-shadow: inset 0 0 0 4px #c00000;
+  }
   .admin-toolbar {
     @apply flex flex-wrap gap-2 rounded-xl bg-white p-3 shadow-sm ring-1 ring-gray-100 sm:rounded-2xl sm:p-4;
   }

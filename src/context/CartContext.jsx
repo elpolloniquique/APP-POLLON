@@ -73,7 +73,21 @@ export function CartProvider({ children }) {
           if (i.cartId !== cartId) return i;
           const qty = Math.max(1, (i.qty || 1) + delta);
           const unit = i.unitPrice ?? Math.round((i.total || 0) / (i.qty || 1));
-          return { ...i, qty, total: unit * qty };
+          const includeBag = i.includeBag ?? (i.bagQty > 0);
+          const bagPrice = i.bagPrice ?? BAG_PRICE;
+          const bagQty = includeBag ? qty : 0;
+          let drinks = i.drinks?.length ? [...i.drinks] : (i.drink ? i.drink.split(' · ').map((s) => s.replace(/^#\d+:\s*/, '')) : []);
+          while (drinks.length < qty) drinks.push(drinks[drinks.length - 1] || '');
+          drinks = drinks.slice(0, qty);
+          const drink = drinks.filter(Boolean).join(' · ') || i.drink;
+          return {
+            ...i,
+            qty,
+            bagQty,
+            drinks,
+            drink,
+            total: unit * qty + bagPrice * bagQty,
+          };
         })
         .filter((i) => (i.qty || 1) > 0),
     }));

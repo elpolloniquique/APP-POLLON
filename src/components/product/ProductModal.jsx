@@ -1,161 +1,581 @@
 import { useState, useEffect, useMemo } from 'react';
+
 import { X, Minus, Plus } from 'lucide-react';
-import { Button } from '../ui/Button';
+
 import { money } from '../../utils/format';
-import { DRINK_OPTIONS } from '../../utils/constants';
+
+import {
+
+  calcLineTotal,
+
+  formatDrinksLabel,
+
+  MODAL_DRINK_OPTIONS,
+
+  resolveProductOptions,
+
+} from '../../utils/productOptions';
+
 import { useCart } from '../../context/CartContext';
 
-const BAG_CATEGORIES = ['ofertas-familiares', 'ofertas-dos', 'ofertas-personales', 'platos-extras', 'agregados'];
-const DRINK_CATEGORIES = ['ofertas-familiares', 'ofertas-dos', 'ofertas-personales'];
+
+
+function resizeDrinks(list, qty) {
+
+  const next = [...(list || [])];
+
+  while (next.length < qty) next.push('');
+
+  return next.slice(0, qty);
+
+}
+
+
 
 export function ProductModal({ product, category, categoryName = '', onClose, onAddOverride }) {
-  const { addItem, BAG_PRICE: bagPrice } = useCart();
-  const catLabel = (categoryName || category || '').toString().toLowerCase();
-  const [qty, setQty] = useState(1);
-  const [drink, setDrink] = useState('');
-  const [bagQty, setBagQty] = useState(0);
-  const [notes, setNotes] = useState('');
-  const [activeIdx, setActiveIdx] = useState(0);
 
-  const gallery = useMemo(() => {
-    if (!product) return [];
-    const urls = product.imageUrls?.length
-      ? product.imageUrls
-      : (product.image ? [product.image] : []);
-    return urls.map((u) => (u?.startsWith('img/') ? `/${u}` : u)).filter(Boolean);
-  }, [product?.imageUrls, product?.image]);
+  const { addItem } = useCart();
+
+  const opts = useMemo(
+
+    () => resolveProductOptions(product, categoryName),
+
+    [product, categoryName],
+
+  );
+
+
+
+  const [qty, setQty] = useState(1);
+
+  const [drinks, setDrinks] = useState(['']);
+
+  const [bagSelected, setBagSelected] = useState(false);
+
+  const [notes, setNotes] = useState('');
+
+
 
   useEffect(() => {
+
     document.body.style.overflow = 'hidden';
+
     return () => { document.body.style.overflow = ''; };
+
   }, []);
 
+
+
   useEffect(() => {
-    setActiveIdx(0);
-  }, [product?.id]);
+    setQty(1);
+    setDrinks(['']);
+    setBagSelected(opts.bagRequired && opts.bagEnabled);
+    setNotes('');
+  }, [product?.id, opts.bagRequired, opts.bagEnabled]);
+
+  useEffect(() => {
+    setDrinks((prev) => resizeDrinks(prev, qty));
+    if (opts.bagRequired && opts.bagEnabled) setBagSelected(true);
+  }, [qty, opts.bagRequired, opts.bagEnabled]);
+
+
 
   if (!product) return null;
 
-  const img = gallery[activeIdx] || gallery[0] || '/img/todo el menu.png';
-  const showDrink = DRINK_CATEGORIES.some((c) => catLabel.includes(c.replace(/-/g, ' '))) || catLabel.includes('oferta') || catLabel.includes('combo');
-  const showBag = BAG_CATEGORIES.some((c) => catLabel.includes(c.replace(/-/g, ' '))) || catLabel.includes('oferta') || catLabel.includes('plato');
-  const isFamiliares = catLabel.includes('familiar');
-  const bagMandatory = catLabel.includes('dos') || catLabel.includes('personal') || catLabel.includes('plato');
+
 
   const unitPrice = product.price;
-  const bagTotal = bagQty * bagPrice;
-  const lineTotal = unitPrice * qty + bagTotal;
 
-  const handleAdd = () => {
-    if (bagMandatory && bagQty < 1) return;
-    const payload = {
-      producto_id: product.id,
-      name: product.name,
-      qty,
-      unitPrice,
-      total: lineTotal,
-      drink: showDrink ? drink : null,
-      bagQty: showBag ? bagQty : 0,
-      notes: notes.trim(),
-      category,
-      available: product.available !== false,
-    };
-    if (onAddOverride) onAddOverride(payload);
-    else {
-      const r = addItem(payload);
-      if (!r?.ok && r?.error) alert(r.error === 'branch_mismatch' ? 'Vacía el carrito para cambiar de sucursal' : r.error);
-    }
-    onClose();
+  const bagQty = bagSelected ? qty : 0;
+
+  const lineTotal = calcLineTotal({
+
+    unitPrice,
+
+    qty,
+
+    bagPrice: opts.bagPrice,
+
+    includeBag: bagSelected,
+
+  });
+
+
+
+  const drinksValid = !opts.drinkEnabled || !opts.drinkRequired
+
+    || drinks.every((d) => d.trim());
+
+  const bagValid = !opts.bagEnabled || !opts.bagRequired || bagSelected;
+
+  const canAdd = drinksValid && bagValid;
+
+
+
+  const setQtySafe = (next) => {
+
+    const n = Math.max(1, next);
+
+    setQty(n);
+
+    if (opts.bagRequired) setBagSelected(true);
+
   };
 
+
+
+  const setDrinkAt = (index, value) => {
+
+    setDrinks((prev) => {
+
+      const next = [...prev];
+
+      next[index] = value;
+
+      return next;
+
+    });
+
+  };
+
+
+
+  const handleAdd = () => {
+
+    if (!canAdd) return;
+
+    const drinkLabel = formatDrinksLabel(drinks);
+
+    const payload = {
+
+      producto_id: product.id,
+
+      name: product.name,
+
+      qty,
+
+      unitPrice,
+
+      bagPrice: opts.bagPrice,
+
+      includeBag: bagSelected,
+
+      total: lineTotal,
+
+      drink: opts.drinkEnabled ? drinkLabel : null,
+
+      drinks: opts.drinkEnabled ? drinks.filter(Boolean) : [],
+
+      bagQty: opts.bagEnabled ? bagQty : 0,
+
+      notes: notes.trim(),
+
+      category,
+
+      available: product.available !== false,
+
+    };
+
+    if (onAddOverride) onAddOverride(payload);
+
+    else {
+
+      const r = addItem(payload);
+
+      if (!r?.ok && r?.error) {
+
+        alert(r.error === 'branch_mismatch' ? 'Vacía el carrito para cambiar de sucursal' : r.error);
+
+        return;
+
+      }
+
+    }
+
+    onClose();
+
+  };
+
+
+
+  const hasCustomization = opts.drinkEnabled || opts.bagEnabled;
+
+
+
   return (
-    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4" onClick={onClose}>
+
+    <div
+
+      className="fixed inset-0 z-[80] flex items-end justify-center bg-black/55 p-0 sm:items-center sm:p-4"
+
+      onClick={onClose}
+
+      role="presentation"
+
+    >
+
       <div
-        className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-white sm:rounded-3xl"
+
+        className="product-modal w-full max-w-md overflow-y-auto rounded-t-[1.75rem] bg-white shadow-2xl sm:rounded-[1.75rem]"
+
         onClick={(e) => e.stopPropagation()}
+
+        role="dialog"
+
+        aria-labelledby="product-modal-title"
+
       >
-        <div className="relative">
-          <img src={img} alt="" className="h-48 w-full object-cover sm:h-56" />
-          <button type="button" onClick={onClose} className="absolute right-3 top-3 rounded-full bg-black/50 p-2 text-white">
+
+        <div className="relative px-6 pb-2 pt-6 text-center">
+
+          <button
+
+            type="button"
+
+            onClick={onClose}
+
+            className="absolute right-4 top-4 rounded-full p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+
+            aria-label="Cerrar"
+
+          >
+
             <X className="h-5 w-5" />
+
           </button>
-          {gallery.length > 1 && (
-            <div className="absolute bottom-0 left-0 right-0 flex gap-1.5 overflow-x-auto bg-gradient-to-t from-black/70 to-transparent p-3 pt-8">
-              {gallery.map((url, i) => (
-                <button
-                  key={url}
-                  type="button"
-                  onClick={() => setActiveIdx(i)}
-                  className={`h-12 w-12 shrink-0 overflow-hidden rounded-lg border-2 ${
-                    activeIdx === i ? 'border-pollon-red ring-2 ring-white' : 'border-white/50 opacity-80'
-                  }`}
-                >
-                  <img src={url} alt="" className="h-full w-full object-cover" />
-                </button>
-              ))}
-            </div>
+
+          <h2 id="product-modal-title" className="text-lg font-bold leading-snug text-pollon-black sm:text-xl">
+
+            {product.name}
+
+          </h2>
+
+          {hasCustomization && (
+
+            <p className="mt-2 text-left text-sm font-bold text-pollon-red">Personaliza tu pedido</p>
+
           )}
+
         </div>
-        <div className="p-5">
-          <h2 className="text-xl font-bold">{product.name}</h2>
-          <p className="mt-1 text-sm text-gray-600">{product.description}</p>
-          <p className="mt-2 text-2xl font-bold text-pollon-red">{money(product.price)}</p>
 
-          <div className="mt-4 flex items-center gap-4">
-            <span className="text-sm font-medium">Cantidad</span>
-            <div className="flex items-center gap-2 rounded-xl border border-gray-200">
-              <button type="button" className="p-2" onClick={() => setQty(Math.max(1, qty - 1))}><Minus className="h-4 w-4" /></button>
-              <span className="w-8 text-center font-bold">{qty}</span>
-              <button type="button" className="p-2" onClick={() => setQty(qty + 1)}><Plus className="h-4 w-4" /></button>
-            </div>
-          </div>
 
-          {showDrink && (
-            <div className="mt-4">
-              <label className="text-sm font-medium">Bebida (según stock)</label>
-              <select value={drink} onChange={(e) => setDrink(e.target.value)} className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm">
-                <option value="">Seleccionar bebida</option>
-                {DRINK_OPTIONS.map((d) => <option key={d} value={d}>{d}</option>)}
-              </select>
-            </div>
-          )}
 
-          {showBag && (
-            <div className="mt-4 rounded-xl wood-texture p-3">
-              <p className="text-sm font-medium">Bolsa ecológica ({money(bagPrice)} c/u)</p>
-              {isFamiliares && <p className="text-xs text-gray-600">Opcional para ofertas familiares</p>}
-              {bagMandatory && <p className="text-xs text-pollon-red">Obligatoria en esta categoría</p>}
-              <div className="mt-2 flex gap-2">
-                {[0, 1, 2, 3].map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => setBagQty(n)}
-                    className={`rounded-lg px-3 py-1 text-sm ${bagQty === n ? 'bg-pollon-red text-white' : 'bg-white'}`}
-                  >
-                    {n}
-                  </button>
-                ))}
+        <div className="space-y-5 px-6 pb-6 pt-2">
+
+          {opts.drinkEnabled && (
+
+            <section>
+
+              <div className="flex flex-wrap items-center gap-2">
+
+                <h3 className="text-xs font-bold uppercase tracking-wide text-pollon-black">
+
+                  Bebidas — elija su sabor
+
+                </h3>
+
+                {opts.drinkRequired && (
+
+                  <span className="rounded-md bg-pollon-red/10 px-2 py-0.5 text-[10px] font-bold uppercase text-pollon-red">
+
+                    Obligatorio
+
+                  </span>
+
+                )}
+
               </div>
-            </div>
+
+              <p className="mt-1.5 text-xs text-gray-500">
+
+                En esta categoría se agrega bebida 1 sabor por cada unidad
+
+              </p>
+
+
+
+              {qty > 1 ? (
+
+                <div className="mt-3 space-y-3">
+
+                  {drinks.map((d, i) => (
+
+                    <div key={i}>
+
+                      <p className="mb-1.5 text-[11px] font-semibold text-gray-600">Unidad {i + 1}</p>
+
+                      <div className="grid grid-cols-2 gap-2">
+
+                        {MODAL_DRINK_OPTIONS.map((option) => (
+
+                          <DrinkOptionCard
+
+                            key={`${i}-${option}`}
+
+                            label={option}
+
+                            selected={d === option}
+
+                            onSelect={() => setDrinkAt(i, option)}
+
+                            fullWidth={option === 'Fanta' && MODAL_DRINK_OPTIONS.indexOf(option) === MODAL_DRINK_OPTIONS.length - 1}
+
+                          />
+
+                        ))}
+
+                      </div>
+
+                    </div>
+
+                  ))}
+
+                </div>
+
+              ) : (
+
+                <div className="mt-3 grid grid-cols-2 gap-2">
+
+                  {MODAL_DRINK_OPTIONS.map((option, idx) => (
+
+                    <DrinkOptionCard
+
+                      key={option}
+
+                      label={option}
+
+                      selected={drinks[0] === option}
+
+                      onSelect={() => setDrinkAt(0, option)}
+
+                      fullWidth={idx === MODAL_DRINK_OPTIONS.length - 1 && MODAL_DRINK_OPTIONS.length % 2 !== 0}
+
+                    />
+
+                  ))}
+
+                </div>
+
+              )}
+
+            </section>
+
           )}
+
+
+
+          {opts.bagEnabled && (
+
+            <section>
+
+              <div className="flex flex-wrap items-center gap-2">
+
+                <h3 className="text-xs font-bold uppercase tracking-wide text-pollon-black">
+
+                  Bolsa ecológica
+
+                </h3>
+
+                {opts.bagRequired && (
+
+                  <span className="rounded-md bg-pollon-red/10 px-2 py-0.5 text-[10px] font-bold uppercase text-pollon-red">
+
+                    Obligatorio
+
+                  </span>
+
+                )}
+
+              </div>
+
+              <button
+
+                type="button"
+
+                onClick={() => !opts.bagRequired && setBagSelected(!bagSelected)}
+
+                className={`product-modal-option mt-3 w-full text-left ${bagSelected ? 'product-modal-option--active' : ''} ${opts.bagRequired ? 'cursor-default' : ''}`}
+
+              >
+
+                <span className={`product-modal-radio ${bagSelected ? 'product-modal-radio--active' : ''}`} />
+
+                <span className="text-sm font-semibold uppercase tracking-wide text-pollon-black">
+
+                  Agregar bolsa (+ {money(opts.bagPrice)})
+
+                </span>
+
+              </button>
+
+              <p className="mt-2 text-[11px] leading-relaxed text-gray-500">
+
+                * Esta categoría requiere agregar bolsa. Costo por bolsa:{' '}
+
+                <strong className="text-pollon-black">{money(opts.bagPrice)}</strong>.
+
+                {bagSelected && (
+
+                  <> Se agregará <strong>{qty} bolsa{qty !== 1 ? 's' : ''}</strong> (1 por unidad).</>
+
+                )}
+
+              </p>
+
+            </section>
+
+          )}
+
+
+
+          <section className="border-t border-gray-100 pt-4">
+
+            <p className="text-sm font-bold text-pollon-black">Cantidad:</p>
+
+            <div className="mt-2 flex items-center gap-4">
+
+              <button
+
+                type="button"
+
+                onClick={() => setQtySafe(qty - 1)}
+
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-200 text-gray-700 transition hover:bg-gray-300"
+
+                aria-label="Menos"
+
+              >
+
+                <Minus className="h-4 w-4" />
+
+              </button>
+
+              <span className="min-w-[2rem] text-center text-2xl font-bold text-pollon-black">{qty}</span>
+
+              <button
+
+                type="button"
+
+                onClick={() => setQtySafe(qty + 1)}
+
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-pollon-red text-white shadow-md transition hover:bg-pollon-red-dark"
+
+                aria-label="Más"
+
+              >
+
+                <Plus className="h-4 w-4" />
+
+              </button>
+
+            </div>
+
+            <p className="mt-4 text-xl font-bold text-pollon-red">
+
+              Total: {money(lineTotal)}
+
+            </p>
+
+          </section>
+
+
+
+          {!hasCustomization && product.description && (
+
+            <p className="text-sm text-gray-600">{product.description}</p>
+
+          )}
+
+
 
           <textarea
+
             value={notes}
+
             onChange={(e) => setNotes(e.target.value)}
+
             placeholder="Observaciones (opcional)"
-            className="mt-4 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+
+            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+
             rows={2}
+
           />
 
-          <div className="mt-4 flex items-center justify-between border-t pt-4">
-            <span className="font-bold">Subtotal: {money(lineTotal)}</span>
-            <Button onClick={handleAdd} disabled={bagMandatory && bagQty < 1}>
-              Agregar al carrito
-            </Button>
+
+
+          <div className="grid grid-cols-2 gap-3 pt-1">
+
+            <button
+
+              type="button"
+
+              onClick={onClose}
+
+              className="rounded-full bg-gray-100 py-3.5 text-sm font-bold text-gray-800 transition hover:bg-gray-200"
+
+            >
+
+              Cancelar
+
+            </button>
+
+            <button
+
+              type="button"
+
+              onClick={handleAdd}
+
+              disabled={!canAdd}
+
+              className="rounded-full bg-pollon-red py-3.5 text-sm font-bold text-white shadow-md transition hover:bg-pollon-red-dark disabled:cursor-not-allowed disabled:opacity-50"
+
+            >
+
+              Agregar al Carrito
+
+            </button>
+
           </div>
+
         </div>
+
       </div>
+
     </div>
+
   );
+
 }
+
+
+
+function DrinkOptionCard({ label, selected, onSelect, fullWidth = false }) {
+
+  return (
+
+    <button
+
+      type="button"
+
+      onClick={onSelect}
+
+      className={`product-modal-option ${selected ? 'product-modal-option--active' : ''} ${fullWidth ? 'col-span-2' : ''}`}
+
+    >
+
+      <span className={`product-modal-radio ${selected ? 'product-modal-radio--active' : ''}`} />
+
+      <span className="text-xs font-bold uppercase tracking-wide text-pollon-black sm:text-sm">
+
+        {label}
+
+      </span>
+
+    </button>
+
+  );
+
+}
+
+

@@ -27,6 +27,8 @@ import { AdminTable } from '../../components/admin/AdminTable';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { getAuditLogs } from '../../services/auditService';
 import { money } from '../../utils/format';
+import { BAG_PRICE } from '../../utils/constants';
+import { defaultProductOptionsForCategory } from '../../utils/productOptions';
 import { useToast } from '../../hooks/useToast';
 import {
   Plus, Pencil, Trash2, Copy, ArrowUp, ArrowDown, Eye, Search,
@@ -37,9 +39,10 @@ const emptyCat = (branchId) => ({
   branchId, name: '', description: '', imageUrl: '', displayOrder: 0, isActive: true,
 });
 
-const emptyProd = (branchId, categoryId) => ({
+const emptyProd = (branchId, categoryId, categoryName = '') => ({
   branchId, categoryId, name: '', description: '', imageUrl: '', imageUrls: [], price: 0,
   oldPrice: null, available: true, isFeatured: false, isPromotion: false, displayOrder: 0,
+  ...defaultProductOptionsForCategory(categoryName),
 });
 
 export function AdminMenu() {
@@ -361,7 +364,7 @@ export function AdminMenu() {
               <option value="yes">Disponibles</option>
               <option value="no">No disponibles</option>
             </select>
-            <button type="button" onClick={() => setProdModal(emptyProd(activeBranchId, selectedCatId || categories[0]?.id))} className="flex w-full items-center justify-center gap-1 rounded-lg bg-pollon-red px-4 py-2 text-sm text-white sm:w-auto">
+            <button type="button" onClick={() => setProdModal(emptyProd(activeBranchId, selectedCatId || categories[0]?.id, categories.find((c) => c.id === (selectedCatId || categories[0]?.id))?.name))} className="flex w-full items-center justify-center gap-1 rounded-lg bg-pollon-red px-4 py-2 text-sm text-white sm:w-auto">
               <Plus className="h-4 w-4" /> Nuevo producto
             </button>
           </div>
@@ -579,7 +582,20 @@ export function AdminMenu() {
           <form onSubmit={saveProduct} className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6">
             <h3 className="text-lg font-bold">{prodModal.id ? 'Editar' : 'Nuevo'} producto</h3>
             <div className="mt-4 space-y-3">
-              <select required value={prodModal.categoryId} onChange={(e) => setProdModal({ ...prodModal, categoryId: e.target.value })} className="w-full rounded-lg border px-3 py-2">
+              <select
+                required
+                value={prodModal.categoryId}
+                onChange={(e) => {
+                  const catId = e.target.value;
+                  const catName = categories.find((c) => c.id === catId)?.name || '';
+                  setProdModal((m) => (
+                    m.id
+                      ? { ...m, categoryId: catId }
+                      : { ...m, categoryId: catId, ...defaultProductOptionsForCategory(catName) }
+                  ));
+                }}
+                className="w-full rounded-lg border px-3 py-2"
+              >
                 {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
               <input required value={prodModal.name} onChange={(e) => setProdModal({ ...prodModal, name: e.target.value })} placeholder="Nombre" className="w-full rounded-lg border px-3 py-2" />
@@ -599,6 +615,72 @@ export function AdminMenu() {
               <label className="flex items-center gap-2"><input type="checkbox" checked={prodModal.available} onChange={(e) => setProdModal({ ...prodModal, available: e.target.checked })} /> Disponible</label>
               <label className="flex items-center gap-2"><input type="checkbox" checked={prodModal.isFeatured} onChange={(e) => setProdModal({ ...prodModal, isFeatured: e.target.checked })} /> Destacado</label>
               <label className="flex items-center gap-2"><input type="checkbox" checked={prodModal.isPromotion} onChange={(e) => setProdModal({ ...prodModal, isPromotion: e.target.checked })} /> Promoción</label>
+
+              <div className="rounded-xl border border-gray-200 bg-gray-50/80 p-4 space-y-3">
+                <p className="text-sm font-bold text-pollon-black">Opciones al agregar al carrito</p>
+
+                <div className="space-y-2 rounded-lg bg-white p-3 ring-1 ring-gray-100">
+                  <label className="flex cursor-pointer items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={!!prodModal.drinkEnabled}
+                      onChange={(e) => setProdModal({
+                        ...prodModal,
+                        drinkEnabled: e.target.checked,
+                        drinkRequired: e.target.checked ? prodModal.drinkRequired : false,
+                      })}
+                    />
+                    <span className="text-sm font-medium">Selección de bebida</span>
+                  </label>
+                  {prodModal.drinkEnabled && (
+                    <label className="ml-6 flex cursor-pointer items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={!!prodModal.drinkRequired}
+                        onChange={(e) => setProdModal({ ...prodModal, drinkRequired: e.target.checked })}
+                      />
+                      <span className="text-xs text-gray-600">Obligatoria (incluida en el precio del producto)</span>
+                    </label>
+                  )}
+                </div>
+
+                <div className="space-y-2 rounded-lg bg-white p-3 ring-1 ring-gray-100">
+                  <label className="flex cursor-pointer items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={!!prodModal.bagEnabled}
+                      onChange={(e) => setProdModal({
+                        ...prodModal,
+                        bagEnabled: e.target.checked,
+                        bagRequired: e.target.checked ? prodModal.bagRequired : false,
+                      })}
+                    />
+                    <span className="text-sm font-medium">Opción de bolsa ecológica</span>
+                  </label>
+                  {prodModal.bagEnabled && (
+                    <>
+                      <label className="ml-6 flex cursor-pointer items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={!!prodModal.bagRequired}
+                          onChange={(e) => setProdModal({ ...prodModal, bagRequired: e.target.checked })}
+                        />
+                        <span className="text-xs text-gray-600">Obligatoria al agregar al carrito</span>
+                      </label>
+                      <div className="ml-6">
+                        <label className="text-xs font-medium text-gray-600">Precio por bolsa (CLP)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={prodModal.bagPrice ?? BAG_PRICE}
+                          onChange={(e) => setProdModal({ ...prodModal, bagPrice: Number(e.target.value) || 0 })}
+                          className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
             </div>
             <div className="mt-4 flex gap-2">
               <button type="submit" disabled={uploadingImages} className="flex-1 rounded-lg bg-pollon-red py-2 font-bold text-white disabled:opacity-50">Guardar</button>
