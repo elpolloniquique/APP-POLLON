@@ -5,7 +5,7 @@ import { money } from '../../utils/format';
 import { Button } from '../ui/Button';
 
 export function CartDrawer() {
-  const { items, isOpen, setIsOpen, subtotal, itemCount, removeItem, updateQty, clearCart } = useCart();
+  const { items, isOpen, setIsOpen, subtotal, itemCount, removeItem, updateQty } = useCart();
 
   if (!isOpen) return null;
 
@@ -93,9 +93,13 @@ export function CartDrawer() {
               <span className="text-base font-bold text-pollon-black">{money(subtotal)}</span>
             </div>
             <div className="flex gap-2">
-              <Button variant="ghost" className="flex-1" onClick={clearCart}>
-                Vaciar
-              </Button>
+              <button
+                type="button"
+                onClick={() => setIsOpen(false)}
+                className="flex-1 rounded-full border border-pollon-black/15 bg-white py-3 text-sm font-bold text-pollon-red transition hover:bg-gray-50"
+              >
+                Seguir Comprando
+              </button>
               <Link to="/checkout" className="flex-1" onClick={() => setIsOpen(false)}>
                 <Button className="w-full">Confirmar</Button>
               </Link>
