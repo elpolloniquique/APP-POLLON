@@ -189,39 +189,97 @@ async function insertDetalle(sb, pedidoId, items) {
   if (error) console.warn('[Pollón] detalle_pedidos:', error.message);
 }
 
+function isDuplicateCodigoError(error) {
+  const msg = error?.message || '';
+  return msg.includes('pedidos_codigo_pedido_key') || msg.includes('duplicate key');
+}
+
+function mapPedidoInsertError(error) {
+  const msg = error?.message || '';
+  if (msg.includes('branch_id')) {
+    return new Error('Falta columna branch_id. En Supabase ejecuta fix-pedidos-checkout.sql');
+  }
+  if (msg.includes('row-level security') || msg.includes('order_status_history')) {
+    return new Error('Permisos de pedido. En Supabase ejecuta fix-pedidos-checkout.sql (script completo).');
+  }
+  if (msg.includes('sucursal_id')) {
+    return new Error('Error de columna legacy. Redeploy en Vercel con el código actualizado.');
+  }
+  return error;
+}
+
+export async function allocateTicketNumber(sb) {
+  if (sb) {
+    try {
+      const { data, error } = await sb
+        .from('pedidos')
+        .select('codigo_pedido')
+        .order('codigo_pedido', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!error && data?.codigo_pedido) {
+        const last = parseInt(String(data.codigo_pedido), 10);
+        if (!Number.isNaN(last)) {
+          return String(last + 1).padStart(6, '0');
+        }
+      }
+    } catch (e) {
+      console.warn('[Pollón] allocateTicketNumber:', e);
+    }
+  }
+  return generateTicketNumber(getOrders());
+}
+
+function commitOrderLocally(order) {
+  orders.push(order);
+  orders.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+  saveLocal();
+}
+
 export async function saveOrder(order) {
   if (!order?.id) throw new Error('Pedido inválido');
 
-  orders.push(order);
-  orders.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-
   const sb = await ensureSupabaseReady();
   if (!sb) {
-    saveLocal();
+    if (!order.codigo_pedido) {
+      order.codigo_pedido = generateTicketNumber(getOrders());
+      order.ticketNumber = order.codigo_pedido;
+    }
+    commitOrderLocally(order);
     if (isSupabaseConfigured()) {
       throw new Error('No se pudo guardar en Supabase. Revisa la conexión o ejecuta fix-realtime-pedidos.sql');
     }
     return order;
   }
 
-  const row = orderToRow(order);
-  const { error } = await sb.from('pedidos').upsert(row, { onConflict: 'id' });
-  if (error) {
-    const msg = error.message || '';
-    if (msg.includes('branch_id')) {
-      throw new Error('Falta columna branch_id. En Supabase ejecuta fix-pedidos-checkout.sql');
-    }
-    if (msg.includes('row-level security') || msg.includes('order_status_history')) {
-      throw new Error('Permisos de pedido. En Supabase ejecuta fix-pedidos-checkout.sql (script completo).');
-    }
-    if (msg.includes('sucursal_id')) {
-      throw new Error('Error de columna legacy. Redeploy en Vercel con el código actualizado.');
-    }
-    throw error;
+  if (!order.codigo_pedido) {
+    order.codigo_pedido = await allocateTicketNumber(sb);
+    order.ticketNumber = order.codigo_pedido;
   }
-  await insertDetalle(sb, order.id, order.items);
-  saveLocal();
-  return order;
+
+  const maxAttempts = 5;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    if (attempt > 0) {
+      order.codigo_pedido = await allocateTicketNumber(sb);
+      order.ticketNumber = order.codigo_pedido;
+    }
+
+    const row = orderToRow(order);
+    const { error } = await sb.from('pedidos').insert(row);
+    if (!error) {
+      await insertDetalle(sb, order.id, order.items);
+      commitOrderLocally(order);
+      return order;
+    }
+
+    if (isDuplicateCodigoError(error) && attempt < maxAttempts - 1) {
+      continue;
+    }
+
+    throw mapPedidoInsertError(error);
+  }
+
+  throw new Error('No se pudo generar un código de pedido único. Intenta de nuevo.');
 }
 
 export async function updateOrder(order) {
@@ -248,7 +306,10 @@ export async function fetchOrdersAdmin() {
 }
 
 export function generateOrderId() {
-  return `P${Date.now()}`;
+  const suffix = typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID().replace(/-/g, '').slice(0, 8)
+    : Math.random().toString(36).slice(2, 10);
+  return `P${Date.now()}-${suffix}`;
 }
 
 export function generateTicketNumber(existingOrders) {

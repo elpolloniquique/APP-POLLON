@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { X } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
+import { X, CheckCircle, MessageCircle } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { useBranch } from '../../context/BranchContext';
 import { useAuth } from '../../context/AuthContext';
-import { money, buildWhatsappMessage } from '../../utils/format';
+import { money, buildWhatsappMessage, formatDateTime } from '../../utils/format';
 import { PAYMENT_METHODS, TRANSFER_BANK_INFO, ORDER_TYPE_LABELS } from '../../utils/constants';
 import * as orderService from '../../services/orderService';
 import { useToast } from '../../hooks/useToast';
@@ -15,7 +15,6 @@ export function CheckoutModal() {
   const { items, subtotal, deliveryFee, clearCart, checkoutOpen, setCheckoutOpen } = useCart();
   const { branch, whatsapp, branchOpen } = useBranch();
   const { profile, isCustomer } = useAuth();
-  const navigate = useNavigate();
   const { show, Toast } = useToast();
 
   const [form, setForm] = useState({
@@ -28,6 +27,9 @@ export function CheckoutModal() {
     comments: '',
   });
   const [submitting, setSubmitting] = useState(false);
+  const [step, setStep] = useState('form');
+  const [confirmedOrder, setConfirmedOrder] = useState(null);
+  const submitLock = useRef(false);
 
   const delivery = form.orderType === 'delivery' ? (branch?.deliveryCost || deliveryFee || 0) : 0;
   const totalWithDelivery = form.orderType === 'delivery' ? subtotal + delivery : subtotal;
@@ -39,9 +41,14 @@ export function CheckoutModal() {
   }, [checkoutOpen]);
 
   useEffect(() => {
-    if (!checkoutOpen) return;
-    if (!items.length) setCheckoutOpen(false);
-  }, [checkoutOpen, items.length, setCheckoutOpen]);
+    if (!checkoutOpen) {
+      setStep('form');
+      setConfirmedOrder(null);
+      submitLock.current = false;
+      return;
+    }
+    if (!items.length && step === 'form') setCheckoutOpen(false);
+  }, [checkoutOpen, items.length, step, setCheckoutOpen]);
 
   useEffect(() => {
     if (checkoutOpen && isCustomer && profile) {
@@ -53,9 +60,20 @@ export function CheckoutModal() {
     }
   }, [checkoutOpen, isCustomer, profile]);
 
-  if (!checkoutOpen || !items.length) {
+  if (!checkoutOpen) {
     return Toast;
   }
+
+  if (!items.length && step !== 'success') {
+    return Toast;
+  }
+
+  const closeModal = () => {
+    setCheckoutOpen(false);
+    setStep('form');
+    setConfirmedOrder(null);
+    submitLock.current = false;
+  };
 
   const update = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -75,17 +93,16 @@ export function CheckoutModal() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (submitLock.current || submitting) return;
+
     const err = validate();
     if (err) { show(err); return; }
 
+    submitLock.current = true;
     setSubmitting(true);
     try {
-      const existing = orderService.getOrders();
-      const ticketNumber = orderService.generateTicketNumber(existing);
       const order = {
         id: orderService.generateOrderId(),
-        ticketNumber,
-        codigo_pedido: ticketNumber,
         createdAt: new Date().toISOString(),
         customer: {
           name: form.name.trim(),
@@ -106,25 +123,125 @@ export function CheckoutModal() {
         customerId: isCustomer && profile?.id && !String(profile.id).startsWith('local-') ? profile.id : null,
       };
 
-      await orderService.saveOrder(order);
-      const msg = buildWhatsappMessage(order, branch);
-      window.open(`https://wa.me/${whatsapp}?text=${encodeURIComponent(msg)}`, '_blank');
+      const saved = await orderService.saveOrder(order);
       clearCart();
-      setCheckoutOpen(false);
-      navigate(`/pedido/${order.id}`, { state: { order } });
+      setConfirmedOrder(saved);
+      setStep('success');
     } catch (ex) {
+      submitLock.current = false;
       show(ex.message || 'Error al guardar el pedido');
     } finally {
       setSubmitting(false);
     }
   };
 
+  const handleWhatsApp = () => {
+    if (!confirmedOrder || !whatsapp) return;
+    const msg = buildWhatsappMessage(confirmedOrder, branch);
+    window.open(`https://wa.me/${whatsapp}?text=${encodeURIComponent(msg)}`, '_blank');
+  };
+
+  if (step === 'success' && confirmedOrder) {
+    const code = confirmedOrder.ticketNumber || confirmedOrder.codigo_pedido;
+    return (
+      <>
+        {Toast}
+        <div
+          className="fixed inset-0 z-[85] flex items-center justify-center bg-black/55 p-3 backdrop-blur-[2px] sm:p-4"
+          onClick={closeModal}
+          role="presentation"
+        >
+          <div
+            className="checkout-modal"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-labelledby="checkout-success-title"
+          >
+            <header className="checkout-modal__header">
+              <button
+                type="button"
+                onClick={closeModal}
+                className="absolute right-4 top-4 rounded-full p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                aria-label="Cerrar"
+              >
+                <X className="h-5 w-5" />
+              </button>
+              <div className="flex flex-col items-center pt-2 text-center">
+                <CheckCircle className="h-16 w-16 text-green-600" strokeWidth={1.5} />
+                <h2 id="checkout-success-title" className="mt-3 font-display text-2xl tracking-wide text-pollon-black sm:text-3xl">
+                  ¡Pedido recibido!
+                </h2>
+                <p className="mt-2 text-sm text-gray-600">
+                  Tu pedido fue registrado correctamente y ya está visible en la sucursal.
+                </p>
+              </div>
+            </header>
+
+            <div className="checkout-modal__body admin-scroll-panel">
+              <div className="rounded-2xl border border-green-200 bg-green-50/80 p-5 text-center">
+                <p className="text-xs font-bold uppercase tracking-widest text-green-800">Código de seguimiento</p>
+                <p className="mt-2 font-display text-4xl tracking-wider text-pollon-black">#{code}</p>
+                <p className="mt-3 text-xs text-gray-500 break-all">ID: {confirmedOrder.id}</p>
+              </div>
+
+              <div className="rounded-xl bg-pollon-cream/80 px-4 py-3 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Total pagado</span>
+                  <span className="font-bold text-pollon-red">{money(confirmedOrder.total)}</span>
+                </div>
+                <div className="mt-1 flex justify-between text-gray-600">
+                  <span>Fecha</span>
+                  <span>{formatDateTime(confirmedOrder.createdAt)}</span>
+                </div>
+                <div className="mt-1 flex justify-between text-gray-600">
+                  <span>Sucursal</span>
+                  <span className="text-right">{branch?.name}</span>
+                </div>
+              </div>
+
+              <p className="text-center text-xs text-gray-500">
+                Guarda tu código #{code} para consultar el estado de tu pedido en cualquier momento.
+              </p>
+            </div>
+
+            <footer className="checkout-modal__footer space-y-3">
+              <button
+                type="button"
+                onClick={handleWhatsApp}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] py-4 text-sm font-bold uppercase tracking-wide text-white shadow-md transition hover:bg-[#1fb855]"
+              >
+                <MessageCircle className="h-5 w-5" />
+                Enviar comprobante por WhatsApp
+              </button>
+              {confirmedOrder.id && (
+                <Link
+                  to={`/cuenta/seguimiento/${confirmedOrder.id}`}
+                  onClick={closeModal}
+                  className="block w-full rounded-xl border-2 border-pollon-red py-3 text-center text-sm font-bold uppercase tracking-wide text-pollon-red transition hover:bg-red-50"
+                >
+                  Seguir mi pedido
+                </Link>
+              )}
+              <button
+                type="button"
+                onClick={closeModal}
+                className="w-full rounded-xl bg-gray-100 py-3 text-sm font-bold text-gray-700 transition hover:bg-gray-200"
+              >
+                Seguir comprando
+              </button>
+            </footer>
+          </div>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       {Toast}
       <div
         className="fixed inset-0 z-[85] flex items-center justify-center bg-black/55 p-3 backdrop-blur-[2px] sm:p-4"
-        onClick={() => setCheckoutOpen(false)}
+        onClick={closeModal}
         role="presentation"
       >
         <div
@@ -136,7 +253,7 @@ export function CheckoutModal() {
           <header className="checkout-modal__header">
             <button
               type="button"
-              onClick={() => setCheckoutOpen(false)}
+              onClick={closeModal}
               className="absolute right-4 top-4 rounded-full p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
               aria-label="Cerrar"
             >
@@ -239,7 +356,7 @@ export function CheckoutModal() {
                       <li><strong>N° cuenta:</strong> {TRANSFER_BANK_INFO.numero}</li>
                     </ul>
                     <p className="mt-3 text-xs text-blue-700">
-                      Envía el comprobante por WhatsApp al confirmar.
+                      Después de confirmar podrás enviar el comprobante por WhatsApp.
                     </p>
                   </div>
                 )}
@@ -277,7 +394,7 @@ export function CheckoutModal() {
                 disabled={submitting}
                 className="w-full rounded-xl bg-pollon-red py-4 text-sm font-bold uppercase tracking-wide text-white shadow-md transition hover:bg-pollon-red-dark disabled:opacity-50"
               >
-                {submitting ? 'Procesando…' : 'Confirmar y enviar por WhatsApp'}
+                {submitting ? 'Registrando pedido…' : 'Confirmar pedido'}
               </button>
             </footer>
           </form>
