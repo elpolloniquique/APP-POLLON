@@ -1,11 +1,10 @@
-import { Link } from 'react-router-dom';
 import { X, Minus, Plus, Trash2, ShoppingBag } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { money } from '../../utils/format';
 import { Button } from '../ui/Button';
 
 export function CartDrawer() {
-  const { items, isOpen, setIsOpen, subtotal, itemCount, removeItem, updateQty } = useCart();
+  const { items, isOpen, setIsOpen, setCheckoutOpen, subtotal, itemCount, removeItem, updateQty } = useCart();
 
   if (!isOpen) return null;
 
@@ -100,9 +99,15 @@ export function CartDrawer() {
               >
                 Seguir Comprando
               </button>
-              <Link to="/checkout" className="flex-1" onClick={() => setIsOpen(false)}>
-                <Button className="w-full">Confirmar</Button>
-              </Link>
+              <Button
+                className="flex-1"
+                onClick={() => {
+                  setIsOpen(false);
+                  setCheckoutOpen(true);
+                }}
+              >
+                Confirmar
+              </Button>
             </div>
           </div>
         )}

@@ -19,6 +19,7 @@ function loadCartState() {
 export function CartProvider({ children }) {
   const [cartState, setCartState] = useState(loadCartState);
   const [isOpen, setIsOpen] = useState(false);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
   const { branch } = useBranch();
 
   const items = cartState.items;
@@ -110,6 +111,8 @@ export function CartProvider({ children }) {
     itemCount,
     isOpen,
     setIsOpen,
+    checkoutOpen,
+    setCheckoutOpen,
     addItem,
     removeItem,
     updateQty,

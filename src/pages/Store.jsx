@@ -4,6 +4,7 @@ import { SiteHeader } from '../components/layout/SiteHeader';
 import { SiteFooter } from '../components/layout/SiteFooter';
 import { WhatsAppFab } from '../components/layout/WhatsAppFab';
 import { CartDrawer } from '../components/cart/CartDrawer';
+import { CheckoutModal } from '../components/cart/CheckoutModal';
 import { ProductCard } from '../components/product/ProductCard';
 import { ProductModal } from '../components/product/ProductModal';
 import { useCart } from '../context/CartContext';
@@ -78,7 +79,6 @@ export function Store() {
   return (
     <div className="flex min-h-screen flex-col bg-pollon-cream">
       <SiteHeader onOpenCart={() => setIsOpen(true)} />
-      <CartDrawer />
       <WhatsAppFab />
 
       <div className="bg-pollon-red py-6 text-white">
@@ -167,6 +167,9 @@ export function Store() {
           onClose={() => setSelected(null)}
         />
       )}
+
+      <CartDrawer />
+      <CheckoutModal />
 
       <SiteFooter />
     </div>
