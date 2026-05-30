@@ -17,7 +17,7 @@ import { useBranch } from '../context/BranchContext';
 import { useBranchMenu } from '../context/BranchMenuContext';
 import { isBranchOpenNow } from '../services/branchService';
 import { money, resolveMediaUrl } from '../utils/format';
-import { useBestsellers } from '../hooks/useBestsellers';
+import { useBestsellers, BESTSELLERS_VISIBLE } from '../hooks/useBestsellers';
 
 const WHY_US = [
   { icon: ChefHat, title: 'Pollo fresco del día', desc: 'Marinado y cocinado al carbón cada día con receta peruana auténtica.' },
@@ -299,37 +299,44 @@ export function Home() {
             <h3 className="mb-1 border-b-2 border-pollon-red pb-2 font-display text-2xl text-pollon-black">
               MÁS VENDIDOS
             </h3>
-            <p className="mb-4 text-[11px] font-medium uppercase tracking-wide text-gray-400">
+            <p className="mb-3 text-[11px] font-medium uppercase tracking-wide text-gray-400">
               Actualizado según ventas de la semana
             </p>
-            <ul className="space-y-4">
-              {bestsellers.map((p) => (
-                <li key={p.id} className="flex items-center gap-3">
-                  <img
-                    src={imgSrc(p.image || p.imageUrl)}
-                    alt=""
-                    className="h-14 w-14 shrink-0 rounded-lg object-cover"
-                    onError={(e) => { e.target.src = '/img/todo el menu.png'; }}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-bold">{p.name}</p>
-                    <p className="truncate text-xs text-gray-500">{p.description?.slice(0, 40)}</p>
-                    <p className="font-bold text-pollon-red">{money(p.price)}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => openProductModal(p)}
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-pollon-red text-white hover:bg-pollon-red-dark"
-                    aria-label={`Agregar ${p.name}`}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </button>
-                </li>
-              ))}
-              {!bestsellers.length && (
-                <li className="py-6 text-center text-sm text-gray-500">Sin datos de ventas aún</li>
-              )}
-            </ul>
+            {bestsellers.length > BESTSELLERS_VISIBLE && (
+              <p className="mb-2 text-right text-[10px] font-medium text-gray-400">
+                Desplaza para ver más ↓
+              </p>
+            )}
+            <div className="admin-scroll-panel bestsellers-list">
+              <ul className="space-y-4 pr-1">
+                {bestsellers.map((p) => (
+                  <li key={p.id} className="flex min-h-[4.25rem] items-center gap-3">
+                    <img
+                      src={imgSrc(p.image || p.imageUrl)}
+                      alt=""
+                      className="h-14 w-14 shrink-0 rounded-lg object-cover"
+                      onError={(e) => { e.target.src = '/img/todo el menu.png'; }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-bold">{p.name}</p>
+                      <p className="truncate text-xs text-gray-500">{p.description?.slice(0, 40)}</p>
+                      <p className="font-bold text-pollon-red">{money(p.price)}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => openProductModal(p)}
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-pollon-red text-white hover:bg-pollon-red-dark"
+                      aria-label={`Agregar ${p.name}`}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
+                  </li>
+                ))}
+                {!bestsellers.length && (
+                  <li className="py-6 text-center text-sm text-gray-500">Sin datos de ventas aún</li>
+                )}
+              </ul>
+            </div>
             <Link to="/tienda" className="mt-4 block text-center text-sm font-semibold text-pollon-red hover:underline">
               Ver menú completo →
             </Link>

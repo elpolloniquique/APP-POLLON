@@ -5,11 +5,12 @@ import {
 } from '../utils/dashboardAnalytics';
 import { fetchBranchOrdersForPeriod } from '../services/orderService';
 
-/** Período alineado con el filtro por defecto del dashboard admin (semana). */
+/** Platos visibles sin scroll; se listan hasta MAX si hay más ventas. */
+export const BESTSELLERS_VISIBLE = 5;
+export const BESTSELLERS_MAX = 10;
 export const BESTSELLERS_PERIOD = 'week';
-export const BESTSELLERS_LIMIT = 6;
 
-function fallbackProducts(menuProducts, limit = BESTSELLERS_LIMIT) {
+function fallbackProducts(menuProducts, limit = BESTSELLERS_VISIBLE) {
   return (menuProducts || []).filter((p) => p.available !== false).slice(0, limit);
 }
 
@@ -30,8 +31,8 @@ export function useBestsellers(branchId, menuProducts, periodId = BESTSELLERS_PE
     (async () => {
       try {
         const orders = await fetchBranchOrdersForPeriod(branchId, periodId);
-        const topItems = buildTopProductItems(orders, BESTSELLERS_LIMIT * 2);
-        const matched = resolveBestsellerProducts(topItems, menuProducts, BESTSELLERS_LIMIT);
+        const topItems = buildTopProductItems(orders, BESTSELLERS_MAX * 2);
+        const matched = resolveBestsellerProducts(topItems, menuProducts, BESTSELLERS_MAX);
         if (!cancelled) {
           setBestsellers(matched.length ? matched : fallbackProducts(menuProducts));
         }

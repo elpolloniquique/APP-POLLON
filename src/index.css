@@ -36,6 +36,13 @@
     scrollbar-width: none;
   }
   .scrollbar-hide::-webkit-scrollbar { display: none; }
+  .bestsellers-list {
+    max-height: calc(5 * 4.5rem + 4 * 1rem);
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
   .admin-scroll-panel {
     scrollbar-width: thin;
     scrollbar-color: #cbd5e1 #f1f5f9;
