@@ -13,7 +13,7 @@ import { useCart } from '../context/CartContext';
 import { useBranch } from '../context/BranchContext';
 import { useBranchMenu } from '../context/BranchMenuContext';
 import { isBranchOpenNow } from '../services/branchService';
-import { money } from '../utils/format';
+import { money, resolveMediaUrl } from '../utils/format';
 
 const WHY_US = [
   { icon: ChefHat, title: 'Pollo fresco del día', desc: 'Marinado y cocinado al carbón cada día con receta peruana auténtica.' },
@@ -29,20 +29,19 @@ const TESTIMONIALS = [
 ];
 
 function imgSrc(path) {
-  if (!path) return '/img/todo el menu.png';
-  return path.startsWith('/') ? path : `/${path}`;
+  return resolveMediaUrl(path);
 }
 
 /** Imagen para círculos 「Explora nuestro menú」: foto de categoría (admin) o primer plato como respaldo. */
 function categoryExploreImage(category, productsByCategory) {
   const adminImage = category.imageUrl || category.image;
-  if (adminImage) return imgSrc(adminImage);
+  if (adminImage) return resolveMediaUrl(adminImage);
 
   const products = [...(productsByCategory[category.id] || [])]
     .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
   const coverProduct = products.find((p) => p.imageUrl || p.image) || products[0];
   const productImage = coverProduct?.imageUrl || coverProduct?.image;
-  if (productImage) return imgSrc(productImage);
+  if (productImage) return resolveMediaUrl(productImage);
   return '/img/todo el menu.png';
 }
 

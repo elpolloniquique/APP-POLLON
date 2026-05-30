@@ -10,6 +10,17 @@ export function money(v) {
   return CURRENCY.format(Number(v) || 0);
 }
 
+/** Normaliza rutas locales, URLs http(s) y rutas de storage para <img src>. */
+export function resolveMediaUrl(path, fallback = '/img/todo el menu.png') {
+  const raw = (path || '').trim();
+  if (!raw) return fallback;
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (raw.startsWith('//')) return `https:${raw}`;
+  if (raw.startsWith('/')) return raw;
+  if (raw.startsWith('img/')) return `/${raw}`;
+  return `/${raw}`;
+}
+
 export function todayISO() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;

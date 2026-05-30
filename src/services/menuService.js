@@ -127,9 +127,17 @@ function dedupeCategories(categories) {
   for (const c of categories) {
     const key = `${c.branchId}:${(c.name || '').trim().toLowerCase()}`;
     const prev = byKey.get(key);
-    if (!prev || c.displayOrder < prev.displayOrder) {
-      byKey.set(key, c);
+    if (!prev) {
+      byKey.set(key, { ...c });
+      continue;
     }
+    const pick = (c.displayOrder ?? 0) < (prev.displayOrder ?? 0) ? c : prev;
+    const other = pick === c ? prev : c;
+    byKey.set(key, {
+      ...pick,
+      imageUrl: pick.imageUrl || other.imageUrl || '',
+      description: pick.description || other.description || '',
+    });
   }
   return [...byKey.values()].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
 }
