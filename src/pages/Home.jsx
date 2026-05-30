@@ -33,6 +33,16 @@ function imgSrc(path) {
   return path.startsWith('/') ? path : `/${path}`;
 }
 
+/** Imagen de portada: primer producto de la categoría, o imagen de categoría como respaldo. */
+function categoryCoverImage(category, productsByCategory) {
+  const products = [...(productsByCategory[category.id] || [])]
+    .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
+  const coverProduct = products.find((p) => p.imageUrl || p.image) || products[0];
+  const productImage = coverProduct?.imageUrl || coverProduct?.image;
+  if (productImage) return imgSrc(productImage);
+  return imgSrc(category.imageUrl || category.image);
+}
+
 export function Home() {
   const { setIsOpen, addItem } = useCart();
   const { branch, branches, setBranch } = useBranch();
@@ -49,7 +59,7 @@ export function Home() {
   const menuCircles = categories.slice(0, 8).map((c) => ({
     id: c.id,
     label: c.name,
-    img: imgSrc(c.imageUrl || c.image),
+    img: categoryCoverImage(c, productsByCategory),
   }));
 
   const quickAdd = (p, category) => {
@@ -239,7 +249,7 @@ export function Home() {
                 className="group flex w-28 shrink-0 flex-col items-center gap-3"
               >
                 <div className="h-24 w-24 overflow-hidden rounded-full border-4 border-pollon-red/20 shadow-lg transition group-hover:border-pollon-red">
-                  <img src={c.img} alt="" className="h-full w-full object-cover" onError={(e) => { e.target.src = '/img/todo el menu.png'; }} />
+                  <img src={c.img} alt={c.label} className="h-full w-full object-cover" onError={(e) => { e.target.src = '/img/todo el menu.png'; }} />
                 </div>
                 <span className="text-center text-xs font-bold uppercase tracking-wide text-gray-700">{c.label}</span>
               </Link>
