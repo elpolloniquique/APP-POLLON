@@ -22,6 +22,9 @@ function mapBranch(row) {
     deliveryEta: row.delivery_eta || row.tiempo_entrega || '30-45 min',
     comingSoon: false,
     displayOrder: row.display_order ?? row.orden ?? 0,
+    facebookUrl: row.facebook_url || '',
+    instagramUrl: row.instagram_url || '',
+    tiktokUrl: row.tiktok_url || '',
   };
 }
 
@@ -119,6 +122,9 @@ export async function adminSaveBranch(branch, user) {
     delivery_eta: branch.deliveryEta || '30-45 min',
     is_active: branch.isActive !== false,
     display_order: displayOrder,
+    facebook_url: branch.facebookUrl?.trim() || '',
+    instagram_url: branch.instagramUrl?.trim() || '',
+    tiktok_url: branch.tiktokUrl?.trim() || '',
   };
 
   const { data, error } = await sb.from('branches').upsert(row).select().single();

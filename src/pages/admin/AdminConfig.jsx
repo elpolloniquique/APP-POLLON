@@ -24,6 +24,9 @@ export function AdminConfig() {
     pickup_activo: true,
     reservas_activas: true,
     mensaje_cliente: '¡Gracias por tu pedido!',
+    facebook_url: '',
+    instagram_url: '',
+    tiktok_url: '',
   });
   const [saving, setSaving] = useState(false);
 
@@ -41,6 +44,9 @@ export function AdminConfig() {
         pickup_activo: branch.pickupEnabled !== false,
         reservas_activas: branch.reservationsEnabled !== false,
         mensaje_cliente: '¡Gracias por tu pedido!',
+        facebook_url: branch.facebookUrl || '',
+        instagram_url: branch.instagramUrl || '',
+        tiktok_url: branch.tiktokUrl || '',
       });
       return;
     }
@@ -69,6 +75,9 @@ export function AdminConfig() {
           pickupEnabled: cfg.pickup_activo,
           reservationsEnabled: cfg.reservas_activas,
           isActive: branch.isActive !== false,
+          facebookUrl: cfg.facebook_url,
+          instagramUrl: cfg.instagram_url,
+          tiktokUrl: cfg.tiktok_url,
         }, { id: profile?.id, email: profile?.email });
         await refreshBranches();
         alert('Configuración de tu local guardada');
@@ -163,6 +172,34 @@ export function AdminConfig() {
           <input type="checkbox" checked={cfg.reservas_activas} onChange={(e) => setCfg((c) => ({ ...c, reservas_activas: e.target.checked }))} />
           Reservas activas
         </label>
+
+        {isBranchScoped && (
+          <div className="mt-4 space-y-3 border-t border-gray-100 pt-4">
+            <div>
+              <h3 className="text-sm font-bold text-pollon-black">Redes sociales</h3>
+              <p className="mt-1 text-xs text-gray-500">
+                Se muestran en el footer cuando el cliente elige tu sucursal. URL completa o solo el usuario.
+              </p>
+            </div>
+            {[
+              { key: 'facebook_url', label: 'Facebook', placeholder: 'https://facebook.com/elpollon' },
+              { key: 'instagram_url', label: 'Instagram', placeholder: 'https://instagram.com/elpollon' },
+              { key: 'tiktok_url', label: 'TikTok', placeholder: 'https://tiktok.com/@elpollon' },
+            ].map(({ key, label, placeholder }) => (
+              <div key={key}>
+                <label className="text-sm font-medium">{label}</label>
+                <input
+                  type="url"
+                  value={cfg[key] || ''}
+                  onChange={(e) => setCfg((c) => ({ ...c, [key]: e.target.value }))}
+                  placeholder={placeholder}
+                  className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
+                />
+              </div>
+            ))}
+          </div>
+        )}
+
         <Button onClick={save} disabled={saving}>
           {saving ? 'Guardando…' : 'Guardar configuración'}
         </Button>

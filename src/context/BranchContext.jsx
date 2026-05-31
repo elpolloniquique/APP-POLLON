@@ -11,7 +11,12 @@ export function BranchProvider({ children }) {
 
   const refreshBranches = useCallback(async () => {
     const list = await loadBranches(true);
-    setBranches(list.filter((b) => !b.comingSoon));
+    const active = list.filter((b) => !b.comingSoon);
+    setBranches(active);
+    setBranchState((current) => {
+      if (!current?.id) return current;
+      return active.find((b) => b.id === current.id) || current;
+    });
     return list;
   }, []);
 

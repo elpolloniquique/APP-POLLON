@@ -24,6 +24,9 @@ const emptyBranch = () => ({
   isActive: true,
   isOpen: true,
   displayOrder: 0,
+  facebookUrl: '',
+  instagramUrl: '',
+  tiktokUrl: '',
 });
 
 export function AdminBranches() {
@@ -181,6 +184,12 @@ export function AdminBranches() {
               <input value={modal.deliveryEta} onChange={(e) => setModal({ ...modal, deliveryEta: e.target.value })} placeholder="Tiempo entrega" className="rounded-lg border px-3 py-2" />
               <label className="flex items-center gap-2"><input type="checkbox" checked={modal.isActive} onChange={(e) => setModal({ ...modal, isActive: e.target.checked })} /> Activa</label>
               <label className="flex items-center gap-2"><input type="checkbox" checked={modal.deliveryEnabled} onChange={(e) => setModal({ ...modal, deliveryEnabled: e.target.checked })} /> Delivery</label>
+            </div>
+            <div className="mt-4 space-y-3 border-t border-gray-100 pt-4">
+              <p className="text-sm font-bold text-gray-800">Redes sociales (footer)</p>
+              <input value={modal.facebookUrl || ''} onChange={(e) => setModal({ ...modal, facebookUrl: e.target.value })} placeholder="Facebook — URL o usuario" className="w-full rounded-lg border px-3 py-2 text-sm" />
+              <input value={modal.instagramUrl || ''} onChange={(e) => setModal({ ...modal, instagramUrl: e.target.value })} placeholder="Instagram — URL o usuario" className="w-full rounded-lg border px-3 py-2 text-sm" />
+              <input value={modal.tiktokUrl || ''} onChange={(e) => setModal({ ...modal, tiktokUrl: e.target.value })} placeholder="TikTok — URL o @usuario" className="w-full rounded-lg border px-3 py-2 text-sm" />
             </div>
             <div className="mt-4 flex gap-2">
               <button type="submit" className="flex-1 rounded-lg bg-pollon-red py-2 font-bold text-white">Guardar</button>
