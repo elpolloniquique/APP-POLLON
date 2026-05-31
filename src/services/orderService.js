@@ -6,6 +6,11 @@ let orders = [];
 let channel = null;
 let backendReady = false;
 let initPromise = null;
+let listeners = new Set();
+let realtimeConnectionStatus = 'connecting';
+let lastRealtimeAt = 0;
+let pollTimer = null;
+let refetchTimer = null;
 
 function sanitize(obj) {
   if (obj === null || typeof obj !== 'object') return obj;
@@ -120,40 +125,130 @@ async function ensureSupabaseReady() {
   }
 }
 
-function subscribeRealtime(sb, onSync) {
+function sortOrders(list) {
+  return [...list].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+}
+
+function mapRealtimeStatus(status = realtimeConnectionStatus) {
+  if (!backendReady || !isSupabaseConfigured()) return 'local';
+  if (status === 'SUBSCRIBED') return 'live';
+  if (status === 'CLOSED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') return 'reconnecting';
+  return 'connecting';
+}
+
+function notifyListeners(meta = {}) {
+  const snapshot = sortOrders(orders);
+  orders = snapshot;
+  const payload = {
+    realtimeStatus: mapRealtimeStatus(),
+    ...meta,
+  };
+  listeners.forEach((fn) => {
+    try {
+      fn(snapshot, payload);
+    } catch (e) {
+      console.warn('[Pollón] orders listener:', e);
+    }
+  });
+}
+
+function applyRealtimePayload(payload) {
+  if (payload.eventType === 'INSERT' && payload.new?.id) {
+    const order = rowToOrder(payload.new);
+    if (!orders.some((o) => o.id === order.id)) {
+      orders = sortOrders([order, ...orders]);
+      lastRealtimeAt = Date.now();
+      notifyListeners({ source: 'realtime', event: 'INSERT' });
+      return true;
+    }
+    return true;
+  }
+
+  if (payload.eventType === 'UPDATE' && payload.new?.id) {
+    const order = rowToOrder(payload.new);
+    const idx = orders.findIndex((o) => o.id === order.id);
+    if (idx >= 0) orders[idx] = order;
+    else orders.unshift(order);
+    orders = sortOrders(orders);
+    lastRealtimeAt = Date.now();
+    notifyListeners({ source: 'realtime', event: 'UPDATE' });
+    return true;
+  }
+
+  if (payload.eventType === 'DELETE' && payload.old?.id) {
+    orders = orders.filter((o) => o.id !== payload.old.id);
+    lastRealtimeAt = Date.now();
+    notifyListeners({ source: 'realtime', event: 'DELETE' });
+    return true;
+  }
+
+  return false;
+}
+
+async function refreshFromServer(sb) {
+  orders = await fetchAll(sb);
+  lastRealtimeAt = Date.now();
+  notifyListeners({ source: 'fetch' });
+}
+
+function scheduleFullRefetch(sb) {
+  if (refetchTimer) clearTimeout(refetchTimer);
+  refetchTimer = setTimeout(() => {
+    refetchTimer = null;
+    refreshFromServer(sb).catch((e) => console.warn('[Pollón] RT refresh:', e));
+  }, 120);
+}
+
+function startPollingFallback(sb) {
+  if (pollTimer) return;
+  pollTimer = setInterval(() => {
+    if (!backendReady || !sb) return;
+    const stale = Date.now() - lastRealtimeAt > 10000;
+    const disconnected = realtimeConnectionStatus !== 'SUBSCRIBED';
+    if (stale || disconnected) {
+      refreshFromServer(sb).catch((e) => console.warn('[Pollón] poll refresh:', e));
+    }
+  }, 8000);
+}
+
+function subscribeRealtime(sb) {
   if (channel) sb.removeChannel(channel);
   channel = sb
     .channel('pollon-pedidos-rt')
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'pedidos' },
-      async (payload) => {
+      (payload) => {
         console.info('[Pollón] Pedido en tiempo real:', payload.eventType, payload.new?.id || payload.old?.id);
-        try {
-          orders = await fetchAll(sb);
-          onSync?.(orders);
-        } catch (e) {
-          console.warn('[Pollón] RT refresh:', e);
+        if (!applyRealtimePayload(payload)) {
+          scheduleFullRefetch(sb);
         }
-      }
+      },
     )
     .subscribe((status) => {
       console.info('[Pollón] Realtime pedidos:', status);
+      realtimeConnectionStatus = status;
+      if (status === 'SUBSCRIBED') {
+        lastRealtimeAt = Date.now();
+        refreshFromServer(sb).catch((e) => console.warn('[Pollón] sync on subscribe:', e));
+      } else {
+        notifyListeners({ source: 'realtime-status' });
+      }
     });
 }
 
-export async function initOrders(onSync) {
+async function ensureInitialized() {
   const sb = getSupabase();
   if (!sb) {
     loadLocal();
     backendReady = false;
-    onSync?.(orders);
+    realtimeConnectionStatus = 'local';
+    notifyListeners({ source: 'local' });
     return;
   }
 
   if (initPromise) {
     await initPromise;
-    onSync?.(orders);
     return;
   }
 
@@ -161,17 +256,37 @@ export async function initOrders(onSync) {
     try {
       orders = await fetchAll(sb);
       backendReady = true;
-      onSync?.(orders);
-      subscribeRealtime(sb, onSync);
+      lastRealtimeAt = Date.now();
+      realtimeConnectionStatus = 'connecting';
+      notifyListeners({ source: 'init' });
+      subscribeRealtime(sb);
+      startPollingFallback(sb);
     } catch (e) {
       console.warn('[Pollón] initOrders:', e);
       loadLocal();
       backendReady = false;
-      onSync?.(orders);
+      realtimeConnectionStatus = 'local';
+      notifyListeners({ source: 'local-fallback' });
     }
   })();
 
   await initPromise;
+}
+
+/** Suscripción a pedidos con tiempo real. Devuelve función para cancelar. */
+export function subscribeOrders(onSync) {
+  listeners.add(onSync);
+  ensureInitialized().then(() => {
+    onSync(sortOrders(orders), { realtimeStatus: mapRealtimeStatus() });
+  });
+  return () => {
+    listeners.delete(onSync);
+  };
+}
+
+export async function initOrders(onSync) {
+  const unsub = subscribeOrders(onSync);
+  return unsub;
 }
 
 async function insertDetalle(sb, pedidoId, items) {
@@ -303,7 +418,10 @@ export async function updateOrder(order) {
 export async function fetchOrdersAdmin() {
   const sb = getSupabase();
   if (!sb) return getOrders();
-  return fetchAll(sb);
+  const list = await fetchAll(sb);
+  orders = list;
+  lastRealtimeAt = Date.now();
+  return list;
 }
 
 /** Pedidos de una sucursal para analytics públicos (ej. más vendidos en inicio). */

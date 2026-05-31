@@ -15,6 +15,9 @@ export function getSupabase() {
   if (!client) {
     client = createClient(url, anonKey, {
       auth: { persistSession: true, autoRefreshToken: true },
+      realtime: {
+        params: { eventsPerSecond: 20 },
+      },
     });
   }
   return client;
