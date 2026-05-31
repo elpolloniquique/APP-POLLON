@@ -72,7 +72,7 @@
     );
   }
   #store-products {
-    scroll-margin-top: clamp(10.5rem, 22vw, 13.5rem);
+    scroll-margin-top: clamp(9rem, 20vw, 12rem);
   }
   .home-bestsellers-scroll.admin-scroll-card {
     max-height: calc(4 * 4.25rem + 3 * 1rem);

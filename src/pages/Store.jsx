@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { SiteHeader } from '../components/layout/SiteHeader';
 import { SiteFooter } from '../components/layout/SiteFooter';
@@ -10,7 +10,6 @@ import { ProductModal } from '../components/product/ProductModal';
 import { useCart } from '../context/CartContext';
 import { useBranch } from '../context/BranchContext';
 import { useBranchMenu } from '../context/BranchMenuContext';
-import { CategoryScrollBar } from '../components/store/CategoryScrollBar';
 import { useStoreProductsScroll } from '../hooks/useStoreProductsScroll';
 import { Search } from 'lucide-react';
 
@@ -82,16 +81,6 @@ export function Store() {
     behavior: 'auto',
   });
 
-  const selectCategory = useCallback((cat, { smooth = true } = {}) => {
-    setCategoryId(cat.id);
-    setSearch('');
-    const params = new URLSearchParams();
-    params.set('cat', cat.id);
-    if (branch?.id) params.set('branch', branch.id);
-    setSearchParams(params, { replace: false });
-    requestAnimationFrame(() => scrollToProducts(smooth ? 'smooth' : 'auto'));
-  }, [branch?.id, setSearchParams, scrollToProducts]);
-
   if (branchLoading) {
     return <div className="flex min-h-screen items-center justify-center">Cargando sucursal…</div>;
   }
@@ -136,7 +125,7 @@ export function Store() {
               e.preventDefault();
               setSearchParams(search.trim() ? { q: search.trim() } : {});
             }}
-            className="relative mb-3"
+            className="relative"
           >
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
@@ -147,15 +136,10 @@ export function Store() {
               className="w-full rounded-xl border border-gray-200 py-2.5 pl-10 pr-4 text-sm"
             />
           </form>
-          <CategoryScrollBar
-            items={categories}
-            activeId={search ? null : categoryId}
-            onSelect={(cat) => selectCategory(cat)}
-          />
         </div>
       </div>
 
-      <main id="store-products" className="mx-auto w-full max-w-[1400px] flex-1 scroll-mt-44 px-4 py-8 lg:scroll-mt-48">
+      <main id="store-products" className="mx-auto w-full max-w-[1400px] flex-1 scroll-mt-32 px-4 py-8 lg:scroll-mt-36">
         {loading ? (
           <p className="py-20 text-center text-gray-500">Cargando menú de {branch.name}…</p>
         ) : !categories.length ? (

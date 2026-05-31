@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
-  ShoppingCart, Phone, User, MapPin, Search, ChevronDown, Menu, X,
+  ShoppingCart, Phone, User, MapPin, ChevronDown, Menu, X,
 } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { useBranch } from '../../context/BranchContext';
@@ -144,13 +144,10 @@ export function SiteHeader({ onOpenCart, variant = 'full' }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [now, setNow] = useState(new Date());
-  const [search, setSearch] = useState('');
   const [branchOpen, setBranchOpen] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
   const [authTab, setAuthTab] = useState('login');
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [searchExpanded, setSearchExpanded] = useState(false);
-  const searchInputRef = useRef(null);
 
   useEffect(() => {
     if (location.state?.openAuth) {
@@ -168,19 +165,7 @@ export function SiteHeader({ onOpenCart, variant = 'full' }) {
   useEffect(() => {
     setMobileOpen(false);
     setBranchOpen(false);
-    setSearchExpanded(false);
   }, [location.pathname, location.search]);
-
-  useEffect(() => {
-    if (!searchExpanded) return undefined;
-    const onKey = (e) => { if (e.key === 'Escape') setSearchExpanded(false); };
-    window.addEventListener('keydown', onKey);
-    const t = setTimeout(() => searchInputRef.current?.focus(), 50);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      clearTimeout(t);
-    };
-  }, [searchExpanded]);
 
   useEffect(() => {
     document.body.style.overflow = mobileOpen ? 'hidden' : '';
@@ -202,14 +187,6 @@ export function SiteHeader({ onOpenCart, variant = 'full' }) {
   const scheduleText = formatSchedule(branch);
   const phoneDisplay = branch?.phone || '+56 9 8692 5310';
   const showNav = variant === 'full';
-
-  const handleSearch = useCallback((e) => {
-    e?.preventDefault();
-    if (search.trim()) navigate(`/tienda?q=${encodeURIComponent(search.trim())}`);
-    else navigate('/tienda');
-    setMobileOpen(false);
-    setSearchExpanded(false);
-  }, [search, navigate]);
 
   const handleAccountClick = (tab = 'login') => {
     if (isAuthenticated && isCustomer) {
@@ -334,31 +311,6 @@ export function SiteHeader({ onOpenCart, variant = 'full' }) {
           </div>
         </div>
 
-        {/* ═══════════════ MÓVIL: barra búsqueda (negro + input blanco) ═══════════════ */}
-        {showNav && (
-          <form
-            onSubmit={handleSearch}
-            className="border-b border-white/5 bg-[#0a0a0a] px-3 py-2.5 lg:hidden"
-          >
-            <div className="relative">
-              <input
-                type="search"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar productos..."
-                className="w-full rounded-full border border-gray-200/90 bg-white py-3 pl-5 pr-12 text-base font-medium text-gray-900 shadow-sm placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-pollon-red/40"
-              />
-              <button
-                type="submit"
-                className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-gray-500 hover:text-pollon-red"
-                aria-label="Buscar"
-              >
-                <Search className="h-5 w-5" strokeWidth={2} />
-              </button>
-            </div>
-          </form>
-        )}
-
         {/* ═══════════════ PC: barra principal blanca ═══════════════ */}
         <div className="hidden border-b border-gray-100 bg-white lg:block">
           <div className="mx-auto flex max-w-[1400px] items-center gap-3 px-4 py-3.5">
@@ -438,81 +390,27 @@ export function SiteHeader({ onOpenCart, variant = 'full' }) {
           </div>
         </div>
 
-        {/* ═══════════════ PC: navegación + búsqueda (negro profundo) ═══════════════ */}
+        {/* ═══════════════ Navegación categorías (fondo negro + scroll) ═══════════════ */}
         {showNav && (
-          <nav className="hidden border-b border-white/[0.06] bg-[#0a0a0a] lg:block">
-            <div className="relative mx-auto max-w-[1400px] px-4">
-              <div className="flex items-center justify-center py-1 pr-14">
-                <div className="flex max-w-full flex-wrap items-center justify-center gap-1">
-                  {navMenu.map((item) => {
-                    const active = isNavActive(item, location);
-                    return (
-                      <Link
-                        key={item.categoryId || 'inicio'}
-                        to={item.path}
-                        className={`font-brand shrink-0 whitespace-nowrap px-4 py-3.5 text-base font-bold antialiased transition xl:px-5 xl:text-[17px] ${
-                          active
-                            ? 'rounded-md bg-zinc-800 text-white shadow-sm ring-1 ring-white/15'
-                            : 'text-white hover:bg-white/10 hover:text-white'
-                        }`}
-                      >
-                        {item.label}
-                      </Link>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Buscador colapsable: anclado a la derecha */}
-              <div className="absolute right-4 top-1/2 z-[46] -translate-y-1/2 py-2">
-                {searchExpanded && (
-                  <button
-                    type="button"
-                    className="fixed inset-0 z-[45] cursor-default"
-                    onClick={() => setSearchExpanded(false)}
-                    aria-label="Cerrar búsqueda"
-                  />
-                )}
-                <form
-                  onSubmit={handleSearch}
-                  className="relative z-[46] flex items-center justify-end"
-                >
-                  <div
-                    className={`overflow-hidden transition-all duration-300 ease-out ${
-                      searchExpanded ? 'mr-2 w-[min(280px,calc(100vw-5rem))] opacity-100 xl:w-[320px]' : 'mr-0 w-0 opacity-0'
-                    }`}
-                  >
-                    <input
-                      ref={searchInputRef}
-                      type="search"
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      placeholder="Buscar productos..."
-                      tabIndex={searchExpanded ? 0 : -1}
-                      className="w-full rounded-full border border-gray-200 bg-white py-2.5 pl-5 pr-4 text-base font-medium text-gray-900 shadow-xl placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-pollon-red/50"
-                    />
-                  </div>
-                  <button
-                    type={searchExpanded ? 'button' : 'button'}
-                    onClick={() => {
-                      if (searchExpanded) setSearchExpanded(false);
-                      else setSearchExpanded(true);
-                    }}
-                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-all duration-200 ${
-                      searchExpanded
-                        ? 'bg-white/15 text-white hover:bg-white/25'
-                        : 'border border-white/30 bg-white/10 text-white hover:border-white/50 hover:bg-white/20'
-                    }`}
-                    aria-label={searchExpanded ? 'Cerrar buscador' : 'Abrir buscador'}
-                    aria-expanded={searchExpanded}
-                  >
-                    {searchExpanded ? (
-                      <X className="h-5 w-5" strokeWidth={2.5} />
-                    ) : (
-                      <Search className="h-5 w-5" strokeWidth={2.25} />
-                    )}
-                  </button>
-                </form>
+          <nav className="border-b border-white/[0.06] bg-[#0a0a0a]" aria-label="Categorías del menú">
+            <div className="mx-auto max-w-[1400px] px-4">
+              <div className="category-scroll-track flex gap-1 overflow-x-auto py-2 scrollbar-hide">
+                {navMenu.map((item) => {
+                  const active = isNavActive(item, location);
+                  return (
+                    <Link
+                      key={item.categoryId || 'inicio'}
+                      to={item.path}
+                      className={`font-brand shrink-0 whitespace-nowrap px-4 py-2.5 text-sm font-bold antialiased transition sm:text-base xl:px-5 xl:text-[17px] ${
+                        active
+                          ? 'rounded-md bg-zinc-800 text-white shadow-sm ring-1 ring-white/15'
+                          : 'text-white hover:bg-white/10 hover:text-white'
+                      }`}
+                    >
+                      {item.label}
+                    </Link>
+                  );
+                })}
               </div>
             </div>
           </nav>
