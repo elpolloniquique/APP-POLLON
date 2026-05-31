@@ -32,11 +32,13 @@ export function BranchProvider({ children }) {
 
   const setBranch = useCallback((b, options = {}) => {
     if (!b || b.comingSoon) return false;
-    if (!options.force && b.id === branch?.id) return true;
-    setBranchState(b);
-    localStorage.setItem(BRANCH_KEY, b.id);
+    setBranchState((current) => {
+      if (!options.force && b.id === current?.id) return current;
+      localStorage.setItem(BRANCH_KEY, b.id);
+      return b;
+    });
     return true;
-  }, [branch?.id]);
+  }, []);
 
   const whatsapp = branch?.whatsapp || import.meta.env.VITE_WHATSAPP_DEFAULT || '56986925310';
   const branchOpen = branch ? isBranchOpenNow(branch) : false;

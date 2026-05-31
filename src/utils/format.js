@@ -21,6 +21,23 @@ export function resolveMediaUrl(path, fallback = '/img/todo el menu.png') {
   return `/${raw}`;
 }
 
+/**
+ * Reduce peso de imágenes remotas (Supabase Storage) con transformación en servidor.
+ * Rutas locales se devuelven sin cambios.
+ */
+export function optimizeMediaUrl(path, { width = 480, quality = 78 } = {}, fallback = '/img/todo el menu.png') {
+  const url = resolveMediaUrl(path, fallback);
+  if (!/^https?:\/\//i.test(url)) return url;
+
+  if (url.includes('/storage/v1/object/public/')) {
+    const transformed = url.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/');
+    const sep = transformed.includes('?') ? '&' : '?';
+    return `${transformed}${sep}width=${width}&quality=${quality}&resize=contain`;
+  }
+
+  return url;
+}
+
 /** URL de tienda filtrada por categoría (y opcionalmente sucursal). */
 export function storeCategoryUrl(categoryId, branchId) {
   const params = new URLSearchParams();

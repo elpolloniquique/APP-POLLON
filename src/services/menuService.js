@@ -83,21 +83,24 @@ export async function loadBranchMenu(branchId) {
   }
 
   const client = sb();
-  const { data: cats, error: catErr } = await client
-    .from('categories')
-    .select('*')
-    .eq('branch_id', branchId)
-    .eq('is_active', true)
-    .order('display_order', { ascending: true });
-  if (catErr) throw catErr;
-
-  const { data: prods, error: prodErr } = await client
-    .from('products')
-    .select('*')
-    .eq('branch_id', branchId)
-    .eq('is_available', true)
-    .order('display_order', { ascending: true });
-  if (prodErr) throw prodErr;
+  const [catsRes, prodsRes] = await Promise.all([
+    client
+      .from('categories')
+      .select('*')
+      .eq('branch_id', branchId)
+      .eq('is_active', true)
+      .order('display_order', { ascending: true }),
+    client
+      .from('products')
+      .select('*')
+      .eq('branch_id', branchId)
+      .eq('is_available', true)
+      .order('display_order', { ascending: true }),
+  ]);
+  if (catsRes.error) throw catsRes.error;
+  if (prodsRes.error) throw prodsRes.error;
+  const cats = catsRes.data;
+  const prods = prodsRes.data;
 
   const rawCategories = (cats || []).map(mapCategory);
   const categories = sortStoreCategories(dedupeCategories(rawCategories));

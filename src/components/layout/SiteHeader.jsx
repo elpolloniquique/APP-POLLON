@@ -1,18 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   ShoppingCart, Phone, User, MapPin, ChevronDown, Menu, X,
 } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { useBranch } from '../../context/BranchContext';
-import { useBranchMenu } from '../../context/BranchMenuContext';
+import { useBranchMenu, prefetchBranchMenus } from '../../context/BranchMenuContext';
 import { useAuth } from '../../context/AuthContext';
 import { isBranchOpenNow } from '../../services/branchService';
 import { money, storeCategoryUrl } from '../../utils/format';
 import { AuthModal } from '../auth/AuthModal';
 import { HeaderCategoryNav } from './HeaderCategoryNav';
 
-function selectBranchWithCartConfirm(b, branch, setBranch, resetForBranch, items, cartBranchId, onDone) {
+function selectBranchWithCartConfirm(b, branch, setBranch, resetForBranch, items, cartBranchId, onDone, syncBranchUrl) {
   if (!b || b.comingSoon) return;
   if (b.id === branch?.id) { onDone?.(); return; }
   if (items.length > 0 && cartBranchId && cartBranchId !== b.id) {
@@ -20,6 +20,8 @@ function selectBranchWithCartConfirm(b, branch, setBranch, resetForBranch, items
     resetForBranch(b.id);
   }
   setBranch(b);
+  syncBranchUrl?.(b);
+  prefetchBranchMenus([b.id]);
   onDone?.();
 }
 
@@ -73,7 +75,7 @@ function isNavActive(item, location) {
 
 function BranchDropdown({
   branch, branches, branchLabel, branchOpen, setBranchOpen,
-  items, cartBranchId, setBranch, resetForBranch,
+  items, cartBranchId, setBranch, resetForBranch, syncBranchUrl,
   variant = 'desktop',
 }) {
   const isMobile = variant === 'mobile';
@@ -89,7 +91,11 @@ function BranchDropdown({
       )}
       <button
         type="button"
-        onClick={() => setBranchOpen(!branchOpen)}
+        onClick={() => {
+          const next = !branchOpen;
+          setBranchOpen(next);
+          if (next) prefetchBranchMenus(branches.map((x) => x.id));
+        }}
         className={`flex w-full items-center rounded-lg border border-gray-200 bg-white text-left shadow-sm transition hover:border-pollon-red/40 ${
           isMobile ? 'gap-1.5 px-2.5 py-2' : 'gap-2.5 px-4 py-2.5'
         }`}
@@ -121,6 +127,7 @@ function BranchDropdown({
                 onClick={() => selectBranchWithCartConfirm(
                   b, branch, setBranch, resetForBranch, items, cartBranchId,
                   () => setBranchOpen(false),
+                  syncBranchUrl,
                 )}
                 className={`block w-full px-4 py-3 text-left text-base hover:bg-red-50 disabled:opacity-40 ${
                   branch?.id === b.id ? 'bg-red-50 font-bold text-pollon-red' : 'text-gray-800'
@@ -210,6 +217,17 @@ export function SiteHeader({ onOpenCart, variant = 'full' }) {
       isOpen ? 'bg-[#4ade80] text-black shadow-sm' : 'bg-white/20 text-white'
     } ${mobile ? 'px-2.5 py-1 text-[11px]' : 'px-5 py-1.5 text-sm'}`;
 
+  const syncBranchUrl = useCallback((b) => {
+    if (!b?.id || location.pathname !== '/tienda') return;
+    const params = new URLSearchParams(location.search);
+    if (params.get('branch') === b.id) return;
+    params.set('branch', b.id);
+    navigate(
+      { pathname: '/tienda', search: params.toString(), hash: location.hash },
+      { replace: true },
+    );
+  }, [location.pathname, location.search, location.hash, navigate]);
+
   const branchDropdownProps = {
     branch,
     branches,
@@ -219,6 +237,7 @@ export function SiteHeader({ onOpenCart, variant = 'full' }) {
     cartBranchId,
     setBranch,
     resetForBranch,
+    syncBranchUrl,
   };
 
   return (

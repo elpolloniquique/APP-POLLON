@@ -19,7 +19,7 @@ export function Store() {
   const branchParam = searchParams.get('branch');
   const qParam = searchParams.get('q') || '';
 
-  const { categories, productsByCategory, loading: menuLoading } = useBranchMenu();
+  const { categories, productsByCategory, loading: menuLoading, menuBranchId } = useBranchMenu();
   const [categoryId, setCategoryId] = useState('');
   const [search, setSearch] = useState(qParam);
   const [selected, setSelected] = useState(null);
@@ -27,10 +27,20 @@ export function Store() {
   const { branch, branchOpen, loading: branchLoading, branches, setBranch } = useBranch();
 
   useEffect(() => {
-    if (!branchParam || !branches?.length) return;
+    if (!branchParam || !branches?.length || !branch?.id) return;
+    if (branchParam === branch.id) return;
     const target = branches.find((b) => b.id === branchParam);
     if (target) setBranch(target, { force: true });
-  }, [branchParam, branches, setBranch]);
+  }, [branchParam, branches, branch?.id, setBranch]);
+
+  useEffect(() => {
+    if (!branch?.id || branchParam) return;
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('branch', branch.id);
+      return next;
+    }, { replace: true });
+  }, [branch?.id, branchParam, setSearchParams]);
 
   useEffect(() => {
     if (!categories.length) {
@@ -69,7 +79,8 @@ export function Store() {
     );
   }, [categories, productsByCategory, search]);
 
-  const loading = branchLoading || menuLoading;
+  const menuReady = menuBranchId === branch?.id;
+  const loading = branchLoading || (menuLoading && !menuReady);
   const currentCat = useMemo(
     () => categories.find((c) => c.id === categoryId),
     [categories, categoryId],
@@ -143,7 +154,10 @@ export function Store() {
 
       <main id="store-products" className="mx-auto w-full max-w-[1400px] flex-1 scroll-mt-32 px-4 py-8 lg:scroll-mt-36">
         {loading ? (
-          <p className="py-20 text-center text-gray-500">Cargando menú de {branch.name}…</p>
+          <div className="store-menu-loading py-20 text-center" aria-busy="true" aria-live="polite">
+            <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-pollon-red/20 border-t-pollon-red" />
+            <p className="text-gray-500">Cargando menú de {branch.name}…</p>
+          </div>
         ) : !categories.length ? (
           <div className="py-20 text-center">
             <p className="text-gray-600">Esta sucursal aún no tiene menú configurado.</p>
@@ -153,9 +167,10 @@ export function Store() {
           <>
             <h2 className="mb-4 text-xl font-bold">Resultados: &quot;{search}&quot;</h2>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {allFiltered.map((p) => (
+              {allFiltered.map((p, i) => (
                 <ProductCard
                   key={p.id}
+                  priority={i < 8}
                   product={{ ...p, image: p.image || p.imageUrl, price: p.price }}
                   onSelect={() => setSelected({ product: p, categoryId: p.__categoryId })}
                 />
@@ -168,9 +183,10 @@ export function Store() {
               <h2 className="mb-6 font-display text-3xl text-pollon-black">{currentCat?.name}</h2>
             )}
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {currentProducts.map((p) => (
+              {currentProducts.map((p, i) => (
                 <ProductCard
                   key={p.id}
+                  priority={i < 8}
                   product={{ ...p, image: p.image || p.imageUrl }}
                   onSelect={() => setSelected({ product: p, categoryId })}
                 />

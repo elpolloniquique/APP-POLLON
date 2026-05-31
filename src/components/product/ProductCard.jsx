@@ -1,8 +1,17 @@
-import { money } from '../../utils/format';
+import { memo, useMemo, useState } from 'react';
+import { money, optimizeMediaUrl } from '../../utils/format';
 import { ShoppingCart } from 'lucide-react';
 
-export function ProductCard({ product, onSelect }) {
-  const img = product.image?.startsWith('img/') ? `/${product.image}` : product.image || '/img/todo el menu.png';
+const FALLBACK_IMG = '/img/todo el menu.png';
+
+export const ProductCard = memo(function ProductCard({ product, onSelect, priority = false }) {
+  const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  const img = useMemo(
+    () => (failed ? FALLBACK_IMG : optimizeMediaUrl(product.image || product.imageUrl, { width: 480, quality: 78 })),
+    [product.image, product.imageUrl, failed],
+  );
 
   return (
     <article
@@ -13,12 +22,26 @@ export function ProductCard({ product, onSelect }) {
       onKeyDown={(e) => e.key === 'Enter' && onSelect(product)}
     >
       <div className="relative aspect-[4/3] overflow-hidden bg-gray-100">
+        {!loaded && !failed && (
+          <div className="product-card__skeleton absolute inset-0" aria-hidden />
+        )}
         <img
           src={img}
           alt={product.name}
-          className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-          loading="lazy"
-          onError={(e) => { e.target.src = '/img/todo el menu.png'; }}
+          width={480}
+          height={360}
+          className={`h-full w-full object-cover transition duration-500 group-hover:scale-105 ${
+            loaded || failed ? 'opacity-100' : 'opacity-0'
+          }`}
+          loading={priority ? 'eager' : 'lazy'}
+          fetchPriority={priority ? 'high' : 'auto'}
+          decoding="async"
+          onLoad={() => setLoaded(true)}
+          onError={(e) => {
+            setFailed(true);
+            setLoaded(true);
+            e.currentTarget.src = FALLBACK_IMG;
+          }}
         />
         {product.promotion && (
           <span className="absolute left-2 top-2 rounded-full bg-pollon-red px-2.5 py-0.5 text-[10px] font-bold uppercase text-white">
@@ -41,4 +64,4 @@ export function ProductCard({ product, onSelect }) {
       </div>
     </article>
   );
-}
+});

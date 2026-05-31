@@ -1,41 +1,142 @@
-import { createContext, useContext, useCallback, useEffect, useState } from 'react';
+import { createContext, useContext, useCallback, useEffect, useRef, useState } from 'react';
 import { useBranch } from './BranchContext';
 import { loadBranchMenu, subscribeBranchMenu } from '../services/menuService';
+import { preloadProductImages } from '../utils/media';
 
 const EMPTY_MENU = { categories: [], productsByCategory: {}, products: [], source: 'empty' };
 
+/** Caché en memoria por sucursal — cambio instantáneo al volver a una sucursal ya visitada */
+const menuCache = new Map();
+const pendingLoads = new Map();
+
 const BranchMenuContext = createContext(null);
 
-export function BranchMenuProvider({ children }) {
-  const { branch } = useBranch();
-  const [menu, setMenu] = useState(EMPTY_MENU);
-  const [loading, setLoading] = useState(true);
+function readCache(branchId) {
+  if (!branchId) return null;
+  const cached = menuCache.get(branchId);
+  return cached?.categories ? cached : null;
+}
 
-  const refresh = useCallback(async () => {
-    if (!branch?.id) {
-      setMenu(EMPTY_MENU);
+function writeCache(branchId, data) {
+  if (!branchId || !data) return;
+  menuCache.set(branchId, data);
+  preloadProductImages(data.products, 32);
+}
+
+async function fetchMenu(branchId, { force = false } = {}) {
+  if (!branchId) return EMPTY_MENU;
+  if (!force) {
+    const cached = readCache(branchId);
+    if (cached) return cached;
+  }
+
+  if (!force && pendingLoads.has(branchId)) {
+    return pendingLoads.get(branchId);
+  }
+
+  const promise = loadBranchMenu(branchId)
+    .then((data) => {
+      writeCache(branchId, data);
+      return data;
+    })
+    .finally(() => {
+      pendingLoads.delete(branchId);
+    });
+
+  pendingLoads.set(branchId, promise);
+  return promise;
+}
+
+/** Precarga menús de otras sucursales en segundo plano */
+export function prefetchBranchMenus(branchIds) {
+  const ids = [...new Set((branchIds || []).filter(Boolean))];
+  ids.forEach((id) => {
+    if (readCache(id) || pendingLoads.has(id)) return;
+    fetchMenu(id).catch(() => {});
+  });
+}
+
+export function BranchMenuProvider({ children }) {
+  const { branch, branches } = useBranch();
+  const branchId = branch?.id ?? null;
+
+  const cachedInitial = readCache(branchId) || EMPTY_MENU;
+  const [menu, setMenu] = useState(cachedInitial);
+  const [menuBranchId, setMenuBranchId] = useState(branchId);
+  const [loading, setLoading] = useState(!readCache(branchId));
+  const requestRef = useRef(0);
+
+  const applyMenu = useCallback((id, data) => {
+    setMenu(data);
+    setMenuBranchId(id);
+  }, []);
+
+  const refresh = useCallback(async ({ silent = false } = {}) => {
+    if (!branchId) {
+      applyMenu(null, EMPTY_MENU);
       setLoading(false);
       return;
     }
+
+    const reqId = ++requestRef.current;
+    const hasCache = Boolean(readCache(branchId));
+
+    if (!silent && !hasCache) setLoading(true);
+
     try {
-      const data = await loadBranchMenu(branch.id);
-      setMenu(data);
+      const data = await fetchMenu(branchId, { force: silent });
+      if (reqId !== requestRef.current) return;
+      applyMenu(branchId, data);
     } catch {
-      setMenu(EMPTY_MENU);
+      if (reqId !== requestRef.current) return;
+      if (!readCache(branchId)) applyMenu(branchId, EMPTY_MENU);
     } finally {
-      setLoading(false);
+      if (reqId === requestRef.current) setLoading(false);
     }
-  }, [branch?.id]);
+  }, [branchId, applyMenu]);
 
   useEffect(() => {
-    setLoading(true);
-    refresh();
-    const unsub = subscribeBranchMenu(branch?.id, refresh);
-    return unsub;
-  }, [branch?.id, refresh]);
+    if (!branchId) {
+      requestRef.current += 1;
+      applyMenu(null, EMPTY_MENU);
+      setLoading(false);
+      return undefined;
+    }
+
+    const reqId = ++requestRef.current;
+    const cached = readCache(branchId);
+
+    if (cached) {
+      applyMenu(branchId, cached);
+      setLoading(false);
+      refresh({ silent: true });
+    } else {
+      applyMenu(null, EMPTY_MENU);
+      setLoading(true);
+      refresh();
+    }
+
+    const unsub = subscribeBranchMenu(branchId, () => {
+      menuCache.delete(branchId);
+      refresh({ silent: true });
+    });
+
+    return () => {
+      if (reqId === requestRef.current) requestRef.current += 1;
+      unsub();
+    };
+  }, [branchId, applyMenu, refresh]);
+
+  useEffect(() => {
+    if (!branches?.length) return;
+    const others = branches.map((b) => b.id).filter((id) => id && id !== branchId);
+    prefetchBranchMenus(others);
+  }, [branches, branchId]);
+
+  const menuReady = menuBranchId === branchId && !loading;
 
   return (
-    <BranchMenuContext.Provider value={{ ...menu, loading, refresh }}>
+    <BranchMenuContext.Provider value={{ ...menu, loading, menuBranchId, menuReady, refresh }}>
       {children}
     </BranchMenuContext.Provider>
   );
