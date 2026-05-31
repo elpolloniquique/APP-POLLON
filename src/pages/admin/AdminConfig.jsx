@@ -4,12 +4,14 @@ import { adminSaveBranch } from '../../services/branchService';
 import { Button } from '../../components/ui/Button';
 import { useStaffBranch } from '../../hooks/useStaffBranch';
 import { useAuth } from '../../context/AuthContext';
+import { useBranch } from '../../context/BranchContext';
 import { canManageAllBranches } from '../../services/authService';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 
 export function AdminConfig() {
   const { profile, role } = useAuth();
   const { branch, branchName, isBranchScoped, branchId } = useStaffBranch();
+  const { refreshBranches } = useBranch();
   const [cfg, setCfg] = useState({
     nombre_tienda: 'Pollería El Pollón',
     telefono: '',
@@ -68,6 +70,7 @@ export function AdminConfig() {
           reservationsEnabled: cfg.reservas_activas,
           isActive: branch.isActive !== false,
         }, { id: profile?.id, email: profile?.email });
+        await refreshBranches();
         alert('Configuración de tu local guardada');
         return;
       }

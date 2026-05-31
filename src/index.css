@@ -1138,3 +1138,35 @@
   text-align: center;
   color: #065f46;
 }
+
+/* Footer — redes sociales */
+.footer-social {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 9999px;
+  border: 1px solid rgb(255 255 255 / 0.15);
+  background: rgb(255 255 255 / 0.06);
+  color: #fff;
+  transition: transform 0.2s, background 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+.footer-social:hover {
+  transform: translateY(-2px);
+  border-color: rgb(255 255 255 / 0.35);
+  box-shadow: 0 8px 20px rgb(0 0 0 / 0.25);
+}
+.footer-social--facebook:hover {
+  background: #1877f2;
+  border-color: #1877f2;
+}
+.footer-social--instagram:hover {
+  background: linear-gradient(135deg, #f58529, #dd2a7b, #8134af);
+  border-color: transparent;
+}
+.footer-social--tiktok:hover {
+  background: #010101;
+  border-color: rgb(255 255 255 / 0.4);
+  box-shadow: 0 8px 20px rgb(254 44 85 / 0.25);
+}
