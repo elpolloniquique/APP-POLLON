@@ -10,6 +10,7 @@ import { useAuth } from '../../context/AuthContext';
 import { isBranchOpenNow } from '../../services/branchService';
 import { money, storeCategoryUrl } from '../../utils/format';
 import { AuthModal } from '../auth/AuthModal';
+import { HeaderCategoryNav } from './HeaderCategoryNav';
 
 function selectBranchWithCartConfirm(b, branch, setBranch, resetForBranch, items, cartBranchId, onDone) {
   if (!b || b.comingSoon) return;
@@ -390,31 +391,7 @@ export function SiteHeader({ onOpenCart, variant = 'full' }) {
           </div>
         </div>
 
-        {/* ═══════════════ Navegación categorías (fondo negro + scroll) ═══════════════ */}
-        {showNav && (
-          <nav className="border-b border-white/[0.06] bg-[#0a0a0a]" aria-label="Categorías del menú">
-            <div className="mx-auto max-w-[1400px] px-4">
-              <div className="category-scroll-track flex gap-1 overflow-x-auto py-2 scrollbar-hide">
-                {navMenu.map((item) => {
-                  const active = isNavActive(item, location);
-                  return (
-                    <Link
-                      key={item.categoryId || 'inicio'}
-                      to={item.path}
-                      className={`font-brand shrink-0 whitespace-nowrap px-4 py-2.5 text-sm font-bold antialiased transition sm:text-base xl:px-5 xl:text-[17px] ${
-                        active
-                          ? 'rounded-md bg-zinc-800 text-white shadow-sm ring-1 ring-white/15'
-                          : 'text-white hover:bg-white/10 hover:text-white'
-                      }`}
-                    >
-                      {item.label}
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          </nav>
-        )}
+        {showNav && <HeaderCategoryNav items={navMenu} />}
       </header>
 
       {/* Menú hamburguesa (móvil / tablet < lg) */}

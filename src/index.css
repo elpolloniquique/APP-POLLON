@@ -396,8 +396,83 @@
     -webkit-overflow-scrolling: touch;
     scroll-snap-type: x proximity;
   }
-  .category-scroll-track button {
+  .category-scroll-track button,
+  .category-scroll-track a {
     scroll-snap-align: start;
+  }
+
+  /* Header: categorías fondo negro + flechas */
+  .header-category-nav__track {
+    padding-left: 2.25rem;
+    padding-right: 2.25rem;
+  }
+  @media (min-width: 640px) {
+    .header-category-nav__track {
+      padding-left: 2.75rem;
+      padding-right: 2.75rem;
+    }
+  }
+  .header-category-nav__fade {
+    pointer-events: none;
+    position: absolute;
+    top: 0;
+    z-index: 10;
+    display: flex;
+    height: 100%;
+    width: 2.25rem;
+    align-items: center;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+  .header-category-nav__fade--visible {
+    opacity: 1;
+  }
+  .header-category-nav__fade--left {
+    left: 0;
+    justify-content: flex-start;
+    background: linear-gradient(to right, #0a0a0a 45%, transparent);
+  }
+  .header-category-nav__fade--right {
+    right: 0;
+    justify-content: flex-end;
+    background: linear-gradient(to left, #0a0a0a 45%, transparent);
+  }
+  @media (min-width: 640px) {
+    .header-category-nav__fade {
+      width: 2.75rem;
+    }
+  }
+  .header-category-nav__arrow {
+    pointer-events: auto;
+    display: flex;
+    height: 2rem;
+    width: 2rem;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    border: 1px solid rgb(255 255 255 / 0.18);
+    background: rgb(39 39 42);
+    color: #fff;
+    box-shadow: 0 4px 14px rgb(0 0 0 / 0.35);
+    transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+  }
+  .header-category-nav__arrow:hover:not(:disabled) {
+    background: rgb(63 63 70);
+    border-color: rgb(255 255 255 / 0.35);
+  }
+  .header-category-nav__arrow:active:not(:disabled) {
+    transform: scale(0.94);
+  }
+  .header-category-nav__arrow:disabled {
+    opacity: 0;
+    pointer-events: none;
+  }
+  @media (min-width: 640px) {
+    .header-category-nav__arrow {
+      height: 2.25rem;
+      width: 2.25rem;
+    }
   }
   .card-hover {
     @apply transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg;
