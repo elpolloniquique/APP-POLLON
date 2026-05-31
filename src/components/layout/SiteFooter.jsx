@@ -12,7 +12,7 @@ export function SiteFooter() {
   return (
     <footer className="bg-pollon-black text-white">
       {/* Barra beneficios */}
-      <div className="border-b border-white/10 bg-[#1a0505]">
+      <div className="border-b border-white/10">
         <div className="mx-auto grid max-w-[1400px] grid-cols-2 gap-6 px-4 py-8 md:grid-cols-4">
           {[
             { icon: '🍗', title: 'Pollo fresco del día', desc: 'Marinado y cocinado al carbón' },
