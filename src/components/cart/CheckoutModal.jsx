@@ -326,25 +326,27 @@ export function CheckoutModal() {
                 <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">
                   Método de pago
                 </label>
-                <p className="mb-3 text-xs text-gray-500">Solo aceptamos efectivo o transferencia bancaria</p>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {PAYMENT_METHODS.map((p) => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => update('payment', p.id)}
-                      className={`rounded-xl border-2 p-4 text-left transition ${
-                        form.payment === p.id
-                          ? 'border-pollon-red bg-red-50/80'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <span className="text-2xl">{p.icon}</span>
-                      <p className="mt-1 font-bold text-sm">{p.label}</p>
-                      <p className="text-xs text-gray-500">{p.desc}</p>
-                    </button>
-                  ))}
+                <p className="mb-2 text-xs text-gray-500">Efectivo o transferencia bancaria</p>
+                <div className="flex gap-2">
+                  {PAYMENT_METHODS.map((p) => {
+                    const selected = form.payment === p.id;
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => update('payment', p.id)}
+                        aria-pressed={selected}
+                        className={`checkout-pay-btn ${selected ? 'is-selected' : ''}`}
+                      >
+                        <span className="checkout-pay-btn__icon" aria-hidden>{p.icon}</span>
+                        <span className="checkout-pay-btn__label">{p.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
+                <p className="mt-1.5 text-[11px] leading-snug text-gray-500">
+                  {PAYMENT_METHODS.find((p) => p.id === form.payment)?.desc}
+                </p>
                 {form.payment === 'transferencia' && (
                   <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm">
                     <p className="font-bold text-blue-900">Datos para transferencia</p>

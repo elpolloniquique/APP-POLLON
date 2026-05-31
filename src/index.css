@@ -400,6 +400,38 @@
     background: #fff;
     box-shadow: 0 -8px 24px -8px rgb(0 0 0 / 0.08);
   }
+  .checkout-pay-btn {
+    display: inline-flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    min-height: 2.5rem;
+    padding: 0.4rem 0.75rem;
+    border-radius: 0.5rem;
+    border: 1.5px solid #e5e7eb;
+    background: #fff;
+    color: #374151;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  }
+  .checkout-pay-btn:hover {
+    border-color: #d1d5db;
+  }
+  .checkout-pay-btn.is-selected {
+    border-color: var(--color-pollon-red, #c00000);
+    background: rgb(192 0 0 / 0.06);
+    color: var(--color-pollon-black, #0a0a0a);
+    box-shadow: 0 0 0 1px rgb(192 0 0 / 0.12);
+  }
+  .checkout-pay-btn__icon {
+    font-size: 1rem;
+    line-height: 1;
+  }
+  .checkout-pay-btn__label {
+    line-height: 1.2;
+  }
   .admin-toolbar {
     @apply flex flex-wrap gap-2 rounded-xl bg-white p-3 shadow-sm ring-1 ring-gray-100 sm:rounded-2xl sm:p-4;
   }
