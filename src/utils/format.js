@@ -27,7 +27,8 @@ export function storeCategoryUrl(categoryId, branchId) {
   if (categoryId) params.set('cat', String(categoryId));
   if (branchId) params.set('branch', String(branchId));
   const qs = params.toString();
-  return qs ? `/tienda?${qs}` : '/tienda';
+  const base = qs ? `/tienda?${qs}` : '/tienda';
+  return categoryId ? `${base}#store-products` : base;
 }
 
 /** Resuelve la categoría de un producto del menú multi-sucursal. */

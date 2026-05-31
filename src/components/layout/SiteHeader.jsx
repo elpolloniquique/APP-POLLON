@@ -8,7 +8,7 @@ import { useBranch } from '../../context/BranchContext';
 import { useBranchMenu } from '../../context/BranchMenuContext';
 import { useAuth } from '../../context/AuthContext';
 import { isBranchOpenNow } from '../../services/branchService';
-import { money } from '../../utils/format';
+import { money, storeCategoryUrl } from '../../utils/format';
 import { AuthModal } from '../auth/AuthModal';
 
 function selectBranchWithCartConfirm(b, branch, setBranch, resetForBranch, items, cartBranchId, onDone) {
@@ -24,12 +24,12 @@ function selectBranchWithCartConfirm(b, branch, setBranch, resetForBranch, items
 
 const NAV_HOME = { label: 'INICIO', path: '/', categoryId: null };
 
-function buildNavMenu(categories) {
+function buildNavMenu(categories, branchId) {
   return [
     NAV_HOME,
     ...categories.map((c) => ({
       label: c.name,
-      path: `/tienda?cat=${c.id}`,
+      path: storeCategoryUrl(c.id, branchId),
       categoryId: c.id,
       slug: c.slug,
     })),
@@ -139,7 +139,7 @@ export function SiteHeader({ onOpenCart, variant = 'full' }) {
   const { itemCount, subtotal, items, cartBranchId, resetForBranch } = useCart();
   const { branch, branches, setBranch } = useBranch();
   const { categories } = useBranchMenu();
-  const navMenu = buildNavMenu(categories);
+  const navMenu = buildNavMenu(categories, branch?.id);
   const { isAuthenticated, isCustomer, isStaff, profile } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();

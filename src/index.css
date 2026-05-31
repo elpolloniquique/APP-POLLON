@@ -71,7 +71,9 @@
       calc(var(--admin-scroll-rows, 7) * 4.75rem)
     );
   }
-  /* Inicio: MÁS VENDIDOS — 4 platos visibles + scroll */
+  #store-products {
+    scroll-margin-top: clamp(10.5rem, 22vw, 13.5rem);
+  }
   .home-bestsellers-scroll.admin-scroll-card {
     max-height: calc(4 * 4.25rem + 3 * 1rem);
     overscroll-behavior: contain;

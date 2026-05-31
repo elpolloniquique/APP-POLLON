@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { SiteHeader } from '../components/layout/SiteHeader';
 import { SiteFooter } from '../components/layout/SiteFooter';
@@ -11,6 +11,7 @@ import { useCart } from '../context/CartContext';
 import { useBranch } from '../context/BranchContext';
 import { useBranchMenu } from '../context/BranchMenuContext';
 import { CategoryScrollBar } from '../components/store/CategoryScrollBar';
+import { useStoreProductsScroll } from '../hooks/useStoreProductsScroll';
 import { Search } from 'lucide-react';
 
 export function Store() {
@@ -70,6 +71,26 @@ export function Store() {
   }, [categories, productsByCategory, search]);
 
   const loading = branchLoading || menuLoading;
+  const currentCat = useMemo(
+    () => categories.find((c) => c.id === categoryId),
+    [categories, categoryId],
+  );
+  const hasCategoryFocus = Boolean(catParam && categoryId && !search.trim());
+
+  const scrollToProducts = useStoreProductsScroll({
+    enabled: Boolean(branch && hasCategoryFocus && !loading && categories.length > 0),
+    behavior: 'auto',
+  });
+
+  const selectCategory = useCallback((cat, { smooth = true } = {}) => {
+    setCategoryId(cat.id);
+    setSearch('');
+    const params = new URLSearchParams();
+    params.set('cat', cat.id);
+    if (branch?.id) params.set('branch', branch.id);
+    setSearchParams(params, { replace: false });
+    requestAnimationFrame(() => scrollToProducts(smooth ? 'smooth' : 'auto'));
+  }, [branch?.id, setSearchParams, scrollToProducts]);
 
   if (branchLoading) {
     return <div className="flex min-h-screen items-center justify-center">Cargando sucursal…</div>;
@@ -84,17 +105,24 @@ export function Store() {
     );
   }
 
-  const currentCat = categories.find((c) => c.id === categoryId);
-
   return (
     <div className="flex min-h-screen flex-col bg-pollon-cream">
       <SiteHeader onOpenCart={() => setIsOpen(true)} />
       <WhatsAppFab />
 
-      <div className="bg-pollon-red py-6 text-white">
+      <div className={`bg-pollon-red text-white transition-all ${hasCategoryFocus ? 'py-3 md:py-4' : 'py-6'}`}>
         <div className="mx-auto max-w-[1400px] px-4">
-          <h1 className="font-display text-4xl md:text-5xl">NUESTRO MENÚ</h1>
-          <p className="mt-1 text-white/80">{branch.name}</p>
+          {hasCategoryFocus ? (
+            <>
+              <p className="text-xs font-medium uppercase tracking-wide text-white/75 md:text-sm">{branch.name}</p>
+              <h1 className="font-display text-2xl md:text-4xl">{currentCat?.name || 'Menú'}</h1>
+            </>
+          ) : (
+            <>
+              <h1 className="font-display text-4xl md:text-5xl">NUESTRO MENÚ</h1>
+              <p className="mt-1 text-white/80">{branch.name}</p>
+            </>
+          )}
           {!branchOpen && (
             <p className="mt-2 inline-block rounded-lg bg-black/30 px-3 py-1 text-sm">Sucursal cerrada — pedidos pueden no estar disponibles</p>
           )}
@@ -122,16 +150,12 @@ export function Store() {
           <CategoryScrollBar
             items={categories}
             activeId={search ? null : categoryId}
-            onSelect={(cat) => {
-              setCategoryId(cat.id);
-              setSearch('');
-              setSearchParams({ cat: cat.id });
-            }}
+            onSelect={(cat) => selectCategory(cat)}
           />
         </div>
       </div>
 
-      <main className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-8">
+      <main id="store-products" className="mx-auto w-full max-w-[1400px] flex-1 scroll-mt-44 px-4 py-8 lg:scroll-mt-48">
         {loading ? (
           <p className="py-20 text-center text-gray-500">Cargando menú de {branch.name}…</p>
         ) : !categories.length ? (
@@ -154,7 +178,9 @@ export function Store() {
           </>
         ) : (
           <>
-            <h2 className="mb-6 font-display text-3xl text-pollon-black">{currentCat?.name}</h2>
+            {!hasCategoryFocus && (
+              <h2 className="mb-6 font-display text-3xl text-pollon-black">{currentCat?.name}</h2>
+            )}
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {currentProducts.map((p) => (
                 <ProductCard
