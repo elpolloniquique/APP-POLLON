@@ -18,6 +18,7 @@ import { useBranchMenu } from '../context/BranchMenuContext';
 import { isBranchOpenNow } from '../services/branchService';
 import { money, resolveMediaUrl } from '../utils/format';
 import { useBestsellers, BESTSELLERS_VISIBLE } from '../hooks/useBestsellers';
+import { AdminScrollPanel } from '../components/admin/AdminScrollPanel';
 
 const WHY_US = [
   { icon: ChefHat, title: 'Pollo fresco del día', desc: 'Marinado y cocinado al carbón cada día con receta peruana auténtica.' },
@@ -299,18 +300,13 @@ export function Home() {
             <h3 className="mb-1 border-b-2 border-pollon-red pb-2 font-display text-2xl text-pollon-black">
               MÁS VENDIDOS
             </h3>
-            <p className="mb-3 text-[11px] font-medium uppercase tracking-wide text-gray-400">
+            <p className="mb-4 text-[11px] font-medium uppercase tracking-wide text-gray-400">
               Actualizado según ventas de la semana
             </p>
-            {bestsellers.length > BESTSELLERS_VISIBLE && (
-              <p className="mb-2 text-right text-[10px] font-medium text-gray-400">
-                Desplaza para ver más ↓
-              </p>
-            )}
-            <div className="admin-scroll-panel bestsellers-list">
+            <AdminScrollPanel maxRows={BESTSELLERS_VISIBLE} variant="card" className="home-bestsellers-scroll rounded-xl">
               <ul className="space-y-4 pr-1">
                 {bestsellers.map((p) => (
-                  <li key={p.id} className="flex min-h-[4.25rem] items-center gap-3">
+                  <li key={p.id} className="flex items-center gap-3">
                     <img
                       src={imgSrc(p.image || p.imageUrl)}
                       alt=""
@@ -336,7 +332,12 @@ export function Home() {
                   <li className="py-6 text-center text-sm text-gray-500">Sin datos de ventas aún</li>
                 )}
               </ul>
-            </div>
+            </AdminScrollPanel>
+            {bestsellers.length > BESTSELLERS_VISIBLE && (
+              <p className="mt-2 text-center text-[10px] font-medium text-gray-400">
+                Desplaza para ver más platos ↓
+              </p>
+            )}
             <Link to="/tienda" className="mt-4 block text-center text-sm font-semibold text-pollon-red hover:underline">
               Ver menú completo →
             </Link>
