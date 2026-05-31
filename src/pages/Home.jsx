@@ -16,7 +16,7 @@ import { useCart } from '../context/CartContext';
 import { useBranch } from '../context/BranchContext';
 import { useBranchMenu } from '../context/BranchMenuContext';
 import { isBranchOpenNow } from '../services/branchService';
-import { money, resolveMediaUrl } from '../utils/format';
+import { money, resolveMediaUrl, storeCategoryUrl, resolveProductCategoryId } from '../utils/format';
 import { useBestsellers, BESTSELLERS_VISIBLE } from '../hooks/useBestsellers';
 import { AdminScrollPanel } from '../components/admin/AdminScrollPanel';
 
@@ -60,9 +60,13 @@ export function Home() {
 
   const promos = (() => {
     const featured = menuProducts.filter((p) => p.isPromotion || p.isFeatured);
-    if (featured.length) return featured.slice(0, 4);
-    const first = productsByCategory[categories[0]?.id] || [];
-    return first.slice(0, 4);
+    const list = featured.length
+      ? featured.slice(0, 4)
+      : (productsByCategory[categories[0]?.id] || []).slice(0, 4);
+    return list.map((p) => ({
+      ...p,
+      categoryId: resolveProductCategoryId(p, productsByCategory, categories),
+    }));
   })();
   const menuCircles = categories.slice(0, 8).map((c) => ({
     id: c.id,
@@ -205,10 +209,13 @@ export function Home() {
             </Link>
           </div>
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {promos.length ? promos.map((p, i) => (
-              <article key={p.name + i} className="card-hover overflow-hidden rounded-2xl bg-white shadow-md ring-1 ring-gray-100">
+            {promos.length ? promos.map((p, i) => {
+              const categoryId = p.categoryId || resolveProductCategoryId(p, productsByCategory, categories);
+              const categoryName = categories.find((c) => c.id === categoryId)?.name;
+              return (
+              <article key={p.id || p.name + i} className="card-hover overflow-hidden rounded-2xl bg-white shadow-md ring-1 ring-gray-100">
                 <div className="relative aspect-[4/3]">
-                  <img src={imgSrc(p.image)} alt="" className="h-full w-full object-cover" onError={(e) => { e.target.src = '/img/todo el menu.png'; }} />
+                  <img src={imgSrc(p.image || p.imageUrl)} alt="" className="h-full w-full object-cover" onError={(e) => { e.target.src = '/img/todo el menu.png'; }} />
                   <span className="absolute left-3 top-3 rounded-full bg-pollon-red px-2.5 py-1 text-[10px] font-bold text-white">
                     Ahorra {15 + i * 5}%
                   </span>
@@ -216,18 +223,24 @@ export function Home() {
                 <div className="p-4">
                   <h3 className="font-bold uppercase tracking-wide text-pollon-black">{p.name}</h3>
                   <p className="mt-1 line-clamp-2 text-xs text-gray-500">{p.description}</p>
+                  {categoryName && (
+                    <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-pollon-red/80">
+                      {categoryName}
+                    </p>
+                  )}
                   <div className="mt-3 flex items-center justify-between gap-2">
                     <span className="font-display text-2xl text-pollon-gold">{money(p.price)}</span>
                     <Link
-                      to={p.categoryId ? `/tienda?cat=${encodeURIComponent(p.categoryId)}` : '/tienda'}
+                      to={storeCategoryUrl(categoryId, branch?.id)}
                       className="inline-flex shrink-0 items-center justify-center rounded-full bg-pollon-red px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-white shadow-md transition hover:bg-pollon-red-dark"
+                      aria-label={categoryName ? `Ver más en ${categoryName}` : 'Ver más en el menú'}
                     >
                       Ver más
                     </Link>
                   </div>
                 </div>
               </article>
-            )) : (
+            );}) : (
               <p className="col-span-full py-8 text-center text-gray-500">
                 {branch ? 'Sin promociones cargadas. Configúralas en el panel admin.' : 'Selecciona una sucursal para ver promociones.'}
               </p>
@@ -246,7 +259,7 @@ export function Home() {
             {menuCircles.length ? menuCircles.map((c) => (
               <Link
                 key={c.id}
-                to={`/tienda?cat=${c.id}`}
+                to={storeCategoryUrl(c.id, branch?.id)}
                 className="group flex w-28 shrink-0 flex-col items-center gap-3"
               >
                 <div className="h-24 w-24 overflow-hidden rounded-full border-4 border-pollon-red/20 shadow-lg transition group-hover:border-pollon-red">

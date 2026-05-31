@@ -16,6 +16,7 @@ import { Search } from 'lucide-react';
 export function Store() {
   const [searchParams, setSearchParams] = useSearchParams();
   const catParam = searchParams.get('cat');
+  const branchParam = searchParams.get('branch');
   const qParam = searchParams.get('q') || '';
 
   const { categories, productsByCategory, loading: menuLoading } = useBranchMenu();
@@ -23,7 +24,13 @@ export function Store() {
   const [search, setSearch] = useState(qParam);
   const [selected, setSelected] = useState(null);
   const { setIsOpen } = useCart();
-  const { branch, branchOpen, loading: branchLoading } = useBranch();
+  const { branch, branchOpen, loading: branchLoading, branches, setBranch } = useBranch();
+
+  useEffect(() => {
+    if (!branchParam || !branches?.length) return;
+    const target = branches.find((b) => b.id === branchParam);
+    if (target) setBranch(target, { force: true });
+  }, [branchParam, branches, setBranch]);
 
   useEffect(() => {
     if (!categories.length) {
@@ -33,10 +40,13 @@ export function Store() {
     const match = catParam
       ? categories.find((c) => c.id === catParam || c.slug === catParam)
       : null;
-    const nextId = match?.id || categories[0]?.id || '';
+    if (match) {
+      setCategoryId(match.id);
+      return;
+    }
     setCategoryId((prev) => {
       if (prev && categories.some((c) => c.id === prev)) return prev;
-      return nextId;
+      return categories[0]?.id || '';
     });
   }, [categories, catParam]);
 

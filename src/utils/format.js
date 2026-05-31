@@ -21,6 +21,26 @@ export function resolveMediaUrl(path, fallback = '/img/todo el menu.png') {
   return `/${raw}`;
 }
 
+/** URL de tienda filtrada por categoría (y opcionalmente sucursal). */
+export function storeCategoryUrl(categoryId, branchId) {
+  const params = new URLSearchParams();
+  if (categoryId) params.set('cat', String(categoryId));
+  if (branchId) params.set('branch', String(branchId));
+  const qs = params.toString();
+  return qs ? `/tienda?${qs}` : '/tienda';
+}
+
+/** Resuelve la categoría de un producto del menú multi-sucursal. */
+export function resolveProductCategoryId(product, productsByCategory, categories = []) {
+  if (product?.categoryId) return product.categoryId;
+  const id = product?.id;
+  if (!id) return categories[0]?.id || null;
+  for (const cat of categories) {
+    if ((productsByCategory[cat.id] || []).some((p) => p.id === id)) return cat.id;
+  }
+  return categories[0]?.id || null;
+}
+
 export function todayISO() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
