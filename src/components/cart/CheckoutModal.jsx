@@ -5,11 +5,43 @@ import { useCart } from '../../context/CartContext';
 import { useBranch } from '../../context/BranchContext';
 import { useAuth } from '../../context/AuthContext';
 import { money, buildWhatsappMessage, formatDateTime } from '../../utils/format';
-import { PAYMENT_METHODS, TRANSFER_BANK_INFO, ORDER_TYPE_LABELS } from '../../utils/constants';
+import { PAYMENT_METHODS, ORDER_TYPE_LABELS } from '../../utils/constants';
 import * as orderService from '../../services/orderService';
 import { useToast } from '../../hooks/useToast';
 
 const ORDER_TYPES = ['delivery', 'retiro', 'reserva'];
+
+function paymentInfoMessage(paymentId, orderType) {
+  if (paymentId === 'efectivo') {
+    const body = orderType === 'retiro'
+      ? 'Podrá pagar en efectivo al retirar su pedido en el local.'
+      : orderType === 'reserva'
+        ? 'Podrá pagar en efectivo al retirar su reserva en el local.'
+        : 'Podrá pagar directamente al repartidor cuando le entregue su pedido en la dirección indicada.';
+    return {
+      variant: 'cash',
+      title: 'Pago en Efectivo (Contraentrega)',
+      icon: '💵',
+      lead: 'El pago se realiza al momento de recibir su pedido.',
+      body,
+    };
+  }
+  if (paymentId === 'transferencia') {
+    const body = orderType === 'retiro'
+      ? 'En el local le indicarán los datos bancarios. Una vez recibido el pedido, podrá transferir y confirmar el pago en ese momento.'
+      : orderType === 'reserva'
+        ? 'Al retirar su reserva le proporcionarán los datos bancarios para completar la transferencia en el local.'
+        : 'Nuestro repartidor le proporcionará los datos bancarios cuando llegue a la dirección de entrega. Una vez recibido el pedido, podrá realizar la transferencia y confirmar el pago en ese mismo momento.';
+    return {
+      variant: 'transfer',
+      title: 'Pago por Transferencia (Contraentrega)',
+      icon: '💳',
+      lead: 'El pago se realiza al momento de recibir su pedido.',
+      body,
+    };
+  }
+  return null;
+}
 
 export function CheckoutModal() {
   const { items, subtotal, deliveryFee, clearCart, checkoutOpen, setCheckoutOpen } = useCart();
@@ -347,24 +379,23 @@ export function CheckoutModal() {
                     );
                   })}
                 </div>
-                <p className="mt-1.5 text-[11px] leading-snug text-gray-500">
-                  {PAYMENT_METHODS.find((p) => p.id === form.payment)?.desc}
-                </p>
-                {form.payment === 'transferencia' && (
-                  <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm">
-                    <p className="font-bold text-blue-900">Datos para transferencia</p>
-                    <ul className="mt-2 space-y-1 text-blue-800">
-                      <li><strong>Banco:</strong> {TRANSFER_BANK_INFO.banco}</li>
-                      <li><strong>Tipo:</strong> {TRANSFER_BANK_INFO.tipo}</li>
-                      <li><strong>Titular:</strong> {TRANSFER_BANK_INFO.nombre}</li>
-                      <li><strong>RUT:</strong> {TRANSFER_BANK_INFO.rut}</li>
-                      <li><strong>N° cuenta:</strong> {TRANSFER_BANK_INFO.numero}</li>
-                    </ul>
-                    <p className="mt-3 text-xs text-blue-700">
-                      Después de confirmar podrás enviar el comprobante por WhatsApp.
-                    </p>
-                  </div>
-                )}
+                {(() => {
+                  const info = paymentInfoMessage(form.payment, form.orderType);
+                  if (!info) return null;
+                  return (
+                    <div className={`checkout-pay-info checkout-pay-info--${info.variant} mt-3`}>
+                      <p className="checkout-pay-info__title">
+                        <span aria-hidden>{info.icon}</span>
+                        {info.title}
+                      </p>
+                      <p className="checkout-pay-info__lead">
+                        <span className="checkout-pay-info__pin" aria-hidden>📌</span>
+                        {info.lead}
+                      </p>
+                      <p className="checkout-pay-info__body">{info.body}</p>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 

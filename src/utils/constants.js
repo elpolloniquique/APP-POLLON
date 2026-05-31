@@ -67,7 +67,7 @@ export const ORDER_TYPE_LABELS = {
 
 export const PAYMENT_METHODS = [
   { id: 'efectivo', label: 'Efectivo', icon: '💵', desc: 'Paga al recibir tu pedido (delivery o retiro)' },
-  { id: 'transferencia', label: 'Transferencia', icon: '🏦', desc: 'Transfiere y envía comprobante por WhatsApp' },
+  { id: 'transferencia', label: 'Transferencia', icon: '🏦', desc: 'Paga al recibir con datos que te entregará el repartidor' },
 ];
 
 export const TRANSFER_BANK_INFO = {
