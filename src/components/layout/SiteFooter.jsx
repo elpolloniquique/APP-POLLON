@@ -53,11 +53,27 @@ export function SiteFooter() {
 
           <div>
             <h4 className="mb-4 text-sm font-bold uppercase tracking-widest text-pollon-gold">Ayuda</h4>
-            <ul className="space-y-2 text-sm text-white/70">
-              <li><Link to="/tienda" className="hover:text-white">Cómo comprar</Link></li>
-              <li><a href={`https://wa.me/${whatsapp}`} className="hover:text-white">Contacto WhatsApp</a></li>
-              <li><Link to="/sucursal" className="hover:text-white">Zonas de delivery</Link></li>
-              <li><Link to="/admin/login" className="hover:text-white">Panel admin</Link></li>
+            <ul className="space-y-2.5 text-sm text-white/70">
+              <li>
+                <Link to="/#guia-pedido" className="transition hover:text-white">
+                  Cómo comprar
+                </Link>
+              </li>
+              <li>
+                <a href={`https://wa.me/${whatsapp}`} target="_blank" rel="noopener noreferrer" className="transition hover:text-white">
+                  Contacto WhatsApp
+                </a>
+              </li>
+              <li>
+                <Link to="/terminos" className="transition hover:text-white">
+                  Términos y condiciones
+                </Link>
+              </li>
+              <li>
+                <Link to="/libro-reclamaciones" className="transition hover:text-white">
+                  Libro de reclamaciones
+                </Link>
+              </li>
             </ul>
           </div>
 

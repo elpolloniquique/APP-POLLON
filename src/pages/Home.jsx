@@ -1,5 +1,5 @@
-import { Link, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import {
   Flame, MapPin, Phone, Clock, Bike, ChevronRight, Plus, Star, Shield, ChefHat,
   MapPinned, ShoppingBag, CreditCard, MessageCircle, PackageSearch,
@@ -70,6 +70,16 @@ export function Home() {
   const { categories, productsByCategory, products: menuProducts } = useBranchMenu();
   const { bestsellers } = useBestsellers(branch?.id, menuProducts);
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const location = useLocation();
+
+  useEffect(() => {
+    if (!location.hash) return undefined;
+    const id = location.hash.replace('#', '');
+    const timer = window.setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [location.hash]);
 
   const promos = (() => {
     const featured = menuProducts.filter((p) => p.isPromotion || p.isFeatured);
@@ -416,7 +426,7 @@ export function Home() {
       </section>
 
       {/* Guía: pedir y seguimiento en tiempo real */}
-      <section className="home-order-guide relative overflow-hidden bg-pollon-red py-10 text-white md:py-12">
+      <section id="guia-pedido" className="home-order-guide relative scroll-mt-28 overflow-hidden bg-pollon-red py-10 text-white md:scroll-mt-32 md:py-12">
         <div className="pointer-events-none absolute -right-20 top-0 h-64 w-64 rounded-full bg-pollon-gold/10 blur-3xl" />
         <div className="pointer-events-none absolute -left-12 bottom-0 h-56 w-56 rounded-full bg-black/20 blur-3xl" />
 

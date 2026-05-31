@@ -23,6 +23,8 @@ import { AccountProfile } from '../pages/account/AccountProfile';
 import { AccountOrders } from '../pages/account/AccountOrders';
 import { AccountAddresses } from '../pages/account/AccountAddresses';
 import { OrderTracking } from '../pages/account/OrderTracking';
+import { TermsConditions } from '../pages/TermsConditions';
+import { ComplaintsBook } from '../pages/ComplaintsBook';
 
 export function AppRoutes() {
   return (
@@ -30,6 +32,8 @@ export function AppRoutes() {
       <Route path="/" element={<Home />} />
       <Route path="/tienda" element={<Store />} />
       <Route path="/sucursal" element={<BranchSelector />} />
+      <Route path="/terminos" element={<TermsConditions />} />
+      <Route path="/libro-reclamaciones" element={<ComplaintsBook />} />
       <Route path="/checkout" element={<Checkout />} />
       <Route path="/pedido/:id" element={<OrderSuccess />} />
 
