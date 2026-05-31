@@ -21,7 +21,6 @@ export function CheckoutModal() {
     name: '',
     phone: '',
     address: '',
-    reference: '',
     orderType: 'delivery',
     payment: 'efectivo',
     comments: '',
@@ -107,9 +106,7 @@ export function CheckoutModal() {
         customer: {
           name: form.name.trim(),
           phone: form.phone.trim(),
-          address: form.orderType === 'delivery'
-            ? `${form.address.trim()}${form.reference ? ` (${form.reference})` : ''}`
-            : branch.address,
+          address: form.orderType === 'delivery' ? form.address.trim() : branch.address,
           comments: form.comments.trim(),
         },
         items: [...items],
@@ -303,24 +300,30 @@ export function CheckoutModal() {
               />
 
               {form.orderType === 'delivery' && (
-                <>
-                  <input
-                    required
-                    placeholder="Dirección de entrega"
-                    value={form.address}
-                    onChange={(e) => update('address', e.target.value)}
-                    onFocus={scrollToField}
-                    className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm"
-                  />
-                  <input
-                    placeholder="Referencia (depto, piso…)"
-                    value={form.reference}
-                    onChange={(e) => update('reference', e.target.value)}
-                    onFocus={scrollToField}
-                    className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm"
-                  />
-                </>
+                <input
+                  required
+                  placeholder="Dirección de entrega"
+                  value={form.address}
+                  onChange={(e) => update('address', e.target.value)}
+                  onFocus={scrollToField}
+                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm"
+                />
               )}
+
+              <div>
+                <label htmlFor="checkout-comments" className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">
+                  Comentarios <span className="font-normal normal-case text-gray-400">(opcional)</span>
+                </label>
+                <input
+                  id="checkout-comments"
+                  type="text"
+                  placeholder="Ej: pollo trozado en 8 piezas, más ají"
+                  value={form.comments}
+                  onChange={(e) => update('comments', e.target.value)}
+                  onFocus={scrollToField}
+                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm"
+                />
+              </div>
 
               <div>
                 <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">
@@ -363,15 +366,6 @@ export function CheckoutModal() {
                   </div>
                 )}
               </div>
-
-              <textarea
-                placeholder="Observaciones del pedido"
-                value={form.comments}
-                onChange={(e) => update('comments', e.target.value)}
-                onFocus={scrollToField}
-                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm"
-                rows={3}
-              />
             </div>
 
             <footer className="checkout-modal__footer">
