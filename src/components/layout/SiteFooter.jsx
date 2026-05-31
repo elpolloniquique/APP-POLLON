@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Phone, Mail, MapPin, Clock, Banknote, ArrowLeftRight } from 'lucide-react';
+import { Phone, Mail, MapPin, Clock } from 'lucide-react';
 import { useBranch } from '../../context/BranchContext';
 import { TRANSFER_BANK_INFO } from '../../utils/constants';
 
@@ -67,24 +67,6 @@ export function SiteFooter() {
               <li className="flex items-start gap-2"><MapPin className="mt-0.5 h-4 w-4 text-pollon-red" />{branch?.address}</li>
             </ul>
           </div>
-        </div>
-
-        {/* Métodos de pago — solo efectivo y transferencia */}
-        <div className="mt-10 rounded-xl border border-white/10 bg-white/5 p-5">
-          <p className="mb-3 text-xs font-bold uppercase tracking-widest text-pollon-gold">Métodos de pago aceptados</p>
-          <div className="flex flex-wrap gap-4">
-            <div className="flex items-center gap-2 rounded-lg bg-white/10 px-4 py-2.5">
-              <Banknote className="h-5 w-5 text-green-400" />
-              <span className="text-sm font-semibold">Efectivo</span>
-            </div>
-            <div className="flex items-center gap-2 rounded-lg bg-white/10 px-4 py-2.5">
-              <ArrowLeftRight className="h-5 w-5 text-blue-400" />
-              <span className="text-sm font-semibold">Transferencia bancaria</span>
-            </div>
-          </div>
-          <p className="mt-2 text-xs text-white/50">
-            No aceptamos tarjetas ni pago online. Al elegir transferencia, envía tu comprobante por WhatsApp.
-          </p>
         </div>
       </div>
 
