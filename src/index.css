@@ -16,10 +16,25 @@
 }
 
 @layer base {
-  html { scroll-behavior: smooth; }
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    touch-action: manipulation;
+  }
   body {
     @apply bg-white text-pollon-black antialiased;
     font-family: var(--font-body);
+    touch-action: manipulation;
+  }
+
+  /* iOS Safari hace zoom al enfocar inputs con font-size < 16px */
+  @media (max-width: 767px) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="hidden"]),
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
   }
 }
 

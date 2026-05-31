@@ -133,7 +133,9 @@ export function Store() {
               placeholder="Buscar en el menú…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-xl border border-gray-200 py-2.5 pl-10 pr-4 text-sm"
+              className="w-full rounded-xl border border-gray-200 py-2.5 pl-10 pr-4 text-base outline-none focus:border-pollon-red focus:ring-2 focus:ring-pollon-red/20"
+              enterKeyHint="search"
+              autoComplete="off"
             />
           </form>
         </div>
