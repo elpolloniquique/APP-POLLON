@@ -1,25 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import * as orderService from '../services/orderService';
+import { playNewOrderAlert } from '../utils/orderAlertSound';
 
-/** Sonido de aviso (Web Audio — no requiere archivo mp3) */
-export function playNewOrderBeep() {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.frequency.value = 880;
-    gain.gain.value = 0.15;
-    osc.start();
-    setTimeout(() => {
-      osc.stop();
-      ctx.close();
-    }, 400);
-  } catch {
-    /* ignore */
-  }
-}
+export { playNewOrderAlert, playNewOrderBeep } from '../utils/orderAlertSound';
 
 export function useOrders(options = {}) {
   const { alarmEnabled = false } = options;
@@ -50,7 +33,7 @@ export function useOrders(options = {}) {
       return;
     }
     if (alarmEnabledRef.current && orders.length > prevCount.current) {
-      playNewOrderBeep();
+      playNewOrderAlert();
     }
     prevCount.current = orders.length;
   }, [orders.length, ready]);
