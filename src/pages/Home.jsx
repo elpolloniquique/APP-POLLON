@@ -3,7 +3,7 @@ import { useState } from 'react';
 import {
   Flame, MapPin, Phone, Clock, Bike, ChevronRight, Plus, Star, Shield, ChefHat,
   MapPinned, ShoppingBag, CreditCard, MessageCircle, PackageSearch,
-  CheckCircle2, Truck, UtensilsCrossed, Smartphone,
+  CheckCircle2, Truck,
 } from 'lucide-react';
 import { ORDER_STATUS_STEPS, ORDER_STATUS_LABELS } from '../utils/constants';
 import { SiteHeader } from '../components/layout/SiteHeader';
@@ -403,178 +403,127 @@ export function Home() {
       </section>
 
       {/* Cómo pedir y seguir tu pedido */}
-      <section className="relative overflow-hidden bg-pollon-red py-14 text-white md:py-16">
-        <div className="pointer-events-none absolute -right-24 top-0 h-96 w-96 rounded-full bg-pollon-gold/10 blur-3xl" />
-        <div className="pointer-events-none absolute -left-16 bottom-0 h-72 w-72 rounded-full bg-black/20 blur-3xl" />
+      <section className="relative overflow-hidden bg-pollon-red py-10 text-white md:py-12">
+        <div className="pointer-events-none absolute -right-20 top-0 h-64 w-64 rounded-full bg-pollon-gold/10 blur-3xl" />
+        <div className="pointer-events-none absolute -left-12 bottom-0 h-56 w-56 rounded-full bg-black/20 blur-3xl" />
 
-        <div className="relative mx-auto max-w-[1400px] px-4">
-          <div className="mb-10 max-w-3xl">
-            <span className="inline-flex rounded-full border border-white/30 bg-white/10 px-4 py-1 text-[10px] font-bold uppercase tracking-widest">
+        <div className="relative mx-auto max-w-6xl px-4">
+          <div className="mb-8 max-w-2xl">
+            <span className="inline-flex rounded-full border border-white/30 bg-white/10 px-3 py-1 text-[10px] font-bold uppercase tracking-widest">
               Guía rápida · 100% web
             </span>
-            <h2 className="mt-3 font-display text-3xl leading-tight md:text-4xl lg:text-5xl">
+            <h2 className="mt-2 font-display text-2xl leading-tight md:text-3xl lg:text-4xl">
               PIDE Y SIGUE TU PEDIDO <span className="text-pollon-gold">EN POCOS PASOS</span>
             </h2>
-            <p className="mt-3 text-sm leading-relaxed text-white/85 md:text-base">
-              Sin descargar apps. Elige sucursal, pide desde el menú y revisa el estado en tu cuenta.
+            <p className="mt-2 text-sm leading-relaxed text-white/85">
+              Sin apps. Elige sucursal, confirma en un clic y revisa el estado en tu cuenta.
             </p>
           </div>
 
-          <div className="grid items-start gap-8 lg:grid-cols-12 lg:gap-10">
-            {/* Guía compacta */}
-            <div className="lg:col-span-5 xl:col-span-5">
-              <div className="rounded-2xl border border-white/15 bg-white/5 p-5 backdrop-blur-sm md:p-6">
-                <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-pollon-gold">
-                  <ShoppingBag className="h-4 w-4" /> Cómo pedir
-                </h3>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  {[
-                    { n: '01', icon: MapPinned, t: 'Sucursal', d: 'Elige Iquique, Alto Hospicio o Arica.' },
-                    { n: '02', icon: ShoppingBag, t: 'Menú', d: 'Agrega platos al carrito.' },
-                    { n: '03', icon: CreditCard, t: 'Datos y pago', d: 'Efectivo o transferencia.' },
-                    { n: '04', icon: MessageCircle, t: 'WhatsApp', d: 'Confirmas con la sucursal.' },
-                  ].map((s) => (
-                    <div key={s.n} className="rounded-xl bg-black/20 p-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold text-pollon-gold">{s.n}</span>
-                        <s.icon className="h-3.5 w-3.5 text-white/70" />
-                        <p className="text-sm font-bold">{s.t}</p>
-                      </div>
-                      <p className="mt-1 text-xs leading-snug text-white/75">{s.d}</p>
+          <div className="grid items-start gap-6 lg:grid-cols-2 lg:gap-8">
+            {/* Pasos + seguimiento */}
+            <div className="rounded-2xl border border-white/15 bg-white/5 p-4 backdrop-blur-sm md:p-5">
+              <h3 className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-pollon-gold">
+                <ShoppingBag className="h-4 w-4" /> Cómo pedir
+              </h3>
+              <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
+                {[
+                  { n: '01', icon: MapPinned, t: 'Sucursal', d: 'Elige tu local en el header o en Sucursales.' },
+                  { n: '02', icon: ShoppingBag, t: 'Menú', d: 'Personaliza platos y agrégalos al carrito.' },
+                  { n: '03', icon: CreditCard, t: 'Confirmar', d: 'Un clic: datos, pago efectivo o transferencia.' },
+                  { n: '04', icon: MessageCircle, t: 'Comprobante', d: 'Recibes tu código; WhatsApp es opcional.' },
+                ].map((s) => (
+                  <div key={s.n} className="rounded-xl bg-black/20 p-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-pollon-gold">{s.n}</span>
+                      <s.icon className="h-3.5 w-3.5 text-white/70" />
+                      <p className="text-sm font-bold">{s.t}</p>
                     </div>
-                  ))}
-                </div>
+                    <p className="mt-1 text-[11px] leading-snug text-white/75">{s.d}</p>
+                  </div>
+                ))}
+              </div>
 
-                <h3 className="mt-6 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-pollon-gold">
-                  <PackageSearch className="h-4 w-4" /> Cómo seguir tu pedido
-                </h3>
-                <ul className="mt-3 space-y-2">
-                  {[
-                    'Regístrate en «Iniciar sesión / Registrarse» (arriba en la web).',
-                    'Entra a Mi cuenta → Mis pedidos.',
-                    'Abre tu pedido y mira el estado actualizado en vivo.',
-                  ].map((txt, i) => (
-                    <li key={i} className="flex gap-2 text-xs leading-relaxed text-white/85">
-                      <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-pollon-gold" />
-                      {txt}
-                    </li>
-                  ))}
-                </ul>
+              <h3 className="mt-5 flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-pollon-gold">
+                <PackageSearch className="h-4 w-4" /> Seguimiento
+              </h3>
+              <ul className="mt-2 space-y-1.5">
+                {[
+                  'Inicia sesión o regístrate desde el header.',
+                  'Mi cuenta → Mis pedidos → abre tu pedido.',
+                  'Estado en tiempo real con tu código de seguimiento.',
+                ].map((txt, i) => (
+                  <li key={i} className="flex gap-2 text-[11px] leading-relaxed text-white/85">
+                    <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-pollon-gold" />
+                    {txt}
+                  </li>
+                ))}
+              </ul>
 
-                <div className="mt-6 flex flex-wrap gap-2">
-                  <Link to="/tienda" className="inline-flex items-center gap-1.5 rounded-xl bg-white px-5 py-2.5 text-xs font-bold uppercase text-pollon-red shadow-md hover:bg-pollon-cream">
-                    Pedir ahora <ChevronRight className="h-4 w-4" />
-                  </Link>
-                  <Link to="/cuenta" className="inline-flex items-center rounded-xl border border-white/50 px-5 py-2.5 text-xs font-bold uppercase hover:bg-white/10">
-                    Mis pedidos
-                  </Link>
-                </div>
+              <div className="mt-5 flex flex-wrap gap-2">
+                <Link to="/tienda" className="inline-flex items-center gap-1 rounded-lg bg-white px-4 py-2 text-[11px] font-bold uppercase text-pollon-red shadow-md hover:bg-pollon-cream">
+                  Pedir ahora <ChevronRight className="h-3.5 w-3.5" />
+                </Link>
+                <Link to="/cuenta" className="inline-flex rounded-lg border border-white/50 px-4 py-2 text-[11px] font-bold uppercase hover:bg-white/10">
+                  Mis pedidos
+                </Link>
               </div>
             </div>
 
-            {/* Panel visual: celular + contenido alrededor */}
-            <div className="lg:col-span-7 xl:col-span-7">
-              <div className="grid gap-4 sm:grid-cols-12 sm:items-stretch">
-                {/* Timeline estados — izquierda del celular */}
-                <div className="sm:col-span-4 order-2 sm:order-1">
-                  <div className="h-full rounded-2xl border border-white/15 bg-black/25 p-4 backdrop-blur-sm">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-pollon-gold">Estados del pedido</p>
-                    <p className="mt-1 text-xs text-white/70">Lo que verás en seguimiento</p>
-                    <ul className="mt-4 space-y-2.5">
-                      {ORDER_STATUS_STEPS.map((st, i) => {
-                        const meta = ORDER_STATUS_LABELS[st];
-                        const active = st === 'preparando';
-                        return (
-                          <li key={st} className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-[11px] ${active ? 'bg-white/15 font-bold' : ''}`}>
-                            <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-bold ${active ? 'bg-pollon-gold text-pollon-black' : 'bg-white/20'}`}>
-                              {i + 1}
-                            </span>
-                            <span className="leading-tight">{meta?.label}</span>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                </div>
+            {/* Visual compacto */}
+            <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-start">
+              <div className="rounded-2xl border border-white/15 bg-black/25 p-3 backdrop-blur-sm">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-pollon-gold">Estados del pedido</p>
+                <ul className="mt-3 space-y-1.5">
+                  {ORDER_STATUS_STEPS.map((st, i) => {
+                    const meta = ORDER_STATUS_LABELS[st];
+                    const active = st === 'preparando';
+                    return (
+                      <li key={st} className={`flex items-center gap-2 rounded-lg px-2 py-1 text-[10px] ${active ? 'bg-white/15 font-bold' : ''}`}>
+                        <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[8px] font-bold ${active ? 'bg-pollon-gold text-pollon-black' : 'bg-white/20'}`}>
+                          {i + 1}
+                        </span>
+                        <span className="leading-tight">{meta?.label}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
 
-                {/* Celular */}
-                <div className="flex justify-center sm:col-span-4 order-1 sm:order-2">
-                  <div className="relative">
-                    <div className="absolute -left-8 top-8 hidden rounded-xl border border-white/20 bg-white px-3 py-2 shadow-xl lg:block">
-                      <p className="text-[10px] font-bold text-pollon-red">Sin app</p>
-                      <p className="text-[9px] text-gray-600">Solo navegador</p>
+              <div className="flex justify-center sm:justify-end">
+                <div className="w-[168px] rounded-[1.5rem] border-[3px] border-white/40 bg-pollon-black p-2 shadow-2xl sm:w-[180px]">
+                  <div className="overflow-hidden rounded-[1rem] bg-white">
+                    <div className="bg-pollon-red px-2 py-1.5 text-center text-[9px] font-bold text-white">EL POLLÓN</div>
+                    <div className="bg-green-50 px-2.5 py-3 text-center">
+                      <CheckCircle2 className="mx-auto h-7 w-7 text-green-600" strokeWidth={1.5} />
+                      <p className="mt-1 text-[9px] font-bold text-gray-800">¡Pedido recibido!</p>
+                      <p className="font-display text-base text-pollon-black">#000142</p>
                     </div>
-                    <div className="w-[200px] rounded-[1.75rem] border-[3px] border-white/40 bg-pollon-black p-2.5 shadow-2xl sm:w-[220px]">
-                      <div className="overflow-hidden rounded-[1.25rem] bg-white">
-                        <div className="bg-pollon-red px-2 py-2 text-center text-[10px] font-bold text-white">EL POLLÓN</div>
-                        <img src="/img/oferton familiar.png" alt="" className="aspect-square w-full object-cover" />
-                        <div className="p-2.5">
-                          <p className="text-[10px] font-bold text-gray-800">Combo Familiar</p>
-                          <p className="font-display text-lg text-pollon-red">$23.500</p>
-                          <div className="mt-1.5 rounded-md bg-pollon-red py-1.5 text-center text-[9px] font-bold text-white">AGREGAR AL CARRITO</div>
-                        </div>
-                        <div className="border-t bg-amber-50 px-2 py-2">
-                          <p className="text-[8px] font-bold uppercase text-amber-800">Seguimiento activo</p>
-                          <p className="text-[9px] font-semibold text-gray-700">En cocina · Pedido #004821</p>
-                        </div>
-                      </div>
+                    <div className="border-t bg-amber-50 px-2 py-2">
+                      <p className="text-[8px] font-bold uppercase text-amber-800">Seguimiento</p>
+                      <p className="text-[9px] font-semibold text-gray-700">En cocina · en vivo</p>
                     </div>
-                    <div className="absolute -right-6 bottom-16 hidden rounded-xl border border-white/20 bg-pollon-gold px-3 py-2 shadow-xl lg:block">
-                      <p className="text-[10px] font-bold text-pollon-black">Tiempo real</p>
-                      <p className="text-[9px] text-pollon-black/80">Se actualiza solo</p>
+                    <div className="bg-[#25D366] px-2 py-1.5 text-center text-[8px] font-bold text-white">
+                      Enviar comprobante WA
                     </div>
                   </div>
                 </div>
+              </div>
 
-                {/* Tarjetas derecha */}
-                <div className="flex flex-col gap-3 sm:col-span-4 order-3">
-                  <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-sm">
-                    <div className="flex items-center gap-2">
-                      <Shield className="h-5 w-5 text-pollon-gold" />
-                      <p className="text-sm font-bold">Pago seguro</p>
-                    </div>
-                    <p className="mt-2 text-xs text-white/80">Efectivo al recibir o transferencia con comprobante por WhatsApp.</p>
-                  </div>
-                  <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-sm">
-                    <div className="flex items-center gap-2">
-                      <Truck className="h-5 w-5 text-pollon-gold" />
-                      <p className="text-sm font-bold">Delivery y retiro</p>
-                    </div>
-                    <p className="mt-2 text-xs text-white/80">Pide a domicilio o retira en local según tu sucursal.</p>
-                  </div>
-                  <div className="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-sm">
-                    <div className="flex items-center gap-2">
-                      <Smartphone className="h-5 w-5 text-pollon-gold" />
-                      <p className="text-sm font-bold">Tip rápido</p>
-                    </div>
-                    <p className="mt-2 text-xs text-white/80">En Chrome o Safari: menú ⋮ → «Agregar a pantalla de inicio».</p>
-                  </div>
-                </div>
-
-                {/* Fila inferior — ancho completo */}
-                <div className="grid gap-3 sm:col-span-12 sm:grid-cols-3 order-4">
-                  <div className="flex items-center gap-3 rounded-2xl bg-white/10 px-4 py-3 backdrop-blur-sm">
-                    <MapPin className="h-8 w-8 shrink-0 text-pollon-gold" />
+              <div className="grid gap-2 sm:col-span-2 sm:grid-cols-3">
+                {[
+                  { icon: Shield, t: 'Pago seguro', d: 'Efectivo o transferencia.' },
+                  { icon: Truck, t: 'Delivery o retiro', d: 'Según tu sucursal.' },
+                  { icon: MapPin, t: 'Multi-sucursal', d: 'Menú y precios por local.' },
+                ].map(({ icon: Icon, t, d }) => (
+                  <div key={t} className="flex items-start gap-2 rounded-xl border border-white/15 bg-white/10 px-3 py-2.5 backdrop-blur-sm">
+                    <Icon className="mt-0.5 h-4 w-4 shrink-0 text-pollon-gold" />
                     <div>
-                      <p className="text-xs font-bold">4 sucursales</p>
-                      <p className="text-[11px] text-white/75">Iquique · Alto Hospicio · Arica</p>
+                      <p className="text-xs font-bold">{t}</p>
+                      <p className="text-[10px] text-white/75">{d}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 rounded-2xl bg-white/10 px-4 py-3 backdrop-blur-sm">
-                    <UtensilsCrossed className="h-8 w-8 shrink-0 text-pollon-gold" />
-                    <div>
-                      <p className="text-xs font-bold">Menú por sucursal</p>
-                      <p className="text-[11px] text-white/75">Precios y platos según tu local</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 rounded-2xl bg-white/10 px-4 py-3 backdrop-blur-sm">
-                    <Clock className="h-8 w-8 shrink-0 text-pollon-gold" />
-                    <div>
-                      <p className="text-xs font-bold">Horario habitual</p>
-                      <p className="text-[11px] text-white/75">Lun–Dom · 11:30 a 23:00</p>
-                    </div>
-                  </div>
-                </div>
+                ))}
               </div>
             </div>
           </div>
