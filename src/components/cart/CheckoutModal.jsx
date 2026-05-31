@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { X, CheckCircle, MessageCircle } from 'lucide-react';
+import { X, CheckCircle, MessageCircle, Bike } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { useBranch } from '../../context/BranchContext';
 import { useAuth } from '../../context/AuthContext';
 import { money, buildWhatsappMessage, formatDateTime } from '../../utils/format';
-import { PAYMENT_METHODS, ORDER_TYPE_LABELS } from '../../utils/constants';
+import { PAYMENT_METHODS, ORDER_TYPE_LABELS, DELIVERY_COST_RANGE } from '../../utils/constants';
 import * as orderService from '../../services/orderService';
 import { useToast } from '../../hooks/useToast';
 
@@ -44,7 +44,7 @@ function paymentInfoMessage(paymentId, orderType) {
 }
 
 export function CheckoutModal() {
-  const { items, subtotal, deliveryFee, clearCart, checkoutOpen, setCheckoutOpen } = useCart();
+  const { items, subtotal, clearCart, checkoutOpen, setCheckoutOpen } = useCart();
   const { branch, whatsapp, branchOpen } = useBranch();
   const { profile, isCustomer } = useAuth();
   const { show, Toast } = useToast();
@@ -62,8 +62,8 @@ export function CheckoutModal() {
   const [confirmedOrder, setConfirmedOrder] = useState(null);
   const submitLock = useRef(false);
 
-  const delivery = form.orderType === 'delivery' ? (branch?.deliveryCost || deliveryFee || 0) : 0;
-  const totalWithDelivery = form.orderType === 'delivery' ? subtotal + delivery : subtotal;
+  const isDelivery = form.orderType === 'delivery';
+  const orderTotal = subtotal;
 
   useEffect(() => {
     if (!checkoutOpen) return undefined;
@@ -143,8 +143,8 @@ export function CheckoutModal() {
         },
         items: [...items],
         subtotal,
-        deliveryFee: delivery,
-        total: totalWithDelivery,
+        deliveryFee: 0,
+        total: orderTotal,
         orderType: form.orderType,
         metodo_pago: form.payment,
         estado: 'pendiente',
@@ -400,21 +400,34 @@ export function CheckoutModal() {
             </div>
 
             <footer className="checkout-modal__footer">
-              <div className="mb-4 space-y-1.5 rounded-xl bg-pollon-cream/80 px-4 py-3">
+              <div className="mb-4 space-y-2 rounded-xl bg-pollon-cream/80 px-4 py-3">
                 <div className="flex justify-between text-sm text-gray-700">
                   <span>Subtotal</span>
                   <span>{money(subtotal)}</span>
                 </div>
-                {delivery > 0 && (
-                  <div className="flex justify-between text-sm text-gray-700">
-                    <span>Delivery</span>
-                    <span>{money(delivery)}</span>
+                {isDelivery && (
+                  <div className="checkout-delivery-notice">
+                    <div className="checkout-delivery-notice__head">
+                      <Bike className="checkout-delivery-notice__icon" aria-hidden />
+                      <p className="checkout-delivery-notice__title">Costo de delivery adicional</p>
+                    </div>
+                    <p className="checkout-delivery-notice__range">
+                      {money(DELIVERY_COST_RANGE.min)} – {money(DELIVERY_COST_RANGE.max)}
+                    </p>
+                    <p className="checkout-delivery-notice__body">
+                      El valor varía según la distancia o su dirección de entrega. Se confirma al procesar su pedido.
+                    </p>
                   </div>
                 )}
                 <div className="flex justify-between border-t border-black/5 pt-2 text-lg font-bold">
-                  <span>Total</span>
-                  <span className="text-pollon-red">{money(totalWithDelivery)}</span>
+                  <span>{isDelivery ? 'Total productos' : 'Total'}</span>
+                  <span className="text-pollon-red">{money(orderTotal)}</span>
                 </div>
+                {isDelivery && (
+                  <p className="text-[11px] leading-snug text-gray-500">
+                    El delivery no está incluido en este total.
+                  </p>
+                )}
               </div>
               <button
                 type="submit"

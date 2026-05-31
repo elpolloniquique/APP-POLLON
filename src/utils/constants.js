@@ -65,6 +65,9 @@ export const ORDER_TYPE_LABELS = {
   reserva: 'Reserva',
 };
 
+/** Rango orientativo de costo de delivery (CLP) */
+export const DELIVERY_COST_RANGE = { min: 2500, max: 4000 };
+
 export const PAYMENT_METHODS = [
   { id: 'efectivo', label: 'Efectivo', icon: '💵', desc: 'Paga al recibir tu pedido (delivery o retiro)' },
   { id: 'transferencia', label: 'Transferencia', icon: '🏦', desc: 'Paga al recibir con datos que te entregará el repartidor' },
