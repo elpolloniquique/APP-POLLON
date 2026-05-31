@@ -3,7 +3,7 @@ import { useState } from 'react';
 import {
   Flame, MapPin, Phone, Clock, Bike, ChevronRight, Plus, Star, Shield, ChefHat,
   MapPinned, ShoppingBag, CreditCard, MessageCircle, PackageSearch,
-  CheckCircle2, Truck, Radio, LogIn,
+  CheckCircle2, Truck, Radio, LogIn, Plus,
 } from 'lucide-react';
 import { ORDER_STATUS_STEPS, ORDER_STATUS_LABELS } from '../utils/constants';
 import { SiteHeader } from '../components/layout/SiteHeader';
@@ -421,7 +421,7 @@ export function Home() {
         <div className="pointer-events-none absolute -left-12 bottom-0 h-56 w-56 rounded-full bg-black/20 blur-3xl" />
 
         <div className="relative mx-auto max-w-6xl px-4">
-          <header className="home-order-guide__header mb-10 text-center lg:text-left">
+          <header className="home-order-guide__header mb-8 text-center lg:mb-10 lg:text-left">
             <span className="home-order-guide__badge">Guía rápida · 100% web</span>
             <h2 className="home-order-guide__title mt-3 font-display">
               PIDE Y SIGUE TU PEDIDO <span className="text-pollon-gold">EN POCOS PASOS</span>
@@ -429,67 +429,78 @@ export function Home() {
             <p className="home-order-guide__subtitle mx-auto mt-3 max-w-xl lg:mx-0">
               Sin descargar apps. Todo desde el navegador, claro y al instante.
             </p>
+            <ul className="home-order-guide__header-pills mt-5">
+              {[
+                { icon: Shield, t: 'Pago seguro', d: 'Efectivo o transferencia' },
+                { icon: Truck, t: 'Delivery o retiro', d: 'Según tu sucursal' },
+                { icon: MapPin, t: 'Multi-sucursal', d: 'Menú por local' },
+              ].map(({ icon: Icon, t, d }) => (
+                <li key={t} className="home-order-guide__header-pill">
+                  <Icon className="h-4 w-4 shrink-0 text-pollon-gold" aria-hidden />
+                  <span><strong>{t}</strong> · {d}</span>
+                </li>
+              ))}
+            </ul>
           </header>
 
-          <div className="home-order-guide__grid">
-            {/* Cómo pedir */}
-            <article className="home-order-guide__card">
-              <h3 className="home-order-guide__card-title">
-                <ShoppingBag className="h-5 w-5 shrink-0 text-pollon-gold" aria-hidden />
-                Cómo hacer tu pedido
-              </h3>
-              <ol className="home-order-guide__steps mt-5">
-                {HOME_ORDER_STEPS.map((s) => (
-                  <li key={s.n} className="home-order-guide__step">
-                    <span className="home-order-guide__step-num">{s.n}</span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <s.icon className="h-4 w-4 shrink-0 text-white/80" aria-hidden />
-                        <p className="home-order-guide__step-title">{s.title}</p>
+          <div className="home-order-guide__layout">
+            <div className="home-order-guide__guides">
+              <article className="home-order-guide__card home-order-guide__card--stretch">
+                <h3 className="home-order-guide__card-title">
+                  <ShoppingBag className="h-5 w-5 shrink-0 text-pollon-gold" aria-hidden />
+                  Cómo hacer tu pedido
+                </h3>
+                <ol className="home-order-guide__steps mt-4">
+                  {HOME_ORDER_STEPS.map((s) => (
+                    <li key={s.n} className="home-order-guide__step">
+                      <span className="home-order-guide__step-num">{s.n}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <s.icon className="h-4 w-4 shrink-0 text-white/80" aria-hidden />
+                          <p className="home-order-guide__step-title">{s.title}</p>
+                        </div>
+                        <p className="home-order-guide__step-desc">{s.desc}</p>
                       </div>
-                      <p className="home-order-guide__step-desc">{s.desc}</p>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-              <Link to="/tienda" className="home-order-guide__cta home-order-guide__cta--primary mt-6">
-                Pedir ahora <ChevronRight className="h-4 w-4" aria-hidden />
-              </Link>
-            </article>
+                    </li>
+                  ))}
+                </ol>
+                <Link to="/tienda" className="home-order-guide__cta home-order-guide__cta--primary mt-auto pt-5">
+                  Pedir ahora <ChevronRight className="h-4 w-4" aria-hidden />
+                </Link>
+              </article>
 
-            {/* Confirmación y seguimiento */}
-            <article className="home-order-guide__card">
-              <h3 className="home-order-guide__card-title">
-                <PackageSearch className="h-5 w-5 shrink-0 text-pollon-gold" aria-hidden />
-                Confirmación y seguimiento
-              </h3>
-              <p className="home-order-guide__card-lead mt-3">
-                Sabrás que tu pedido está confirmado en el momento y podrás ver cada cambio en vivo.
-              </p>
-              <ol className="home-order-guide__steps mt-4">
-                {HOME_TRACK_STEPS.map((s) => (
-                  <li key={s.n} className="home-order-guide__step">
-                    <span className="home-order-guide__step-num home-order-guide__step-num--gold">{s.n}</span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <s.icon className="h-4 w-4 shrink-0 text-white/80" aria-hidden />
-                        <p className="home-order-guide__step-title">{s.title}</p>
+              <article className="home-order-guide__card home-order-guide__card--stretch">
+                <h3 className="home-order-guide__card-title">
+                  <PackageSearch className="h-5 w-5 shrink-0 text-pollon-gold" aria-hidden />
+                  Confirmación y seguimiento
+                </h3>
+                <p className="home-order-guide__card-lead mt-3">
+                  Sabrás que tu pedido está confirmado al instante y verás cada cambio en vivo.
+                </p>
+                <ol className="home-order-guide__steps mt-3">
+                  {HOME_TRACK_STEPS.map((s) => (
+                    <li key={s.n} className="home-order-guide__step">
+                      <span className="home-order-guide__step-num home-order-guide__step-num--gold">{s.n}</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <s.icon className="h-4 w-4 shrink-0 text-white/80" aria-hidden />
+                          <p className="home-order-guide__step-title">{s.title}</p>
+                        </div>
+                        <p className="home-order-guide__step-desc">{s.desc}</p>
                       </div>
-                      <p className="home-order-guide__step-desc">{s.desc}</p>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-              <Link to="/cuenta" className="home-order-guide__cta home-order-guide__cta--outline mt-6">
-                Ver mis pedidos
-              </Link>
-            </article>
+                    </li>
+                  ))}
+                </ol>
+                <Link to="/cuenta" className="home-order-guide__cta home-order-guide__cta--outline mt-auto pt-5">
+                  Ver mis pedidos
+                </Link>
+              </article>
+            </div>
 
-            {/* Estados + mockup */}
-            <aside className="home-order-guide__aside">
+            <div className="home-order-guide__showcase">
               <div className="home-order-guide__status-panel">
                 <p className="home-order-guide__panel-label">Estados del pedido</p>
-                <ul className="home-order-guide__status-list mt-4">
+                <ul className="home-order-guide__status-list">
                   {ORDER_STATUS_STEPS.map((st, i) => {
                     const meta = ORDER_STATUS_LABELS[st];
                     const active = st === 'preparando';
@@ -503,40 +514,74 @@ export function Home() {
                 </ul>
               </div>
 
-              <div className="home-order-guide__phone-wrap">
-                <div className="home-order-guide__phone">
-                  <div className="home-order-guide__phone-screen">
-                    <div className="home-order-guide__phone-bar">EL POLLÓN</div>
-                    <div className="home-order-guide__phone-confirm">
-                      <CheckCircle2 className="mx-auto h-9 w-9 text-green-600" strokeWidth={1.75} aria-hidden />
-                      <p className="mt-2 text-sm font-bold text-gray-800">¡Pedido confirmado!</p>
-                      <p className="home-order-guide__phone-code">#000142</p>
-                      <p className="mt-1 text-xs text-gray-600">Tu código de seguimiento</p>
-                    </div>
-                    <div className="home-order-guide__phone-track">
-                      <p className="text-xs font-bold uppercase tracking-wide text-amber-900">En vivo</p>
-                      <p className="text-sm font-semibold text-gray-800">En cocina</p>
+              <div className="home-order-guide__phones">
+                <figure className="home-order-guide__phone-figure">
+                  <figcaption className="home-order-guide__phone-caption">
+                    <Plus className="h-3.5 w-3.5" aria-hidden />
+                    Agrega al carrito
+                  </figcaption>
+                  <div className="home-order-guide__phone">
+                    <div className="home-order-guide__phone-screen">
+                      <div className="home-order-guide__phone-bar home-order-guide__phone-bar--cart">
+                        <span>EL POLLÓN</span>
+                        <span className="home-order-guide__phone-cart-badge">2</span>
+                      </div>
+                      <div className="home-order-guide__phone-product">
+                        <img
+                          src="/img/oferton%20familiar.png"
+                          alt=""
+                          className="home-order-guide__phone-product-img"
+                        />
+                        <p className="home-order-guide__phone-product-name">Ofertón Familiar</p>
+                        <p className="home-order-guide__phone-product-price">$23.500</p>
+                        <p className="home-order-guide__phone-product-hint">Toca el plato → personaliza → agrega</p>
+                        <div className="home-order-guide__phone-add-btn">
+                          <ShoppingBag className="h-3 w-3" aria-hidden />
+                          Agregar al carrito
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
+                </figure>
+
+                <figure className="home-order-guide__phone-figure">
+                  <figcaption className="home-order-guide__phone-caption">
+                    <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
+                    Confirma y sigue
+                  </figcaption>
+                  <div className="home-order-guide__phone">
+                    <div className="home-order-guide__phone-screen">
+                      <div className="home-order-guide__phone-bar">EL POLLÓN</div>
+                      <div className="home-order-guide__phone-confirm">
+                        <CheckCircle2 className="mx-auto h-8 w-8 text-green-600" strokeWidth={1.75} aria-hidden />
+                        <p className="mt-1.5 text-sm font-bold text-gray-800">¡Pedido confirmado!</p>
+                        <p className="home-order-guide__phone-code">#000142</p>
+                        <p className="mt-0.5 text-[11px] text-gray-600">Tu código de seguimiento</p>
+                      </div>
+                      <div className="home-order-guide__phone-track">
+                        <p className="text-[10px] font-bold uppercase tracking-wide text-amber-900">En vivo</p>
+                        <p className="text-xs font-semibold text-gray-800">En cocina</p>
+                      </div>
+                    </div>
+                  </div>
+                </figure>
               </div>
 
-              <ul className="home-order-guide__features">
-                {[
-                  { icon: Shield, t: 'Pago seguro', d: 'Efectivo o transferencia' },
-                  { icon: Truck, t: 'Delivery o retiro', d: 'Según tu sucursal' },
-                  { icon: MapPin, t: 'Multi-sucursal', d: 'Menú y precios por local' },
-                ].map(({ icon: Icon, t, d }) => (
-                  <li key={t} className="home-order-guide__feature">
-                    <Icon className="h-5 w-5 shrink-0 text-pollon-gold" aria-hidden />
-                    <div>
-                      <p className="home-order-guide__feature-title">{t}</p>
-                      <p className="home-order-guide__feature-desc">{d}</p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </aside>
+              <div className="home-order-guide__showcase-note">
+                <p className="home-order-guide__showcase-note-title">Así se ve en tu celular</p>
+                <p className="home-order-guide__showcase-note-desc">
+                  Elige platos en la tienda, confirma tu pedido y revisa el estado sin salir del navegador.
+                </p>
+                <div className="home-order-guide__showcase-actions">
+                  <Link to="/tienda" className="home-order-guide__cta home-order-guide__cta--primary home-order-guide__cta--compact">
+                    Ir a la tienda
+                  </Link>
+                  <Link to="/cuenta" className="home-order-guide__cta home-order-guide__cta--outline home-order-guide__cta--compact">
+                    Mis pedidos
+                  </Link>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
