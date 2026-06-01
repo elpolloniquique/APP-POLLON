@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { adminListAllBranches, adminSaveBranch, adminDeleteBranch } from '../../services/branchService';
+import { adminListAllBranches, adminSaveBranch, adminDeleteBranch, adminSetBranchActive } from '../../services/branchService';
 import { isSupabaseConfigured } from '../../services/menuService';
 import { useToast } from '../../hooks/useToast';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Power, PowerOff } from 'lucide-react';
 import { canManageAllBranches } from '../../services/authService';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { AdminScrollPanel } from '../../components/admin/AdminScrollPanel';
@@ -35,6 +35,7 @@ export function AdminBranches() {
   const [list, setList] = useState([]);
   const [modal, setModal] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  const [togglingId, setTogglingId] = useState(null);
   const [loadError, setLoadError] = useState('');
   const user = { id: profile?.id, email: profile?.email };
   const canView = can('branches');
@@ -64,6 +65,25 @@ export function AdminBranches() {
     } catch (err) {
       const msg = err.message || 'Error al guardar';
       show(msg.includes('branches') ? `${msg} — ¿Ejecutaste schema-multi-sucursal.sql?` : msg);
+    }
+  };
+
+  const toggleBranchActive = async (b) => {
+    const willActivate = !b.isActive;
+    const msg = willActivate
+      ? `¿Activar "${b.name}"?\n\nVolverá a aparecer en el menú para los clientes, al final de la lista de sucursales.`
+      : `¿Desactivar "${b.name}"?\n\nNo se borrará nada: productos, precios y configuración se mantienen. Solo dejará de mostrarse a los clientes hasta que la actives de nuevo.`;
+    if (!window.confirm(msg)) return;
+
+    setTogglingId(b.id);
+    try {
+      await adminSetBranchActive(b.id, willActivate, user);
+      show(willActivate ? `Sucursal "${b.name}" activada` : `Sucursal "${b.name}" desactivada`);
+      load();
+    } catch (err) {
+      show(err.message || 'No se pudo cambiar el estado de la sucursal');
+    } finally {
+      setTogglingId(null);
     }
   };
 
@@ -117,7 +137,14 @@ export function AdminBranches() {
 
       <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
         <div className="flex items-center justify-between border-b px-3 py-2.5 sm:px-4">
-          <p className="text-sm font-semibold text-gray-700">{list.length} sucursal{list.length !== 1 ? 'es' : ''}</p>
+          <p className="text-sm font-semibold text-gray-700">
+            {list.length} sucursal{list.length !== 1 ? 'es' : ''}
+            {list.some((b) => !b.isActive) && (
+              <span className="ml-2 font-normal text-gray-500">
+                ({list.filter((b) => b.isActive).length} activas)
+              </span>
+            )}
+          </p>
           {list.length > 4 && <p className="text-xs text-gray-400">Desplaza ↓</p>}
         </div>
         <AdminScrollPanel maxRows={4} variant="grid" className="rounded-none border-0 shadow-none">
@@ -126,35 +153,62 @@ export function AdminBranches() {
               <article
                 key={b.id}
                 className={`rounded-xl p-4 ring-1 sm:rounded-2xl sm:p-5 ${
-                  b.id === myBranchId ? 'bg-pollon-red/5 ring-pollon-red/30' : 'bg-gray-50/80 ring-gray-100'
+                  !b.isActive
+                    ? 'border border-dashed border-gray-300 bg-gray-50/50 opacity-90 ring-gray-200'
+                    : b.id === myBranchId
+                      ? 'bg-pollon-red/5 ring-pollon-red/30'
+                      : 'bg-gray-50/80 ring-gray-100'
                 }`}
               >
                 <div className="flex justify-between gap-2">
-                  <h3 className="min-w-0 truncate font-bold">
+                  <h3 className={`min-w-0 truncate font-bold ${!b.isActive ? 'text-gray-600' : ''}`}>
                     {b.name}
                     {b.id === myBranchId && <span className="ml-2 text-xs font-normal text-pollon-red">(Tu local)</span>}
                   </h3>
-                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${b.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100'}`}>
-                    {b.isActive ? 'Activa' : 'Inactiva'}
+                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${
+                    b.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-600'
+                  }`}>
+                    {b.isActive ? 'Activa' : 'Desactivada'}
                   </span>
                 </div>
                 <p className="mt-1 text-xs text-gray-500 sm:text-sm">{b.city} · {b.address}</p>
                 <p className="text-xs sm:text-sm">WhatsApp: {b.whatsapp}</p>
                 <p className="text-xs sm:text-sm">Delivery: ${b.deliveryCost?.toLocaleString('es-CL')}</p>
+                {!b.isActive && (
+                  <p className="mt-2 text-xs text-amber-800/90">
+                    Oculta para clientes. Menú y productos intactos.
+                  </p>
+                )}
                 {canManage && (
-                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <div className="mt-3 flex flex-wrap items-center gap-2 sm:gap-3">
                     <button
                       type="button"
                       onClick={() => setModal({ ...b, schedule: b.schedule })}
-                      className="flex items-center gap-1 text-sm font-semibold text-pollon-red hover:underline"
+                      className="flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-semibold text-pollon-red hover:bg-red-50"
                     >
                       <Pencil className="h-4 w-4" /> Editar
                     </button>
                     <button
                       type="button"
+                      onClick={() => toggleBranchActive(b)}
+                      disabled={togglingId === b.id}
+                      className={`flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-semibold disabled:opacity-50 ${
+                        b.isActive
+                          ? 'text-amber-700 hover:bg-amber-50'
+                          : 'text-green-700 hover:bg-green-50'
+                      }`}
+                    >
+                      {b.isActive ? (
+                        <><PowerOff className="h-4 w-4" />{togglingId === b.id ? '…' : 'Desactivar'}</>
+                      ) : (
+                        <><Power className="h-4 w-4" />{togglingId === b.id ? '…' : 'Activar'}</>
+                      )}
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => removeBranch(b)}
                       disabled={deletingId === b.id}
-                      className="flex items-center gap-1 text-sm font-semibold text-red-600 hover:text-red-700 disabled:opacity-50"
+                      className="flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
                     >
                       <Trash2 className="h-4 w-4" />
                       {deletingId === b.id ? 'Eliminando…' : 'Eliminar'}
@@ -172,6 +226,9 @@ export function AdminBranches() {
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4">
           <form onSubmit={save} className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6">
             <h3 className="text-lg font-bold">{modal.id ? 'Editar' : 'Nueva'} sucursal</h3>
+            {!modal.id && (
+              <p className="mt-1 text-xs text-gray-500">Se agregará al final de la lista visible para los clientes.</p>
+            )}
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <input required value={modal.name} onChange={(e) => setModal({ ...modal, name: e.target.value })} placeholder="Nombre" className="col-span-2 rounded-lg border px-3 py-2" />
               <input value={modal.slug} onChange={(e) => setModal({ ...modal, slug: e.target.value })} placeholder="Slug (iquique-vivar)" className="rounded-lg border px-3 py-2" />
@@ -182,7 +239,13 @@ export function AdminBranches() {
               <input value={modal.schedule} onChange={(e) => setModal({ ...modal, schedule: e.target.value })} placeholder="Horario" className="col-span-2 rounded-lg border px-3 py-2" />
               <input type="number" value={modal.deliveryCost} onChange={(e) => setModal({ ...modal, deliveryCost: e.target.value })} placeholder="Costo delivery" className="rounded-lg border px-3 py-2" />
               <input value={modal.deliveryEta} onChange={(e) => setModal({ ...modal, deliveryEta: e.target.value })} placeholder="Tiempo entrega" className="rounded-lg border px-3 py-2" />
-              <label className="flex items-center gap-2"><input type="checkbox" checked={modal.isActive} onChange={(e) => setModal({ ...modal, isActive: e.target.checked })} /> Activa</label>
+              <label className="col-span-2 flex items-center gap-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+                <input type="checkbox" checked={modal.isActive} onChange={(e) => setModal({ ...modal, isActive: e.target.checked })} />
+                <span className="text-sm">
+                  <span className="font-semibold">Sucursal activa</span>
+                  <span className="block text-xs text-gray-500">Si está desmarcada, no aparece en el menú público (igual que Desactivar)</span>
+                </span>
+              </label>
               <label className="flex items-center gap-2"><input type="checkbox" checked={modal.deliveryEnabled} onChange={(e) => setModal({ ...modal, deliveryEnabled: e.target.checked })} /> Delivery</label>
             </div>
             <div className="mt-4 space-y-3 border-t border-gray-100 pt-4">

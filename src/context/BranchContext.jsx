@@ -11,27 +11,29 @@ export function BranchProvider({ children }) {
 
   const refreshBranches = useCallback(async () => {
     const list = await loadBranches(true);
-    const active = list.filter((b) => !b.comingSoon);
+    const active = list.filter((b) => !b.comingSoon && b.isActive !== false);
     setBranches(active);
     setBranchState((current) => {
-      if (!current?.id) return current;
-      return active.find((b) => b.id === current.id) || current;
+      if (current?.id) {
+        const still = active.find((b) => b.id === current.id);
+        if (still) return still;
+      }
+      const saved = localStorage.getItem(BRANCH_KEY);
+      const found = saved ? active.find((b) => b.id === saved) : null;
+      return found || active[0] || null;
     });
     return list;
   }, []);
 
   useEffect(() => {
-    refreshBranches().then((list) => {
-      const active = list.filter((b) => !b.comingSoon && b.isActive !== false);
-      const saved = localStorage.getItem(BRANCH_KEY);
-      const found = saved ? active.find((b) => b.id === saved) : null;
-      setBranchState(found || active[0] || null);
+    refreshBranches().then(() => {
       setLoading(false);
     });
   }, [refreshBranches]);
 
   const setBranch = useCallback((b, options = {}) => {
     if (!b || b.comingSoon) return false;
+    if (!options.force && b.isActive === false) return false;
     setBranchState((current) => {
       if (!options.force && b.id === current?.id) return current;
       localStorage.setItem(BRANCH_KEY, b.id);

@@ -28,11 +28,12 @@ function mapBranch(row) {
   };
 }
 
-async function loadFromBranchesTable() {
+async function loadFromBranchesTable(includeInactive = false) {
   const sb = getSupabase();
   const { data, error } = await sb.from('branches').select('*').order('display_order', { ascending: true });
   if (error) throw error;
-  return (data || []).map(mapBranch).filter((b) => b.isActive);
+  const mapped = (data || []).map(mapBranch);
+  return includeInactive ? mapped : mapped.filter((b) => b.isActive);
 }
 
 async function loadFromLegacySucursales() {
@@ -62,8 +63,8 @@ export async function loadBranches(includeInactive = false) {
   if (!isSupabaseConfigured()) return DEFAULT_BRANCHES.filter((b) => includeInactive || !b.comingSoon);
 
   try {
-    const list = await loadFromBranchesTable();
-    if (list.length) return includeInactive ? list : list.filter((b) => b.isActive);
+    const list = await loadFromBranchesTable(includeInactive);
+    if (list.length) return list;
   } catch (e) {
     console.warn('[Pollón] branches:', e.message);
   }
@@ -84,11 +85,64 @@ export async function adminListAllBranches() {
     const sb = getSupabase();
     const { data, error } = await sb.from('branches').select('*').order('display_order', { ascending: true });
     if (error) throw error;
-    if (data?.length) return data.map(mapBranch);
+    if (data?.length) {
+      const mapped = data.map(mapBranch);
+      return [
+        ...mapped.filter((b) => b.isActive),
+        ...mapped.filter((b) => !b.isActive),
+      ];
+    }
   } catch (e) {
     console.warn(e);
   }
   return loadBranches(true);
+}
+
+async function nextBranchDisplayOrder(sb) {
+  const { data: maxRow } = await sb
+    .from('branches')
+    .select('display_order')
+    .order('display_order', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return (maxRow?.display_order ?? 0) + 1;
+}
+
+/** Activa o desactiva sucursal sin borrar menú ni productos. Al activar, va al final de la lista pública. */
+export async function adminSetBranchActive(branchId, isActive, user) {
+  const sb = getSupabase();
+  if (!sb) throw new Error('Sin conexión Supabase');
+
+  const { data: existing, error: fetchErr } = await sb
+    .from('branches')
+    .select('id, name, is_active, display_order')
+    .eq('id', branchId)
+    .single();
+  if (fetchErr) throw fetchErr;
+
+  const patch = { is_active: !!isActive };
+  if (isActive && existing.is_active === false) {
+    patch.display_order = await nextBranchDisplayOrder(sb);
+  }
+
+  const { data, error } = await sb
+    .from('branches')
+    .update(patch)
+    .eq('id', branchId)
+    .select()
+    .single();
+  if (error) throw error;
+
+  await logAudit({
+    user,
+    branchId,
+    entityType: 'branch',
+    entityId: branchId,
+    action: isActive ? 'activate' : 'deactivate',
+    oldData: { is_active: existing.is_active, display_order: existing.display_order },
+    newData: patch,
+  });
+  return mapBranch(data);
 }
 
 export async function adminSaveBranch(branch, user) {
@@ -96,14 +150,21 @@ export async function adminSaveBranch(branch, user) {
   if (!sb) throw new Error('Sin conexión Supabase');
 
   let displayOrder = branch.displayOrder ?? 0;
-  if (!branch.id) {
-    const { data: maxRow } = await sb
+  let wasInactive = false;
+
+  if (branch.id) {
+    const { data: existing } = await sb
       .from('branches')
-      .select('display_order')
-      .order('display_order', { ascending: false })
-      .limit(1)
+      .select('is_active, display_order')
+      .eq('id', branch.id)
       .maybeSingle();
-    displayOrder = (maxRow?.display_order ?? 0) + 1;
+    wasInactive = existing?.is_active === false;
+    displayOrder = branch.displayOrder ?? existing?.display_order ?? 0;
+    if (wasInactive && branch.isActive !== false) {
+      displayOrder = await nextBranchDisplayOrder(sb);
+    }
+  } else {
+    displayOrder = await nextBranchDisplayOrder(sb);
   }
 
   const row = {
