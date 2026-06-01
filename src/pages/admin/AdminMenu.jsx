@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { normalizeRole } from '../../services/authService';
@@ -17,6 +17,8 @@ import {
   adminDuplicateCategory,
   adminDuplicateProduct,
   adminReorderCategory,
+  adminSetProductDisplayOrder,
+  adminRenumberProductsInCategory,
   uploadProductImage,
   uploadProductImages,
   isSupabaseConfigured,
@@ -40,11 +42,75 @@ const emptyCat = (branchId) => ({
   branchId, name: '', description: '', imageUrl: '', displayOrder: 0, isActive: true,
 });
 
-const emptyProd = (branchId, categoryId, categoryName = '') => ({
+const emptyProd = (branchId, categoryId, categoryName = '', displayOrder = 1) => ({
   branchId, categoryId, name: '', description: '', imageUrl: '', imageUrls: [], price: 0,
-  oldPrice: null, available: true, isFeatured: false, isPromotion: false, displayOrder: 0,
+  oldPrice: null, available: true, isFeatured: false, isPromotion: false, displayOrder,
   ...defaultProductOptionsForCategory(categoryName),
 });
+
+function nextProductDisplayOrder(products, categoryId) {
+  const inCat = categoryId
+    ? products.filter((p) => p.categoryId === categoryId)
+    : products;
+  const max = inCat.reduce((m, p) => Math.max(m, Number(p.displayOrder) || 0), 0);
+  return max + 1;
+}
+
+function sortProductsForDisplay(list) {
+  return [...list].sort((a, b) => {
+    const orderDiff = (Number(a.displayOrder) || 0) - (Number(b.displayOrder) || 0);
+    if (orderDiff !== 0) return orderDiff;
+    return (a.name || '').localeCompare(b.name || '', 'es');
+  });
+}
+
+function ProductOrderCell({ product, onSave, canEdit }) {
+  const [value, setValue] = useState(String(product.displayOrder || ''));
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setValue(product.displayOrder ? String(product.displayOrder) : '');
+  }, [product.displayOrder, product.id]);
+
+  const commit = async () => {
+    if (!canEdit) return;
+    const num = Math.max(1, Math.floor(Number(value) || 0));
+    if (!num) {
+      setValue(product.displayOrder ? String(product.displayOrder) : '');
+      return;
+    }
+    if (num === product.displayOrder) return;
+    setSaving(true);
+    try {
+      await onSave(product, num);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <input
+      type="number"
+      min={1}
+      step={1}
+      inputMode="numeric"
+      value={value}
+      disabled={!canEdit || saving}
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          e.currentTarget.blur();
+        }
+      }}
+      className="admin-order-input"
+      title="Posición en el menú: 1 = primero, 2 = segundo…"
+      placeholder="—"
+      aria-label={`Orden de ${product.name}`}
+    />
+  );
+}
 
 export function AdminMenu() {
   const { profile } = useAuth();
@@ -68,6 +134,9 @@ export function AdminMenu() {
   const [dupTargetCats, setDupTargetCats] = useState([]);
   const [uploadingImages, setUploadingImages] = useState(false);
   const [uploadingCatImage, setUploadingCatImage] = useState(false);
+  const [orderSavingId, setOrderSavingId] = useState(null);
+
+  const sortedProducts = useMemo(() => sortProductsForDisplay(products), [products]);
 
   const user = { id: profile?.id, email: profile?.email };
   const role = normalizeRole(profile?.rol || profile?.role);
@@ -161,9 +230,15 @@ export function AdminMenu() {
     e.preventDefault();
     try {
       const imageUrls = prodModal.imageUrls || [];
+      const displayOrder = Math.max(
+        1,
+        Math.floor(Number(prodModal.displayOrder) || 0)
+          || nextProductDisplayOrder(products, prodModal.categoryId),
+      );
       await adminUpsertProduct({
         ...prodModal,
         branchId: activeBranchId,
+        displayOrder,
         imageUrls,
         imageUrl: imageUrls[0] || prodModal.imageUrl || '',
       }, user);
@@ -173,6 +248,67 @@ export function AdminMenu() {
     } catch (err) {
       show(err.message);
     }
+  };
+
+  const saveProductOrder = async (product, displayOrder) => {
+    setOrderSavingId(product.id);
+    try {
+      await adminSetProductDisplayOrder(product.id, displayOrder, activeBranchId, user);
+      setProducts((prev) => sortProductsForDisplay(
+        prev.map((p) => (p.id === product.id ? { ...p, displayOrder } : p)),
+      ));
+      show(`Orden actualizado: ${product.name} → #${displayOrder}`);
+    } catch (err) {
+      show(err.message);
+      load();
+    } finally {
+      setOrderSavingId(null);
+    }
+  };
+
+  const moveProduct = async (product, dir) => {
+    const list = sortedProducts;
+    const idx = list.findIndex((p) => p.id === product.id);
+    const swap = list[idx + dir];
+    if (!swap) return;
+    setOrderSavingId(product.id);
+    try {
+      const aOrder = Math.max(1, Number(product.displayOrder) || idx + 1);
+      const bOrder = Math.max(1, Number(swap.displayOrder) || idx + dir + 2);
+      await Promise.all([
+        adminSetProductDisplayOrder(product.id, bOrder, activeBranchId, user),
+        adminSetProductDisplayOrder(swap.id, aOrder, activeBranchId, user),
+      ]);
+      load();
+    } catch (err) {
+      show(err.message);
+    } finally {
+      setOrderSavingId(null);
+    }
+  };
+
+  const renumberCategoryProducts = async () => {
+    const catId = selectedCatId || categories[0]?.id;
+    if (!catId) {
+      show('Selecciona una categoría primero');
+      return;
+    }
+    const catName = categories.find((c) => c.id === catId)?.name || 'esta categoría';
+    if (!window.confirm(`¿Numerar automáticamente los platos de "${catName}" como 1, 2, 3… según el orden actual?`)) return;
+    try {
+      const count = await adminRenumberProductsInCategory(activeBranchId, catId, user);
+      show(`${count} producto(s) numerados`);
+      load();
+    } catch (err) {
+      show(err.message);
+    }
+  };
+
+  const openNewProductModal = () => {
+    const catId = selectedCatId || categories[0]?.id;
+    const catName = categories.find((c) => c.id === catId)?.name || '';
+    const displayOrder = nextProductDisplayOrder(products, catId);
+    setProdModal(emptyProd(activeBranchId, catId, catName, displayOrder));
   };
 
   const handleProductImagesUpload = async (files) => {
@@ -346,18 +482,31 @@ export function AdminMenu() {
               <option value="yes">Disponibles</option>
               <option value="no">No disponibles</option>
             </select>
-            <button type="button" onClick={() => setProdModal(emptyProd(activeBranchId, selectedCatId || categories[0]?.id, categories.find((c) => c.id === (selectedCatId || categories[0]?.id))?.name))} className="flex w-full items-center justify-center gap-1 rounded-lg bg-pollon-red px-4 py-2 text-sm text-white sm:w-auto">
+            <button type="button" onClick={openNewProductModal} className="flex w-full items-center justify-center gap-1 rounded-lg bg-pollon-red px-4 py-2 text-sm text-white sm:w-auto">
               <Plus className="h-4 w-4" /> Nuevo producto
             </button>
           </div>
 
+          <div className="admin-order-hint">
+            <p>
+              <strong>Orden del menú:</strong> asigna un número a cada plato (1 = aparece primero, 2 = segundo, y así sucesivamente).
+              Puedes editarlo en la columna <strong>Orden</strong> o al crear/editar un producto.
+            </p>
+            {selectedCatId && canManageMenu && (
+              <button type="button" onClick={renumberCategoryProducts} className="admin-order-hint__btn">
+                Numerar 1, 2, 3… en esta categoría
+              </button>
+            )}
+          </div>
+
           {loading ? <p className="text-center text-gray-500">Cargando…</p> : (
             <AdminTable
-              count={products.length}
-              countLabel={`${products.length} producto${products.length !== 1 ? 's' : ''}`}
+              count={sortedProducts.length}
+              countLabel={`${sortedProducts.length} producto${sortedProducts.length !== 1 ? 's' : ''}`}
               emptyMessage="Sin productos"
-              minWidth={680}
+              minWidth={760}
               columns={[
+                { key: 'order', label: 'Orden' },
                 { key: 'img', label: 'Img' },
                 { key: 'name', label: 'Nombre' },
                 { key: 'cat', label: 'Categoría', className: 'hidden md:table-cell' },
@@ -366,9 +515,39 @@ export function AdminMenu() {
                 { key: 'actions', label: 'Acciones' },
               ]}
             >
-              {products.map((p) => (
+              {sortedProducts.map((p, i) => (
                 <tr key={p.id} className="border-t hover:bg-gray-50">
                   <td className="p-2 sm:p-3">
+                    <div className="flex items-center gap-0.5">
+                      {canManageMenu && (
+                        <div className="hidden flex-col sm:flex">
+                          <button
+                            type="button"
+                            onClick={() => moveProduct(p, -1)}
+                            disabled={i === 0 || orderSavingId === p.id}
+                            className="rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-30"
+                            title="Subir posición"
+                          >
+                            <ArrowUp className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveProduct(p, 1)}
+                            disabled={i === sortedProducts.length - 1 || orderSavingId === p.id}
+                            className="rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-30"
+                            title="Bajar posición"
+                          >
+                            <ArrowDown className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      )}
+                      <ProductOrderCell
+                        product={p}
+                        canEdit={canManageMenu}
+                        onSave={saveProductOrder}
+                      />
+                    </div>
+                  </td>
                     {p.imageUrl ? (
                       <div className="relative inline-block">
                         <img src={p.imageUrl} alt="" className="h-8 w-8 rounded object-cover sm:h-10 sm:w-10" />
@@ -583,11 +762,15 @@ export function AdminMenu() {
                 onChange={(e) => {
                   const catId = e.target.value;
                   const catName = categories.find((c) => c.id === catId)?.name || '';
-                  setProdModal((m) => (
-                    m.id
-                      ? { ...m, categoryId: catId }
-                      : { ...m, categoryId: catId, ...defaultProductOptionsForCategory(catName) }
-                  ));
+                  setProdModal((m) => {
+                    if (m.id) return { ...m, categoryId: catId };
+                    return {
+                      ...m,
+                      categoryId: catId,
+                      displayOrder: nextProductDisplayOrder(products, catId),
+                      ...defaultProductOptionsForCategory(catName),
+                    };
+                  });
                 }}
                 className="w-full rounded-lg border px-3 py-2"
               >
@@ -599,7 +782,25 @@ export function AdminMenu() {
                 <input required type="number" value={prodModal.price} onChange={(e) => setProdModal({ ...prodModal, price: Number(e.target.value) })} placeholder="Precio" className="rounded-lg border px-3 py-2" />
                 <input type="number" value={prodModal.oldPrice || ''} onChange={(e) => setProdModal({ ...prodModal, oldPrice: Number(e.target.value) || null })} placeholder="Precio anterior" className="rounded-lg border px-3 py-2" />
               </div>
-              <input type="number" value={prodModal.displayOrder} onChange={(e) => setProdModal({ ...prodModal, displayOrder: Number(e.target.value) })} placeholder="Orden" className="w-full rounded-lg border px-3 py-2" />
+              <div className="admin-order-field">
+                <label htmlFor="prod-display-order" className="admin-order-field__label">
+                  Posición en el menú
+                </label>
+                <p className="admin-order-field__hint">
+                  1 = aparece primero en la tienda, 2 = segundo, 3 = tercero, etc.
+                </p>
+                <input
+                  id="prod-display-order"
+                  type="number"
+                  min={1}
+                  step={1}
+                  required
+                  value={prodModal.displayOrder || ''}
+                  onChange={(e) => setProdModal({ ...prodModal, displayOrder: Number(e.target.value) || '' })}
+                  placeholder="Ej: 1"
+                  className="admin-order-field__input"
+                />
+              </div>
               <ProductImagesEditor
                 imageUrls={prodModal.imageUrls || []}
                 onChange={(imageUrls) => setProdModal({ ...prodModal, imageUrls, imageUrl: imageUrls[0] || '' })}

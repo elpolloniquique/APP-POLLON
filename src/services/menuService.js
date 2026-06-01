@@ -142,10 +142,11 @@ function dedupeCategories(categories) {
       description: pick.description || other.description || '',
     });
   }
-  return [...byKey.values()].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
-}
-
-function productDedupeScore(p) {
+  return [...byKey.values()].sort((a, b) => {
+    const orderDiff = (a.displayOrder ?? 0) - (b.displayOrder ?? 0);
+    if (orderDiff !== 0) return orderDiff;
+    return (a.name || '').localeCompare(b.name || '', 'es');
+  });
   return (
     (p.imageUrl ? 0 : 10)
     + (p.available ? 0 : 5)
@@ -166,7 +167,19 @@ function dedupeProducts(products, categoryNameById = {}) {
       byKey.set(key, p);
     }
   }
-  return [...byKey.values()].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
+  return [...byKey.values()].sort((a, b) => {
+    const orderDiff = (a.displayOrder ?? 0) - (b.displayOrder ?? 0);
+    if (orderDiff !== 0) return orderDiff;
+    return (a.name || '').localeCompare(b.name || '', 'es');
+  });
+}
+
+function productDedupeScore(p) {
+  return (
+    (p.imageUrl ? 0 : 10)
+    + (p.available ? 0 : 5)
+    + (p.displayOrder ?? 0) * 0.01
+  );
 }
 
 function buildCategoryAliasMap(rawCategories, dedupedCategories) {
@@ -317,6 +330,50 @@ export async function adminListProducts(branchId, filters = {}) {
   return dedupeProducts(mapped, categoryNameById);
 }
 
+/** Actualiza solo la posición de un producto en el menú (1 = primero) */
+export async function adminSetProductDisplayOrder(productId, displayOrder, branchId, user) {
+  const order = Math.max(1, Math.floor(Number(displayOrder) || 1));
+  const { data, error } = await sb()
+    .from('products')
+    .update({ display_order: order })
+    .eq('id', productId)
+    .select()
+    .single();
+  if (error) throw error;
+  if (user) {
+    await logAudit({
+      user,
+      branchId,
+      entityType: 'product',
+      entityId: productId,
+      action: 'reorder',
+      newData: { display_order: order },
+    });
+  }
+  return mapProduct(data);
+}
+
+/** Asigna orden secuencial 1, 2, 3… a los productos de una categoría */
+export async function adminRenumberProductsInCategory(branchId, categoryId, user) {
+  const products = await adminListProducts(branchId, { categoryId });
+  await Promise.all(
+    products.map((p, i) =>
+      sb().from('products').update({ display_order: i + 1 }).eq('id', p.id),
+    ),
+  );
+  if (user && products.length) {
+    await logAudit({
+      user,
+      branchId,
+      entityType: 'product',
+      entityId: categoryId,
+      action: 'renumber_products',
+      newData: { count: products.length },
+    });
+  }
+  return products.length;
+}
+
 export async function adminUpsertProduct(product, user) {
   const name = (product.name || '').trim();
   if (!name) throw new Error('El nombre del producto es obligatorio');
@@ -350,7 +407,7 @@ export async function adminUpsertProduct(product, user) {
     is_available: product.available !== false,
     is_featured: !!product.isFeatured,
     is_promotion: !!product.isPromotion,
-    display_order: product.displayOrder ?? 0,
+    display_order: Math.max(1, Math.floor(Number(product.displayOrder) || 1)),
     preparation_time: product.preparationTime ?? 15,
     drink_enabled: !!product.drinkEnabled,
     drink_required: !!product.drinkRequired,
