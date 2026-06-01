@@ -95,7 +95,8 @@ export async function loadBranchMenu(branchId) {
       .select('*')
       .eq('branch_id', branchId)
       .eq('is_available', true)
-      .order('display_order', { ascending: true }),
+      .order('display_order', { ascending: true })
+      .order('name', { ascending: true }),
   ]);
   if (catsRes.error) throw catsRes.error;
   if (prodsRes.error) throw prodsRes.error;
@@ -120,6 +121,11 @@ export async function loadBranchMenu(branchId) {
     if (!productsByCategory[p.categoryId]) productsByCategory[p.categoryId] = [];
     productsByCategory[p.categoryId].push(p);
   });
+  const sortByOrder = (a, b) =>
+    (a.displayOrder ?? 0) - (b.displayOrder ?? 0) || (a.name || '').localeCompare(b.name || '', 'es');
+  categories.forEach((c) => {
+    if (productsByCategory[c.id]?.length) productsByCategory[c.id].sort(sortByOrder);
+  });
 
   return { categories, productsByCategory, products, source: 'supabase' };
 }
@@ -142,11 +148,10 @@ function dedupeCategories(categories) {
       description: pick.description || other.description || '',
     });
   }
-  return [...byKey.values()].sort((a, b) => {
-    const orderDiff = (a.displayOrder ?? 0) - (b.displayOrder ?? 0);
-    if (orderDiff !== 0) return orderDiff;
-    return (a.name || '').localeCompare(b.name || '', 'es');
-  });
+  return [...byKey.values()].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
+}
+
+function productDedupeScore(p) {
   return (
     (p.imageUrl ? 0 : 10)
     + (p.available ? 0 : 5)
@@ -167,18 +172,8 @@ function dedupeProducts(products, categoryNameById = {}) {
       byKey.set(key, p);
     }
   }
-  return [...byKey.values()].sort((a, b) => {
-    const orderDiff = (a.displayOrder ?? 0) - (b.displayOrder ?? 0);
-    if (orderDiff !== 0) return orderDiff;
-    return (a.name || '').localeCompare(b.name || '', 'es');
-  });
-}
-
-function productDedupeScore(p) {
-  return (
-    (p.imageUrl ? 0 : 10)
-    + (p.available ? 0 : 5)
-    + (p.displayOrder ?? 0) * 0.01
+  return [...byKey.values()].sort(
+    (a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0) || (a.name || '').localeCompare(b.name || '', 'es'),
   );
 }
 
@@ -290,6 +285,48 @@ export async function adminReorderCategory(id, displayOrder) {
   if (error) throw error;
 }
 
+function normalizeDisplayOrder(value, fallback = 1) {
+  const n = Math.floor(Number(value));
+  if (!Number.isFinite(n) || n < 1) return fallback;
+  return n;
+}
+
+/** Siguiente número de orden sugerido para una categoría */
+export async function adminSuggestProductDisplayOrder(branchId, categoryId) {
+  if (!branchId || !categoryId || !isSupabaseConfigured()) return 1;
+  const { data, error } = await sb()
+    .from('products')
+    .select('display_order')
+    .eq('branch_id', branchId)
+    .eq('category_id', categoryId)
+    .order('display_order', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return normalizeDisplayOrder((data?.display_order ?? 0) + 1, 1);
+}
+
+/** Actualiza solo el orden de un producto (desde la tabla admin) */
+export async function adminSetProductDisplayOrder(productId, displayOrder, user) {
+  const order = normalizeDisplayOrder(displayOrder, 1);
+  const { data, error } = await sb()
+    .from('products')
+    .update({ display_order: order })
+    .eq('id', productId)
+    .select('branch_id')
+    .single();
+  if (error) throw error;
+  await logAudit({
+    user,
+    branchId: data.branch_id,
+    entityType: 'product',
+    entityId: productId,
+    action: 'reorder',
+    newData: { display_order: order },
+  });
+  return order;
+}
+
 /** Admin: productos (sin duplicados por nombre en la misma categoría) */
 export async function adminListProducts(branchId, filters = {}) {
   if (!isSupabaseConfigured()) return [];
@@ -317,7 +354,7 @@ export async function adminListProducts(branchId, filters = {}) {
   if (filters.available === true) q = q.eq('is_available', true);
   if (filters.available === false) q = q.eq('is_available', false);
   if (filters.search) q = q.ilike('name', `%${filters.search}%`);
-  const { data, error } = await q.order('display_order', { ascending: true });
+  const { data, error } = await q.order('display_order', { ascending: true }).order('name', { ascending: true });
   if (error) throw error;
 
   const mapped = (data || []).map((r) => ({
@@ -328,50 +365,6 @@ export async function adminListProducts(branchId, filters = {}) {
     mapped.map((p) => [p.categoryId, (p.categoryName || '').trim().toLowerCase()]),
   );
   return dedupeProducts(mapped, categoryNameById);
-}
-
-/** Actualiza solo la posición de un producto en el menú (1 = primero) */
-export async function adminSetProductDisplayOrder(productId, displayOrder, branchId, user) {
-  const order = Math.max(1, Math.floor(Number(displayOrder) || 1));
-  const { data, error } = await sb()
-    .from('products')
-    .update({ display_order: order })
-    .eq('id', productId)
-    .select()
-    .single();
-  if (error) throw error;
-  if (user) {
-    await logAudit({
-      user,
-      branchId,
-      entityType: 'product',
-      entityId: productId,
-      action: 'reorder',
-      newData: { display_order: order },
-    });
-  }
-  return mapProduct(data);
-}
-
-/** Asigna orden secuencial 1, 2, 3… a los productos de una categoría */
-export async function adminRenumberProductsInCategory(branchId, categoryId, user) {
-  const products = await adminListProducts(branchId, { categoryId });
-  await Promise.all(
-    products.map((p, i) =>
-      sb().from('products').update({ display_order: i + 1 }).eq('id', p.id),
-    ),
-  );
-  if (user && products.length) {
-    await logAudit({
-      user,
-      branchId,
-      entityType: 'product',
-      entityId: categoryId,
-      action: 'renumber_products',
-      newData: { count: products.length },
-    });
-  }
-  return products.length;
 }
 
 export async function adminUpsertProduct(product, user) {
@@ -407,7 +400,7 @@ export async function adminUpsertProduct(product, user) {
     is_available: product.available !== false,
     is_featured: !!product.isFeatured,
     is_promotion: !!product.isPromotion,
-    display_order: Math.max(1, Math.floor(Number(product.displayOrder) || 1)),
+    display_order: normalizeDisplayOrder(product.displayOrder, 1),
     preparation_time: product.preparationTime ?? 15,
     drink_enabled: !!product.drinkEnabled,
     drink_required: !!product.drinkRequired,
@@ -453,6 +446,7 @@ export async function adminBulkPriceIncrease(branchId, percent, user) {
 export async function adminDuplicateProduct(productId, targetBranchId, targetCategoryId, user) {
   const { data: src, error } = await sb().from('products').select('*').eq('id', productId).single();
   if (error) throw error;
+  const nextOrder = await adminSuggestProductDisplayOrder(targetBranchId, targetCategoryId);
   const { data, error: insErr } = await sb().from('products').insert({
     branch_id: targetBranchId,
     category_id: targetCategoryId,
@@ -465,7 +459,7 @@ export async function adminDuplicateProduct(productId, targetBranchId, targetCat
     is_available: src.is_available,
     is_featured: false,
     is_promotion: false,
-    display_order: src.display_order,
+    display_order: nextOrder,
     preparation_time: src.preparation_time,
     drink_enabled: src.drink_enabled ?? false,
     drink_required: src.drink_required ?? false,
