@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { X, Minus, Plus, Check, ShoppingBag } from 'lucide-react';
+import { X, Minus, Plus, Check, ShoppingBag, AlertTriangle } from 'lucide-react';
 import { money } from '../../utils/format';
 import {
   calcBagQty,
@@ -28,6 +28,13 @@ function drinkValidationMessage(drinks) {
     return 'Primero elija el sabor de su bebida.';
   }
   return `Debe seleccionar el sabor de bebida de su plato ${idx + 1}.`;
+}
+
+function alertHeading(message) {
+  const m = String(message || '').toLowerCase();
+  if (m.includes('bebida') || m.includes('sabor')) return 'Bebida pendiente';
+  if (m.includes('bolsa')) return 'Opción requerida';
+  return 'Atención';
 }
 
 export function ProductModal({ product, category, categoryName = '', onClose, onAddOverride }) {
@@ -161,7 +168,13 @@ export function ProductModal({ product, category, categoryName = '', onClose, on
     <>
       {sideAlert && (
         <div className="product-modal-alert" role="alert" aria-live="assertive">
-          <p className="product-modal-alert__text">{sideAlert}</p>
+          <div className="product-modal-alert__icon-wrap" aria-hidden>
+            <AlertTriangle className="product-modal-alert__icon" strokeWidth={2.25} />
+          </div>
+          <div className="product-modal-alert__body">
+            <p className="product-modal-alert__title">{alertHeading(sideAlert)}</p>
+            <p className="product-modal-alert__text">{sideAlert}</p>
+          </div>
         </div>
       )}
 
