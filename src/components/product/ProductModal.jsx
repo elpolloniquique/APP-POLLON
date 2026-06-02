@@ -297,7 +297,7 @@ export function ProductModal({ product, category, categoryName = '', onClose, on
                     className="product-modal__qty-btn product-modal__qty-btn--minus"
                     aria-label="Menos"
                   >
-                    <Minus className="h-3.5 w-3.5" />
+                    <Minus className="h-4 w-4" strokeWidth={2.5} />
                   </button>
                   <span className="product-modal__qty-value">{qty}</span>
                   <button
@@ -306,7 +306,7 @@ export function ProductModal({ product, category, categoryName = '', onClose, on
                     className="product-modal__qty-btn product-modal__qty-btn--plus"
                     aria-label="Más"
                   >
-                    <Plus className="h-3.5 w-3.5" />
+                    <Plus className="h-4 w-4" strokeWidth={2.5} />
                   </button>
                 </div>
               </div>
