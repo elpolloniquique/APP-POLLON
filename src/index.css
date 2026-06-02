@@ -924,6 +924,71 @@
     background: #fff;
     box-shadow: 0 -8px 24px -8px rgb(0 0 0 / 0.08);
   }
+  .checkout-wa-btn {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 0.85rem;
+    border: none;
+    border-radius: 0.85rem;
+    background: linear-gradient(180deg, #2bd46d 0%, #25d366 48%, #1da851 100%);
+    padding: 0.85rem 1rem;
+    text-align: left;
+    color: #fff;
+    box-shadow:
+      0 4px 16px rgb(37 211 102 / 0.35),
+      inset 0 1px 0 rgb(255 255 255 / 0.2);
+    transition: filter 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
+    cursor: pointer;
+  }
+  .checkout-wa-btn:hover {
+    filter: brightness(1.04);
+    box-shadow:
+      0 6px 20px rgb(37 211 102 / 0.4),
+      inset 0 1px 0 rgb(255 255 255 / 0.25);
+  }
+  .checkout-wa-btn:active {
+    transform: scale(0.99);
+  }
+  .checkout-wa-btn__icon-wrap {
+    display: flex;
+    height: 2.75rem;
+    width: 2.75rem;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    background: rgb(255 255 255 / 0.2);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.15);
+  }
+  .checkout-wa-btn__icon {
+    height: 1.5rem;
+    width: 1.5rem;
+  }
+  .checkout-wa-btn__copy {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  .checkout-wa-btn__title {
+    font-size: 0.8125rem;
+    font-weight: 800;
+    line-height: 1.35;
+    letter-spacing: 0.01em;
+  }
+  @media (min-width: 640px) {
+    .checkout-wa-btn__title {
+      font-size: 0.875rem;
+    }
+  }
+  .checkout-wa-btn__hint {
+    font-size: 0.6875rem;
+    font-weight: 500;
+    line-height: 1.4;
+    color: rgb(255 255 255 / 0.88);
+  }
   .checkout-pay-btn {
     display: inline-flex;
     flex: 1;

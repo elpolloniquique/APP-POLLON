@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { X, CheckCircle, MessageCircle, Bike } from 'lucide-react';
+import { X, CheckCircle, Bike } from 'lucide-react';
+import { WhatsAppIcon } from '../ui/WhatsAppIcon';
 import { useCart } from '../../context/CartContext';
 import { useBranch } from '../../context/BranchContext';
 import { useAuth } from '../../context/AuthContext';
@@ -237,10 +238,19 @@ export function CheckoutModal() {
               <button
                 type="button"
                 onClick={handleWhatsApp}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] py-4 text-sm font-bold uppercase tracking-wide text-white shadow-md transition hover:bg-[#1fb855]"
+                className="checkout-wa-btn"
               >
-                <MessageCircle className="h-5 w-5" />
-                Enviar comprobante por WhatsApp
+                <span className="checkout-wa-btn__icon-wrap" aria-hidden>
+                  <WhatsAppIcon className="checkout-wa-btn__icon" />
+                </span>
+                <span className="checkout-wa-btn__copy">
+                  <span className="checkout-wa-btn__title">
+                    Enviar el detalle de mi pedido por WhatsApp
+                  </span>
+                  <span className="checkout-wa-btn__hint">
+                    Al enviar tendrás una atención más rápida y te contactarán de inmediato.
+                  </span>
+                </span>
               </button>
               {confirmedOrder.id && (
                 <Link

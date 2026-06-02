@@ -1,6 +1,7 @@
 import { Link, useLocation, useParams } from 'react-router-dom';
-import { CheckCircle, MessageCircle } from 'lucide-react';
+import { CheckCircle } from 'lucide-react';
 import { Button } from '../components/ui/Button';
+import { WhatsAppIcon } from '../components/ui/WhatsAppIcon';
 import { useBranch } from '../context/BranchContext';
 import { money, formatDateTime, buildWhatsappMessage } from '../utils/format';
 import * as orderService from '../services/orderService';
@@ -46,10 +47,17 @@ export function OrderSuccess() {
       )}
       <div className="mt-8 flex flex-wrap justify-center gap-3">
         {order && whatsapp && (
-          <Button onClick={handleWhatsApp} className="inline-flex items-center gap-2 bg-[#25D366] hover:bg-[#1fb855]">
-            <MessageCircle className="h-4 w-4" />
-            Enviar comprobante por WhatsApp
-          </Button>
+          <button type="button" onClick={handleWhatsApp} className="checkout-wa-btn max-w-md">
+            <span className="checkout-wa-btn__icon-wrap" aria-hidden>
+              <WhatsAppIcon className="checkout-wa-btn__icon" />
+            </span>
+            <span className="checkout-wa-btn__copy">
+              <span className="checkout-wa-btn__title">Enviar el detalle de mi pedido por WhatsApp</span>
+              <span className="checkout-wa-btn__hint">
+                Al enviar tendrás una atención más rápida y te contactarán de inmediato.
+              </span>
+            </span>
+          </button>
         )}
         {order?.id && (
           <Link to={`/cuenta/seguimiento/${order.id}`}><Button>Seguir mi pedido</Button></Link>
