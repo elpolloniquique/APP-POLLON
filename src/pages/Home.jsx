@@ -1,7 +1,7 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  Flame, MapPin, Phone, Clock, Bike, ChevronRight, Plus, Star, Shield, ChefHat,
+  Flame, MapPin, Phone, Clock, Bike, ChevronRight, ChevronLeft, Plus, Star, Shield, ChefHat,
   MapPinned, ShoppingBag, CreditCard, MessageCircle, PackageSearch,
   CheckCircle2, Truck, Radio, LogIn, ShoppingCart, Heart,
 } from 'lucide-react';
@@ -77,7 +77,22 @@ export function Home() {
   const { categories, productsByCategory, products: menuProducts } = useBranchMenu();
   const { bestsellers } = useBestsellers(branch?.id, menuProducts);
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const menuScrollRef = useRef(null);
+  const [canScrollMenuLeft, setCanScrollMenuLeft] = useState(false);
+  const [canScrollMenuRight, setCanScrollMenuRight] = useState(false);
   const location = useLocation();
+
+  const updateMenuScrollHints = useCallback(() => {
+    const el = menuScrollRef.current;
+    if (!el) return;
+    const maxScroll = el.scrollWidth - el.clientWidth;
+    setCanScrollMenuLeft(el.scrollLeft > 6);
+    setCanScrollMenuRight(maxScroll > 6 && el.scrollLeft < maxScroll - 6);
+  }, []);
+
+  const scrollMenuCategories = (direction) => {
+    menuScrollRef.current?.scrollBy({ left: direction * 150, behavior: 'smooth' });
+  };
 
   useEffect(() => {
     if (!location.hash) return undefined;
@@ -103,6 +118,20 @@ export function Home() {
     label: c.name,
     img: categoryExploreImage(c, productsByCategory),
   }));
+
+  useEffect(() => {
+    const timer = window.setTimeout(updateMenuScrollHints, 80);
+    const el = menuScrollRef.current;
+    if (!el) return () => window.clearTimeout(timer);
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(updateMenuScrollHints) : null;
+    ro?.observe(el);
+    window.addEventListener('resize', updateMenuScrollHints);
+    return () => {
+      window.clearTimeout(timer);
+      ro?.disconnect();
+      window.removeEventListener('resize', updateMenuScrollHints);
+    };
+  }, [categories.length, menuCircles.length, updateMenuScrollHints]);
 
   const openProductModal = (p) => {
     setSelectedProduct({ product: p, categoryId: p.categoryId });
@@ -287,30 +316,61 @@ export function Home() {
         </div>
       </section>
 
-      {/* EXPLORA MENÚ */}
-      <section className="py-14">
+      {/* Descubre nuestros platos — categorías */}
+      <section className="home-menu-discover py-14">
         <div className="mx-auto max-w-[1400px] px-4">
           <h2 className="mb-8 text-center font-display text-4xl text-pollon-black md:text-5xl">
-            EXPLORA NUESTRO <span className="text-pollon-red">MENÚ</span>
+            DESCUBRE NUESTROS <span className="text-pollon-red">PLATOS</span>
           </h2>
-          <div className="flex justify-center gap-6 overflow-x-auto pb-4 scrollbar-hide">
-            {menuCircles.length ? menuCircles.map((c) => (
-              <Link
-                key={c.id}
-                to={storeCategoryUrl(c.id, branch?.id)}
-                className="group flex w-28 shrink-0 flex-col items-center gap-3"
-              >
-                <div className="h-24 w-24 overflow-hidden rounded-full border-4 border-pollon-red/20 shadow-lg transition group-hover:border-pollon-red">
-                  <img src={c.img} alt={c.label} className="h-full w-full object-cover" onError={(e) => { e.target.src = '/img/todo el menu.png'; }} />
-                </div>
-                <span className="text-center text-xs font-bold uppercase tracking-wide text-gray-700">{c.label}</span>
-              </Link>
-            )) : (
-              <p className="text-center text-gray-500">
-                {branch ? 'Cargando categorías…' : (
-                  <>Elige tu <Link to="/sucursal" className="font-bold text-pollon-red underline">sucursal</Link> para ver el menú</>
-                )}
-              </p>
+          <div className="home-menu-discover__wrap">
+            <div className="home-menu-discover__fade home-menu-discover__fade--left" aria-hidden />
+            <div className="home-menu-discover__fade home-menu-discover__fade--right" aria-hidden />
+            <div
+              ref={menuScrollRef}
+              onScroll={updateMenuScrollHints}
+              className="home-menu-discover__track category-scroll-track scrollbar-hide"
+            >
+              {menuCircles.length ? menuCircles.map((c) => (
+                <Link
+                  key={c.id}
+                  to={storeCategoryUrl(c.id, branch?.id)}
+                  className="home-menu-discover__item group"
+                >
+                  <div className="home-menu-discover__circle">
+                    <img src={c.img} alt={c.label} className="h-full w-full object-cover" onError={(e) => { e.target.src = '/img/todo el menu.png'; }} />
+                  </div>
+                  <span className="home-menu-discover__label">{c.label}</span>
+                </Link>
+              )) : (
+                <p className="w-full py-6 text-center text-gray-500">
+                  {branch ? 'Cargando categorías…' : (
+                    <>Elige tu <Link to="/sucursal" className="font-bold text-pollon-red underline">sucursal</Link> para ver el menú</>
+                  )}
+                </p>
+              )}
+            </div>
+            {menuCircles.length > 1 && (
+              <div className="home-menu-discover__scroll-hints lg:hidden">
+                <button
+                  type="button"
+                  className="home-menu-discover__scroll-btn"
+                  aria-label="Desplazar categorías a la izquierda"
+                  disabled={!canScrollMenuLeft}
+                  onClick={() => scrollMenuCategories(-1)}
+                >
+                  <ChevronLeft className="h-4 w-4" strokeWidth={2.5} />
+                </button>
+                <span className="home-menu-discover__scroll-text">Desliza para explorar</span>
+                <button
+                  type="button"
+                  className="home-menu-discover__scroll-btn"
+                  aria-label="Desplazar categorías a la derecha"
+                  disabled={!canScrollMenuRight}
+                  onClick={() => scrollMenuCategories(1)}
+                >
+                  <ChevronRight className="h-4 w-4" strokeWidth={2.5} />
+                </button>
+              </div>
             )}
           </div>
         </div>
