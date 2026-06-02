@@ -20,6 +20,13 @@ import { money, resolveMediaUrl, storeCategoryUrl, resolveProductCategoryId } fr
 import { useBestsellers, BESTSELLERS_VISIBLE } from '../hooks/useBestsellers';
 import { AdminScrollPanel } from '../components/admin/AdminScrollPanel';
 
+const TRUST_BAR_ITEMS = [
+  { icon: Bike, label: 'Delivery rápido' },
+  { icon: Shield, label: 'Pago 100% seguro' },
+  { icon: ChefHat, label: 'Pollo fresco del día' },
+  { icon: MapPin, label: 'Atención multi-sucursal' },
+];
+
 const WHY_US = [
   { icon: ChefHat, title: 'Pollo fresco del día', desc: 'Marinado y cocinado al carbón cada día con receta peruana auténtica.' },
   { icon: Bike, title: 'Delivery rápido y seguro', desc: 'Llegamos caliente a tu puerta en Arica, Iquique y Alto Hospicio.' },
@@ -150,12 +157,16 @@ export function Home() {
       </section>
 
       {/* Barra de confianza bajo hero */}
-      <div className="border-b border-gray-200 bg-white py-4 shadow-sm">
-        <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-center gap-6 px-4 text-sm font-medium text-gray-700 md:gap-12">
-          <span className="flex items-center gap-2"><Bike className="h-5 w-5 text-pollon-red" /> Delivery rápido</span>
-          <span className="flex items-center gap-2"><Shield className="h-5 w-5 text-pollon-red" /> Pago 100% seguro</span>
-          <span className="flex items-center gap-2"><ChefHat className="h-5 w-5 text-pollon-red" /> Pollo fresco del día</span>
-          <span className="flex items-center gap-2"><MapPin className="h-5 w-5 text-pollon-red" /> Atención multi-sucursal</span>
+      <div className="home-trust-bar border-b border-gray-200 bg-white py-3 shadow-sm md:py-4">
+        <div className="home-trust-bar__fade home-trust-bar__fade--left" aria-hidden />
+        <div className="home-trust-bar__fade home-trust-bar__fade--right" aria-hidden />
+        <div className="home-trust-bar__track scrollbar-hide">
+          {TRUST_BAR_ITEMS.map(({ icon: Icon, label }) => (
+            <span key={label} className="home-trust-bar__item">
+              <Icon className="home-trust-bar__icon" strokeWidth={2} aria-hidden />
+              {label}
+            </span>
+          ))}
         </div>
       </div>
 
