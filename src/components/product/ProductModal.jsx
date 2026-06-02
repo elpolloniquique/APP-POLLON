@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { X, Minus, Plus, Check, ShoppingBag } from 'lucide-react';
-import { money, optimizeMediaUrl } from '../../utils/format';
+import { money } from '../../utils/format';
 import {
   calcBagQty,
   calcLineTotal,
@@ -11,12 +11,23 @@ import {
 } from '../../utils/productOptions';
 import { useCart } from '../../context/CartContext';
 
-const FALLBACK_IMG = '/img/todo el menu.png';
-
 function resizeDrinks(list, qty) {
   const next = [...(list || [])];
   while (next.length < qty) next.push('');
   return next.slice(0, qty);
+}
+
+function getMissingDrinkIndex(drinks) {
+  return drinks.findIndex((d) => !String(d || '').trim());
+}
+
+function drinkValidationMessage(drinks) {
+  const idx = getMissingDrinkIndex(drinks);
+  if (idx < 0) return null;
+  if (drinks.length <= 1) {
+    return 'Primero elija el sabor de su bebida.';
+  }
+  return `Debe seleccionar el sabor de bebida de su plato ${idx + 1}.`;
 }
 
 export function ProductModal({ product, category, categoryName = '', onClose, onAddOverride }) {
@@ -29,13 +40,9 @@ export function ProductModal({ product, category, categoryName = '', onClose, on
   const [qty, setQty] = useState(1);
   const [drinks, setDrinks] = useState(['']);
   const [bagSelected, setBagSelected] = useState(false);
-  const [validationMsg, setValidationMsg] = useState('');
+  const [sideAlert, setSideAlert] = useState('');
+  const [highlightDrinkIdx, setHighlightDrinkIdx] = useState(-1);
   const drinkSectionRef = useRef(null);
-
-  const heroImg = useMemo(
-    () => optimizeMediaUrl(product?.image || product?.imageUrl, { width: 640, quality: 82 }, FALLBACK_IMG),
-    [product?.image, product?.imageUrl],
-  );
 
   useEffect(() => {
     document.body.style.overflow = 'hidden';
@@ -46,13 +53,20 @@ export function ProductModal({ product, category, categoryName = '', onClose, on
     setQty(1);
     setDrinks(['']);
     setBagSelected(opts.bagRequired && opts.bagEnabled);
-    setValidationMsg('');
+    setSideAlert('');
+    setHighlightDrinkIdx(-1);
   }, [product?.id, opts.bagRequired, opts.bagEnabled]);
 
   useEffect(() => {
     setDrinks((prev) => resizeDrinks(prev, qty));
     if (opts.bagRequired && opts.bagEnabled) setBagSelected(true);
   }, [qty, opts.bagRequired, opts.bagEnabled]);
+
+  useEffect(() => {
+    if (!sideAlert) return undefined;
+    const t = window.setTimeout(() => setSideAlert(''), 4500);
+    return () => window.clearTimeout(t);
+  }, [sideAlert]);
 
   if (!product) return null;
 
@@ -66,14 +80,24 @@ export function ProductModal({ product, category, categoryName = '', onClose, on
     bagUnitsPerBag: opts.bagUnitsPerBag,
   });
 
-  const drinksValid = !opts.drinkEnabled || drinks.every((d) => d.trim());
-  const bagValid = !opts.bagEnabled || !opts.bagRequired || bagSelected;
   const hasCustomization = opts.drinkEnabled || opts.bagEnabled;
-  const drinkSectionHighlight = validationMsg && opts.drinkEnabled && !drinksValid;
+
+  const showSideAlert = (message) => {
+    setSideAlert(message);
+    if (opts.drinkEnabled) {
+      const idx = getMissingDrinkIndex(drinks);
+      setHighlightDrinkIdx(idx);
+      if (idx >= 0) {
+        drinkSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+  };
 
   const setQtySafe = (next) => {
     setQty(Math.max(1, next));
     if (opts.bagRequired) setBagSelected(true);
+    setSideAlert('');
+    setHighlightDrinkIdx(-1);
   };
 
   const setDrinkAt = (index, value) => {
@@ -82,21 +106,25 @@ export function ProductModal({ product, category, categoryName = '', onClose, on
       next[index] = value;
       return next;
     });
-    setValidationMsg('');
+    setSideAlert('');
+    setHighlightDrinkIdx(-1);
   };
 
   const handleAdd = () => {
-    if (opts.drinkEnabled && !drinks.every((d) => d.trim())) {
-      setValidationMsg('Primero debes seleccionar el sabor de tu bebida.');
-      drinkSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      return;
+    if (opts.drinkEnabled) {
+      const drinkMsg = drinkValidationMessage(drinks);
+      if (drinkMsg) {
+        showSideAlert(drinkMsg);
+        return;
+      }
     }
     if (opts.bagEnabled && opts.bagRequired && !bagSelected) {
-      setValidationMsg('Debes seleccionar la bolsa ecológica para continuar.');
+      showSideAlert('Debe seleccionar la bolsa ecológica para continuar.');
       return;
     }
 
-    setValidationMsg('');
+    setSideAlert('');
+    setHighlightDrinkIdx(-1);
     const drinkLabel = formatDrinksLabel(drinks);
     const payload = {
       producto_id: product.id,
@@ -118,7 +146,11 @@ export function ProductModal({ product, category, categoryName = '', onClose, on
     else {
       const r = addItem(payload);
       if (!r?.ok && r?.error) {
-        alert(r.error === 'branch_mismatch' ? 'Vacía el carrito para cambiar de sucursal' : r.error);
+        showSideAlert(
+          r.error === 'branch_mismatch'
+            ? 'Vacíe el carrito para cambiar de sucursal'
+            : 'No se pudo agregar al carrito',
+        );
         return;
       }
     }
@@ -126,204 +158,194 @@ export function ProductModal({ product, category, categoryName = '', onClose, on
   };
 
   return (
-    <div
-      className="product-modal-backdrop"
-      onClick={onClose}
-      role="presentation"
-    >
+    <>
+      {sideAlert && (
+        <div className="product-modal-alert" role="alert" aria-live="assertive">
+          <p className="product-modal-alert__text">{sideAlert}</p>
+        </div>
+      )}
+
       <div
-        className="product-modal"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-labelledby="product-modal-title"
+        className="product-modal-backdrop"
+        onClick={onClose}
+        role="presentation"
       >
-        <div className="product-modal__hero">
-          <img
-            src={heroImg}
-            alt=""
-            className="product-modal__hero-img"
-            onError={(e) => { e.currentTarget.src = FALLBACK_IMG; }}
-          />
-          <div className="product-modal__hero-overlay" aria-hidden />
-          <button
-            type="button"
-            onClick={onClose}
-            className="product-modal__close"
-            aria-label="Cerrar"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        <header className="product-modal__header">
-          <h2 id="product-modal-title" className="product-modal__title">
-            {product.name}
-          </h2>
-          {product.description && (
-            <p className="product-modal__subtitle">{product.description}</p>
-          )}
-          {hasCustomization && (
-            <p className="product-modal__hint">
-              <ShoppingBag className="inline h-3.5 w-3.5 -translate-y-px" aria-hidden />
-              {' '}Personaliza tu pedido antes de agregar
-            </p>
-          )}
-        </header>
-
-        <div className="product-modal__body admin-scroll-panel">
-          {opts.drinkEnabled && (
-            <section
-              ref={drinkSectionRef}
-              className={`product-modal__section ${drinkSectionHighlight ? 'product-modal__section--error' : ''}`}
-            >
-              <div className="product-modal__section-head">
-                <h3 className="product-modal__section-title">Bebidas</h3>
-                {opts.drinkRequired && (
-                  <span className="product-modal__required">Obligatorio</span>
-                )}
-              </div>
-              <p className="product-modal__section-desc">
-                Elige un sabor por cada unidad del pedido
-              </p>
-
-              {qty > 1 ? (
-                <div className="mt-3 space-y-4">
-                  {drinks.map((d, i) => (
-                    <div key={i} className="product-modal__unit-block">
-                      <p className="product-modal__unit-label">Unidad {i + 1}</p>
-                      <div className="product-modal__option-grid">
-                        {MODAL_DRINK_OPTIONS.map((option, idx) => (
-                          <DrinkOptionCard
-                            key={`${i}-${option}`}
-                            label={option}
-                            selected={d === option}
-                            onSelect={() => setDrinkAt(i, option)}
-                            fullWidth={idx === MODAL_DRINK_OPTIONS.length - 1 && MODAL_DRINK_OPTIONS.length % 2 !== 0}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="product-modal__option-grid mt-3">
-                  {MODAL_DRINK_OPTIONS.map((option, idx) => (
-                    <DrinkOptionCard
-                      key={option}
-                      label={option}
-                      selected={drinks[0] === option}
-                      onSelect={() => setDrinkAt(0, option)}
-                      fullWidth={idx === MODAL_DRINK_OPTIONS.length - 1 && MODAL_DRINK_OPTIONS.length % 2 !== 0}
-                    />
-                  ))}
-                </div>
+        <div
+          className="product-modal product-modal--compact"
+          onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-labelledby="product-modal-title"
+        >
+          <header className="product-modal__header product-modal__header--bar">
+            <div className="product-modal__header-text min-w-0 flex-1 pr-2">
+              <h2 id="product-modal-title" className="product-modal__title">
+                {product.name}
+              </h2>
+              {product.description && (
+                <p className="product-modal__subtitle line-clamp-2">{product.description}</p>
               )}
-            </section>
-          )}
-
-          {opts.bagEnabled && (
-            <section className="product-modal__section">
-              <div className="product-modal__section-head">
-                <h3 className="product-modal__section-title">Bolsa ecológica</h3>
-                {opts.bagRequired && (
-                  <span className="product-modal__required">Obligatorio</span>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  if (!opts.bagRequired) setBagSelected(!bagSelected);
-                  setValidationMsg('');
-                }}
-                className={`product-modal-option mt-2 w-full text-left ${bagSelected ? 'product-modal-option--active' : ''} ${opts.bagRequired ? 'cursor-default' : ''}`}
-              >
-                <span className={`product-modal-radio ${bagSelected ? 'product-modal-radio--active' : ''}`}>
-                  {bagSelected && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
-                </span>
-                <span className="flex flex-1 flex-col gap-0.5">
-                  <span className="text-sm font-bold text-pollon-black">
-                    Agregar bolsa (+ {money(opts.bagPrice)})
-                  </span>
-                  <span className="text-[11px] font-normal normal-case tracking-normal text-gray-500">
-                    {formatBagRatioLabel(opts.bagUnitsPerBag)}
-                    {bagSelected && bagQty > 0 && ` · ${bagQty} bolsa${bagQty !== 1 ? 's' : ''}`}
-                  </span>
-                </span>
-              </button>
-            </section>
-          )}
-
-          {!hasCustomization && !product.description && (
-            <p className="product-modal__empty-hint">Confirma cantidad y agrégalo a tu pedido</p>
-          )}
-        </div>
-
-        <footer className="product-modal__footer">
-          {validationMsg && (
-            <p className="product-modal__validation" role="alert">
-              {validationMsg}
-            </p>
-          )}
-          <div className="product-modal__qty-row">
-            <span className="product-modal__qty-label">Cantidad</span>
-            <div className="product-modal__qty">
-              <button
-                type="button"
-                onClick={() => setQtySafe(qty - 1)}
-                className="product-modal__qty-btn product-modal__qty-btn--minus"
-                aria-label="Menos"
-              >
-                <Minus className="h-4 w-4" />
-              </button>
-              <span className="product-modal__qty-value">{qty}</span>
-              <button
-                type="button"
-                onClick={() => setQtySafe(qty + 1)}
-                className="product-modal__qty-btn product-modal__qty-btn--plus"
-                aria-label="Más"
-              >
-                <Plus className="h-4 w-4" />
-              </button>
             </div>
-          </div>
-
-          <div className="product-modal__total-bar">
-            <div>
-              <p className="product-modal__total-label">Total</p>
-              <p className="product-modal__unit-hint">{money(unitPrice)} c/u · {qty} und.</p>
-            </div>
-            <p className="product-modal__total-value">{money(lineTotal)}</p>
-          </div>
-
-          <div className="product-modal__actions">
-            <button type="button" onClick={onClose} className="product-modal__btn product-modal__btn--ghost">
-              Cancelar
-            </button>
             <button
               type="button"
-              onClick={handleAdd}
-              className="product-modal__btn product-modal__btn--primary"
+              onClick={onClose}
+              className="product-modal__close product-modal__close--inline"
+              aria-label="Cerrar"
             >
-              Agregar al carrito
+              <X className="h-5 w-5" />
             </button>
+          </header>
+
+          {hasCustomization && (
+            <p className="product-modal__hint product-modal__hint--bar">
+              <ShoppingBag className="h-3.5 w-3.5 shrink-0" aria-hidden />
+              Personaliza tu pedido antes de agregar
+            </p>
+          )}
+
+          <div className="product-modal__body admin-scroll-panel">
+            {opts.drinkEnabled && (
+              <section ref={drinkSectionRef} className="product-modal__section product-modal__section--drinks">
+                <div className="product-modal__section-head">
+                  <h3 className="product-modal__section-title">Sabor de bebida</h3>
+                  <span className="product-modal__required">Obligatorio</span>
+                </div>
+                <p className="product-modal__section-desc">
+                  {qty > 1
+                    ? 'Elija un sabor para cada plato de su pedido'
+                    : 'Seleccione el sabor de su bebida 1.5 L'}
+                </p>
+
+                {qty > 1 ? (
+                  <div className="product-modal__units">
+                    {drinks.map((d, i) => (
+                      <div
+                        key={i}
+                        className={`product-modal__unit-block ${highlightDrinkIdx === i ? 'product-modal__unit-block--error' : ''}`}
+                      >
+                        <p className="product-modal__unit-label">Plato {i + 1}</p>
+                        <div className="product-modal__option-grid">
+                          {MODAL_DRINK_OPTIONS.map((option, idx) => (
+                            <DrinkOptionCard
+                              key={`${i}-${option}`}
+                              label={option}
+                              selected={d === option}
+                              onSelect={() => setDrinkAt(i, option)}
+                              compact
+                              fullWidth={idx === MODAL_DRINK_OPTIONS.length - 1 && MODAL_DRINK_OPTIONS.length % 2 !== 0}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="product-modal__option-grid">
+                    {MODAL_DRINK_OPTIONS.map((option, idx) => (
+                      <DrinkOptionCard
+                        key={option}
+                        label={option}
+                        selected={drinks[0] === option}
+                        onSelect={() => setDrinkAt(0, option)}
+                        compact
+                        fullWidth={idx === MODAL_DRINK_OPTIONS.length - 1 && MODAL_DRINK_OPTIONS.length % 2 !== 0}
+                      />
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {opts.bagEnabled && (
+              <section className="product-modal__section product-modal__section--bag">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!opts.bagRequired) setBagSelected(!bagSelected);
+                    setSideAlert('');
+                  }}
+                  className={`product-modal-option product-modal-option--compact w-full text-left ${bagSelected ? 'product-modal-option--active' : ''} ${opts.bagRequired ? 'cursor-default' : ''}`}
+                >
+                  <span className={`product-modal-radio ${bagSelected ? 'product-modal-radio--active' : ''}`}>
+                    {bagSelected && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
+                  </span>
+                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span className="text-xs font-bold text-pollon-black sm:text-sm">
+                      Bolsa ecológica (+ {money(opts.bagPrice)})
+                    </span>
+                    <span className="text-[10px] font-normal normal-case tracking-normal text-gray-500">
+                      {formatBagRatioLabel(opts.bagUnitsPerBag)}
+                      {bagSelected && bagQty > 0 && ` · ${bagQty} bolsa${bagQty !== 1 ? 's' : ''}`}
+                    </span>
+                  </span>
+                </button>
+              </section>
+            )}
+
+            {!hasCustomization && !product.description && (
+              <p className="product-modal__empty-hint">Confirma cantidad y agrégalo a tu pedido</p>
+            )}
           </div>
-        </footer>
+
+          <footer className="product-modal__footer product-modal__footer--compact">
+            <div className="product-modal__summary-row">
+              <div className="product-modal__summary-qty">
+                <span className="product-modal__summary-label">Cant.</span>
+                <div className="product-modal__qty product-modal__qty--compact">
+                  <button
+                    type="button"
+                    onClick={() => setQtySafe(qty - 1)}
+                    className="product-modal__qty-btn product-modal__qty-btn--minus"
+                    aria-label="Menos"
+                  >
+                    <Minus className="h-3.5 w-3.5" />
+                  </button>
+                  <span className="product-modal__qty-value">{qty}</span>
+                  <button
+                    type="button"
+                    onClick={() => setQtySafe(qty + 1)}
+                    className="product-modal__qty-btn product-modal__qty-btn--plus"
+                    aria-label="Más"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+              <div className="product-modal__summary-total">
+                <span className="product-modal__summary-total-label">Total</span>
+                <span className="product-modal__summary-total-value">{money(lineTotal)}</span>
+              </div>
+            </div>
+
+            <div className="product-modal__actions">
+              <button type="button" onClick={onClose} className="product-modal__btn product-modal__btn--ghost">
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleAdd}
+                className="product-modal__btn product-modal__btn--primary"
+              >
+                Agregar al carrito
+              </button>
+            </div>
+          </footer>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
-function DrinkOptionCard({ label, selected, onSelect, fullWidth = false }) {
+function DrinkOptionCard({ label, selected, onSelect, fullWidth = false, compact = false }) {
   return (
     <button
       type="button"
       onClick={onSelect}
-      className={`product-modal-option ${selected ? 'product-modal-option--active' : ''} ${fullWidth ? 'col-span-2' : ''}`}
+      className={`product-modal-option ${compact ? 'product-modal-option--compact' : ''} ${selected ? 'product-modal-option--active' : ''} ${fullWidth ? 'col-span-2' : ''}`}
     >
       <span className={`product-modal-radio ${selected ? 'product-modal-radio--active' : ''}`}>
-        {selected && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
+        {selected && <Check className="h-2.5 w-2.5 text-white sm:h-3 sm:w-3" strokeWidth={3} />}
       </span>
-      <span className="text-left text-xs font-bold uppercase tracking-wide text-pollon-black sm:text-sm">
+      <span className="min-w-0 text-left text-[10px] font-bold uppercase leading-tight tracking-wide text-pollon-black sm:text-xs">
         {label}
       </span>
     </button>
