@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { X, Minus, Plus } from 'lucide-react';
-import { money } from '../../utils/format';
+import { X, Minus, Plus, Check, ShoppingBag } from 'lucide-react';
+import { money, optimizeMediaUrl } from '../../utils/format';
 import {
   calcBagQty,
   calcLineTotal,
@@ -10,6 +10,8 @@ import {
   resolveProductOptions,
 } from '../../utils/productOptions';
 import { useCart } from '../../context/CartContext';
+
+const FALLBACK_IMG = '/img/todo el menu.png';
 
 function resizeDrinks(list, qty) {
   const next = [...(list || [])];
@@ -28,6 +30,11 @@ export function ProductModal({ product, category, categoryName = '', onClose, on
   const [drinks, setDrinks] = useState(['']);
   const [bagSelected, setBagSelected] = useState(false);
   const [notes, setNotes] = useState('');
+
+  const heroImg = useMemo(
+    () => optimizeMediaUrl(product?.image || product?.imageUrl, { width: 640, quality: 82 }, FALLBACK_IMG),
+    [product?.image, product?.imageUrl],
+  );
 
   useEffect(() => {
     document.body.style.overflow = 'hidden';
@@ -108,7 +115,7 @@ export function ProductModal({ product, category, categoryName = '', onClose, on
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-end justify-center bg-black/55 p-0 sm:items-center sm:p-4"
+      className="product-modal-backdrop"
       onClick={onClose}
       role="presentation"
     >
@@ -118,48 +125,61 @@ export function ProductModal({ product, category, categoryName = '', onClose, on
         role="dialog"
         aria-labelledby="product-modal-title"
       >
-        {/* Cabecera fija */}
-        <header className="product-modal__header">
+        <div className="product-modal__hero">
+          <img
+            src={heroImg}
+            alt=""
+            className="product-modal__hero-img"
+            onError={(e) => { e.currentTarget.src = FALLBACK_IMG; }}
+          />
+          <div className="product-modal__hero-overlay" aria-hidden />
           <button
             type="button"
             onClick={onClose}
-            className="absolute right-4 top-4 rounded-full p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+            className="product-modal__close"
             aria-label="Cerrar"
           >
             <X className="h-5 w-5" />
           </button>
-          <h2 id="product-modal-title" className="pr-8 text-lg font-bold leading-snug text-pollon-black sm:text-xl">
+          {categoryName && (
+            <span className="product-modal__category">{categoryName}</span>
+          )}
+        </div>
+
+        <header className="product-modal__header">
+          <h2 id="product-modal-title" className="product-modal__title">
             {product.name}
           </h2>
+          {product.description && (
+            <p className="product-modal__subtitle">{product.description}</p>
+          )}
           {hasCustomization && (
-            <p className="mt-2 text-sm font-bold text-pollon-red">Personaliza tu pedido</p>
+            <p className="product-modal__hint">
+              <ShoppingBag className="inline h-3.5 w-3.5 -translate-y-px" aria-hidden />
+              {' '}Personaliza tu pedido antes de agregar
+            </p>
           )}
         </header>
 
-        {/* Contenido con scroll interno */}
         <div className="product-modal__body admin-scroll-panel">
           {opts.drinkEnabled && (
-            <section className="pb-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-xs font-bold uppercase tracking-wide text-pollon-black">
-                  Bebidas — elija su sabor
-                </h3>
+            <section className="product-modal__section">
+              <div className="product-modal__section-head">
+                <h3 className="product-modal__section-title">Bebidas</h3>
                 {opts.drinkRequired && (
-                  <span className="rounded-md bg-pollon-red/10 px-2 py-0.5 text-[10px] font-bold uppercase text-pollon-red">
-                    Obligatorio
-                  </span>
+                  <span className="product-modal__required">Obligatorio</span>
                 )}
               </div>
-              <p className="mt-1.5 text-xs text-gray-500">
-                En esta categoría se agrega bebida 1 sabor por cada unidad
+              <p className="product-modal__section-desc">
+                Elige un sabor por cada unidad del pedido
               </p>
 
               {qty > 1 ? (
                 <div className="mt-3 space-y-4">
                   {drinks.map((d, i) => (
-                    <div key={i}>
-                      <p className="mb-1.5 text-[11px] font-semibold text-gray-600">Unidad {i + 1}</p>
-                      <div className="grid grid-cols-2 gap-2">
+                    <div key={i} className="product-modal__unit-block">
+                      <p className="product-modal__unit-label">Unidad {i + 1}</p>
+                      <div className="product-modal__option-grid">
                         {MODAL_DRINK_OPTIONS.map((option, idx) => (
                           <DrinkOptionCard
                             key={`${i}-${option}`}
@@ -174,7 +194,7 @@ export function ProductModal({ product, category, categoryName = '', onClose, on
                   ))}
                 </div>
               ) : (
-                <div className="mt-3 grid grid-cols-2 gap-2">
+                <div className="product-modal__option-grid mt-3">
                   {MODAL_DRINK_OPTIONS.map((option, idx) => (
                     <DrinkOptionCard
                       key={option}
@@ -190,105 +210,96 @@ export function ProductModal({ product, category, categoryName = '', onClose, on
           )}
 
           {opts.bagEnabled && (
-            <section className="pb-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-xs font-bold uppercase tracking-wide text-pollon-black">
-                  Bolsa ecológica
-                </h3>
+            <section className="product-modal__section">
+              <div className="product-modal__section-head">
+                <h3 className="product-modal__section-title">Bolsa ecológica</h3>
                 {opts.bagRequired && (
-                  <span className="rounded-md bg-pollon-red/10 px-2 py-0.5 text-[10px] font-bold uppercase text-pollon-red">
-                    Obligatorio
-                  </span>
+                  <span className="product-modal__required">Obligatorio</span>
                 )}
               </div>
               <button
                 type="button"
                 onClick={() => !opts.bagRequired && setBagSelected(!bagSelected)}
-                className={`product-modal-option mt-3 w-full text-left ${bagSelected ? 'product-modal-option--active' : ''} ${opts.bagRequired ? 'cursor-default' : ''}`}
+                className={`product-modal-option mt-2 w-full text-left ${bagSelected ? 'product-modal-option--active' : ''} ${opts.bagRequired ? 'cursor-default' : ''}`}
               >
-                <span className={`product-modal-radio ${bagSelected ? 'product-modal-radio--active' : ''}`} />
-                <span className="text-sm font-semibold uppercase tracking-wide text-pollon-black">
-                  Agregar bolsa (+ {money(opts.bagPrice)})
+                <span className={`product-modal-radio ${bagSelected ? 'product-modal-radio--active' : ''}`}>
+                  {bagSelected && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
+                </span>
+                <span className="flex flex-1 flex-col gap-0.5">
+                  <span className="text-sm font-bold text-pollon-black">
+                    Agregar bolsa (+ {money(opts.bagPrice)})
+                  </span>
+                  <span className="text-[11px] font-normal normal-case tracking-normal text-gray-500">
+                    {formatBagRatioLabel(opts.bagUnitsPerBag)}
+                    {bagSelected && bagQty > 0 && ` · ${bagQty} bolsa${bagQty !== 1 ? 's' : ''}`}
+                  </span>
                 </span>
               </button>
-              <p className="mt-2 text-[11px] leading-relaxed text-gray-500">
-                {opts.bagRequired ? (
-                  <>
-                    * Esta categoría requiere agregar bolsa. Costo por bolsa:{' '}
-                    <strong className="text-pollon-black">{money(opts.bagPrice)}</strong>.
-                    {' '}
-                    Regla: <strong className="text-pollon-black">{formatBagRatioLabel(opts.bagUnitsPerBag)}</strong>.
-                    {bagSelected && bagQty > 0 && (
-                      <> Se agregarán <strong>{bagQty} bolsa{bagQty !== 1 ? 's' : ''}</strong>.</>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    Costo por bolsa: <strong className="text-pollon-black">{money(opts.bagPrice)}</strong>.
-                    {' '}
-                    {formatBagRatioLabel(opts.bagUnitsPerBag)}.
-                    {bagSelected && bagQty > 0 && (
-                      <> Se sumarán <strong>{bagQty} bolsa{bagQty !== 1 ? 's' : ''}</strong> al total.</>
-                    )}
-                  </>
-                )}
-              </p>
             </section>
           )}
 
-          {!hasCustomization && product.description && (
-            <p className="pb-4 text-sm text-gray-600">{product.description}</p>
+          {!hasCustomization && !product.description && (
+            <p className="product-modal__empty-hint">Confirma cantidad y agrégalo a tu pedido</p>
           )}
 
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Observaciones (opcional)"
-            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
-            rows={2}
-          />
+          <div className="product-modal__section product-modal__section--notes">
+            <label htmlFor="product-notes" className="product-modal__section-title">
+              Observaciones <span className="font-normal text-gray-400">(opcional)</span>
+            </label>
+            <textarea
+              id="product-notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Ej: pollo trozado en 8 piezas, sin ají…"
+              className="product-modal__notes"
+              rows={2}
+            />
+          </div>
         </div>
 
-        {/* Pie fijo: cantidad, total y acciones */}
         <footer className="product-modal__footer">
-          <p className="text-sm font-bold text-pollon-black">Cantidad:</p>
-          <div className="mt-2 flex items-center gap-4">
-            <button
-              type="button"
-              onClick={() => setQtySafe(qty - 1)}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-200 text-gray-700 transition hover:bg-gray-300"
-              aria-label="Menos"
-            >
-              <Minus className="h-4 w-4" />
-            </button>
-            <span className="min-w-[2rem] text-center text-2xl font-bold text-pollon-black">{qty}</span>
-            <button
-              type="button"
-              onClick={() => setQtySafe(qty + 1)}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-pollon-red text-white shadow-md transition hover:bg-pollon-red-dark"
-              aria-label="Más"
-            >
-              <Plus className="h-4 w-4" />
-            </button>
+          <div className="product-modal__qty-row">
+            <span className="product-modal__qty-label">Cantidad</span>
+            <div className="product-modal__qty">
+              <button
+                type="button"
+                onClick={() => setQtySafe(qty - 1)}
+                className="product-modal__qty-btn product-modal__qty-btn--minus"
+                aria-label="Menos"
+              >
+                <Minus className="h-4 w-4" />
+              </button>
+              <span className="product-modal__qty-value">{qty}</span>
+              <button
+                type="button"
+                onClick={() => setQtySafe(qty + 1)}
+                className="product-modal__qty-btn product-modal__qty-btn--plus"
+                aria-label="Más"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            </div>
           </div>
-          <p className="mt-3 text-xl font-bold text-pollon-red">
-            Total: {money(lineTotal)}
-          </p>
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-full bg-gray-100 py-3.5 text-sm font-bold text-gray-800 transition hover:bg-gray-200"
-            >
+
+          <div className="product-modal__total-bar">
+            <div>
+              <p className="product-modal__total-label">Total</p>
+              <p className="product-modal__unit-hint">{money(unitPrice)} c/u · {qty} und.</p>
+            </div>
+            <p className="product-modal__total-value">{money(lineTotal)}</p>
+          </div>
+
+          <div className="product-modal__actions">
+            <button type="button" onClick={onClose} className="product-modal__btn product-modal__btn--ghost">
               Cancelar
             </button>
             <button
               type="button"
               onClick={handleAdd}
               disabled={!canAdd}
-              className="rounded-full bg-pollon-red py-3.5 text-sm font-bold text-white shadow-md transition hover:bg-pollon-red-dark disabled:cursor-not-allowed disabled:opacity-50"
+              className="product-modal__btn product-modal__btn--primary"
             >
-              Agregar al Carrito
+              Agregar al carrito
             </button>
           </div>
         </footer>
@@ -304,8 +315,10 @@ function DrinkOptionCard({ label, selected, onSelect, fullWidth = false }) {
       onClick={onSelect}
       className={`product-modal-option ${selected ? 'product-modal-option--active' : ''} ${fullWidth ? 'col-span-2' : ''}`}
     >
-      <span className={`product-modal-radio ${selected ? 'product-modal-radio--active' : ''}`} />
-      <span className="text-xs font-bold uppercase tracking-wide text-pollon-black sm:text-sm">
+      <span className={`product-modal-radio ${selected ? 'product-modal-radio--active' : ''}`}>
+        {selected && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
+      </span>
+      <span className="text-left text-xs font-bold uppercase tracking-wide text-pollon-black sm:text-sm">
         {label}
       </span>
     </button>
