@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { X, Minus, Plus, Check, ShoppingBag } from 'lucide-react';
 import { money, optimizeMediaUrl } from '../../utils/format';
 import {
@@ -29,7 +29,8 @@ export function ProductModal({ product, category, categoryName = '', onClose, on
   const [qty, setQty] = useState(1);
   const [drinks, setDrinks] = useState(['']);
   const [bagSelected, setBagSelected] = useState(false);
-  const [notes, setNotes] = useState('');
+  const [validationMsg, setValidationMsg] = useState('');
+  const drinkSectionRef = useRef(null);
 
   const heroImg = useMemo(
     () => optimizeMediaUrl(product?.image || product?.imageUrl, { width: 640, quality: 82 }, FALLBACK_IMG),
@@ -45,7 +46,7 @@ export function ProductModal({ product, category, categoryName = '', onClose, on
     setQty(1);
     setDrinks(['']);
     setBagSelected(opts.bagRequired && opts.bagEnabled);
-    setNotes('');
+    setValidationMsg('');
   }, [product?.id, opts.bagRequired, opts.bagEnabled]);
 
   useEffect(() => {
@@ -65,10 +66,10 @@ export function ProductModal({ product, category, categoryName = '', onClose, on
     bagUnitsPerBag: opts.bagUnitsPerBag,
   });
 
-  const drinksValid = !opts.drinkEnabled || !opts.drinkRequired || drinks.every((d) => d.trim());
+  const drinksValid = !opts.drinkEnabled || drinks.every((d) => d.trim());
   const bagValid = !opts.bagEnabled || !opts.bagRequired || bagSelected;
-  const canAdd = drinksValid && bagValid;
   const hasCustomization = opts.drinkEnabled || opts.bagEnabled;
+  const drinkSectionHighlight = validationMsg && opts.drinkEnabled && !drinksValid;
 
   const setQtySafe = (next) => {
     setQty(Math.max(1, next));
@@ -81,10 +82,21 @@ export function ProductModal({ product, category, categoryName = '', onClose, on
       next[index] = value;
       return next;
     });
+    setValidationMsg('');
   };
 
   const handleAdd = () => {
-    if (!canAdd) return;
+    if (opts.drinkEnabled && !drinks.every((d) => d.trim())) {
+      setValidationMsg('Primero debes seleccionar el sabor de tu bebida.');
+      drinkSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+    if (opts.bagEnabled && opts.bagRequired && !bagSelected) {
+      setValidationMsg('Debes seleccionar la bolsa ecológica para continuar.');
+      return;
+    }
+
+    setValidationMsg('');
     const drinkLabel = formatDrinksLabel(drinks);
     const payload = {
       producto_id: product.id,
@@ -98,7 +110,7 @@ export function ProductModal({ product, category, categoryName = '', onClose, on
       drink: opts.drinkEnabled ? drinkLabel : null,
       drinks: opts.drinkEnabled ? drinks.filter(Boolean) : [],
       bagQty: opts.bagEnabled ? bagQty : 0,
-      notes: notes.trim(),
+      notes: '',
       category,
       available: product.available !== false,
     };
@@ -141,9 +153,6 @@ export function ProductModal({ product, category, categoryName = '', onClose, on
           >
             <X className="h-5 w-5" />
           </button>
-          {categoryName && (
-            <span className="product-modal__category">{categoryName}</span>
-          )}
         </div>
 
         <header className="product-modal__header">
@@ -163,7 +172,10 @@ export function ProductModal({ product, category, categoryName = '', onClose, on
 
         <div className="product-modal__body admin-scroll-panel">
           {opts.drinkEnabled && (
-            <section className="product-modal__section">
+            <section
+              ref={drinkSectionRef}
+              className={`product-modal__section ${drinkSectionHighlight ? 'product-modal__section--error' : ''}`}
+            >
               <div className="product-modal__section-head">
                 <h3 className="product-modal__section-title">Bebidas</h3>
                 {opts.drinkRequired && (
@@ -219,7 +231,10 @@ export function ProductModal({ product, category, categoryName = '', onClose, on
               </div>
               <button
                 type="button"
-                onClick={() => !opts.bagRequired && setBagSelected(!bagSelected)}
+                onClick={() => {
+                  if (!opts.bagRequired) setBagSelected(!bagSelected);
+                  setValidationMsg('');
+                }}
                 className={`product-modal-option mt-2 w-full text-left ${bagSelected ? 'product-modal-option--active' : ''} ${opts.bagRequired ? 'cursor-default' : ''}`}
               >
                 <span className={`product-modal-radio ${bagSelected ? 'product-modal-radio--active' : ''}`}>
@@ -241,23 +256,14 @@ export function ProductModal({ product, category, categoryName = '', onClose, on
           {!hasCustomization && !product.description && (
             <p className="product-modal__empty-hint">Confirma cantidad y agrégalo a tu pedido</p>
           )}
-
-          <div className="product-modal__section product-modal__section--notes">
-            <label htmlFor="product-notes" className="product-modal__section-title">
-              Observaciones <span className="font-normal text-gray-400">(opcional)</span>
-            </label>
-            <textarea
-              id="product-notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Ej: pollo trozado en 8 piezas, sin ají…"
-              className="product-modal__notes"
-              rows={2}
-            />
-          </div>
         </div>
 
         <footer className="product-modal__footer">
+          {validationMsg && (
+            <p className="product-modal__validation" role="alert">
+              {validationMsg}
+            </p>
+          )}
           <div className="product-modal__qty-row">
             <span className="product-modal__qty-label">Cantidad</span>
             <div className="product-modal__qty">
@@ -296,7 +302,6 @@ export function ProductModal({ product, category, categoryName = '', onClose, on
             <button
               type="button"
               onClick={handleAdd}
-              disabled={!canAdd}
               className="product-modal__btn product-modal__btn--primary"
             >
               Agregar al carrito

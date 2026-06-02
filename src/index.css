@@ -653,6 +653,31 @@
   .product-modal__section--notes {
     background: #fff;
   }
+  .product-modal__section--error {
+    border-color: rgb(192 0 0 / 0.45);
+    background: rgb(254 242 242 / 0.9);
+    box-shadow: 0 0 0 1px rgb(192 0 0 / 0.12);
+    animation: product-modal-shake 0.4s ease;
+  }
+  @keyframes product-modal-shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-4px); }
+    40% { transform: translateX(4px); }
+    60% { transform: translateX(-3px); }
+    80% { transform: translateX(3px); }
+  }
+  .product-modal__validation {
+    margin-bottom: 0.65rem;
+    border-radius: 0.65rem;
+    border: 1px solid rgb(254 202 202);
+    background: rgb(254 242 242);
+    padding: 0.6rem 0.75rem;
+    text-align: center;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    line-height: 1.4;
+    color: #b91c1c;
+  }
   .product-modal__section-head {
     display: flex;
     flex-wrap: wrap;
@@ -855,11 +880,6 @@
   }
   .product-modal__btn--primary:hover:not(:disabled) {
     filter: brightness(1.05);
-  }
-  .product-modal__btn--primary:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-    box-shadow: none;
   }
   .product-modal-option {
     @apply flex items-center gap-3 rounded-xl border-2 border-gray-200/90 bg-white px-3.5 py-3 transition;
