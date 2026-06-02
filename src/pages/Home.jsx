@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import {
   Flame, MapPin, Phone, Clock, Bike, ChevronRight, Plus, Star, Shield, ChefHat,
   MapPinned, ShoppingBag, CreditCard, MessageCircle, PackageSearch,
-  CheckCircle2, Truck, Radio, LogIn, ShoppingCart,
+  CheckCircle2, Truck, Radio, LogIn, ShoppingCart, Heart,
 } from 'lucide-react';
 import { ORDER_STATUS_STEPS, ORDER_STATUS_LABELS } from '../utils/constants';
 import { SiteHeader } from '../components/layout/SiteHeader';
@@ -231,31 +231,35 @@ export function Home() {
               Ver todas →
             </Link>
           </div>
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="home-promo-grid">
             {promos.length ? promos.map((p, i) => {
               const categoryId = p.categoryId || resolveProductCategoryId(p, productsByCategory, categories);
               const categoryName = categories.find((c) => c.id === categoryId)?.name;
               return (
-              <article key={p.id || p.name + i} className="card-hover overflow-hidden rounded-2xl bg-white shadow-md ring-1 ring-gray-100">
-                <div className="relative aspect-[4/3]">
-                  <img src={imgSrc(p.image || p.imageUrl)} alt="" className="h-full w-full object-cover" onError={(e) => { e.target.src = '/img/todo el menu.png'; }} />
-                  <span className="absolute left-3 top-3 rounded-full bg-pollon-red px-2.5 py-1 text-[10px] font-bold text-white">
-                    Ahorra {15 + i * 5}%
+              <article key={p.id || p.name + i} className="home-promo-card">
+                <div className="home-promo-card__media">
+                  <img
+                    src={imgSrc(p.image || p.imageUrl)}
+                    alt={p.name}
+                    className="home-promo-card__img"
+                    loading="lazy"
+                    onError={(e) => { e.target.src = '/img/todo el menu.png'; }}
+                  />
+                  <span className="home-promo-card__favorite" title="Plato destacado" aria-label="Plato destacado">
+                    <Heart className="h-3.5 w-3.5 sm:h-4 sm:w-4" fill="currentColor" strokeWidth={0} />
                   </span>
                 </div>
-                <div className="p-4">
-                  <h3 className="font-bold uppercase tracking-wide text-pollon-black">{p.name}</h3>
-                  <p className="mt-1 line-clamp-2 text-xs text-gray-500">{p.description}</p>
+                <div className="home-promo-card__body">
+                  <h3 className="home-promo-card__title">{p.name}</h3>
+                  <p className="home-promo-card__desc">{p.description}</p>
                   {categoryName && (
-                    <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-pollon-red/80">
-                      {categoryName}
-                    </p>
+                    <p className="home-promo-card__cat">{categoryName}</p>
                   )}
-                  <div className="mt-3 flex items-center justify-between gap-2">
-                    <span className="font-display text-2xl text-pollon-gold">{money(p.price)}</span>
+                  <div className="home-promo-card__footer">
+                    <span className="home-promo-card__price">{money(p.price)}</span>
                     <Link
                       to={storeCategoryUrl(categoryId, branch?.id)}
-                      className="inline-flex shrink-0 items-center justify-center rounded-full bg-pollon-red px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-white shadow-md transition hover:bg-pollon-red-dark"
+                      className="home-promo-card__cta"
                       aria-label={categoryName ? `Ver más en ${categoryName}` : 'Ver más en el menú'}
                     >
                       Ver más
