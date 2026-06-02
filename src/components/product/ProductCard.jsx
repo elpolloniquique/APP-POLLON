@@ -13,14 +13,13 @@ export const ProductCard = memo(function ProductCard({ product, onSelect, priori
     [product.image, product.imageUrl, failed],
   );
 
+  const handleAddClick = (e) => {
+    e.stopPropagation();
+    onSelect?.(product);
+  };
+
   return (
-    <article
-      className="card-hover group flex cursor-pointer flex-col overflow-hidden rounded-2xl bg-white shadow-md ring-1 ring-gray-100"
-      onClick={() => onSelect(product)}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => e.key === 'Enter' && onSelect(product)}
-    >
+    <article className="card-hover group flex flex-col overflow-hidden rounded-2xl bg-white shadow-md ring-1 ring-gray-100">
       <div className="relative aspect-[4/3] overflow-hidden bg-gray-100">
         {!loaded && !failed && (
           <div className="product-card__skeleton absolute inset-0" aria-hidden />
@@ -49,17 +48,22 @@ export const ProductCard = memo(function ProductCard({ product, onSelect, priori
           </span>
         )}
       </div>
-      <div className="flex flex-1 flex-col p-4">
-        <h3 className="font-bold leading-tight text-pollon-black line-clamp-2">{product.name}</h3>
+      <div className="flex flex-1 flex-col p-3 sm:p-4">
+        <h3 className="font-bold leading-tight text-pollon-black line-clamp-2 text-sm sm:text-base">{product.name}</h3>
         {product.description && (
-          <p className="mt-1 line-clamp-2 text-xs text-gray-500">{product.description}</p>
+          <p className="mt-1 line-clamp-2 text-[11px] text-gray-500 sm:text-xs">{product.description}</p>
         )}
         <div className="mt-auto flex items-end justify-between gap-2 pt-3">
-          <span className="font-display text-xl text-pollon-gold sm:text-2xl">{money(product.price)}</span>
-          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-pollon-red px-3 py-2 text-xs font-bold text-white shadow-md transition group-hover:bg-pollon-red-dark sm:px-3.5 sm:text-sm">
+          <span className="font-display text-lg text-pollon-gold sm:text-xl xl:text-2xl">{money(product.price)}</span>
+          <button
+            type="button"
+            onClick={handleAddClick}
+            aria-label={`Agregar ${product.name} al carrito`}
+            className="inline-flex shrink-0 items-center gap-1 rounded-xl bg-pollon-red px-2.5 py-2 text-[11px] font-bold text-white shadow-md transition hover:bg-pollon-red-dark active:scale-[0.98] sm:gap-1.5 sm:px-3 sm:text-xs xl:px-3.5 xl:text-sm"
+          >
             <ShoppingCart className="h-3.5 w-3.5 sm:h-4 sm:w-4" strokeWidth={2.25} />
             Agregar
-          </span>
+          </button>
         </div>
       </div>
     </article>

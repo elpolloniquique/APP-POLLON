@@ -616,8 +616,29 @@
       width: 2.25rem;
     }
   }
-  .card-hover {
-    @apply transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg;
+  .store-product-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+  @media (min-width: 640px) {
+    .store-product-grid {
+      gap: 1rem;
+    }
+  }
+  /* PC ~10" y laptops pequeñas */
+  @media (min-width: 1024px) {
+    .store-product-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 1rem;
+    }
+  }
+  /* PC escritorio amplio */
+  @media (min-width: 1280px) {
+    .store-product-grid {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 1rem;
+    }
   }
 }
 

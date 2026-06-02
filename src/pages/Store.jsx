@@ -166,7 +166,7 @@ export function Store() {
         ) : allFiltered?.length ? (
           <>
             <h2 className="mb-4 text-xl font-bold">Resultados: &quot;{search}&quot;</h2>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="store-product-grid">
               {allFiltered.map((p, i) => (
                 <ProductCard
                   key={p.id}
@@ -182,7 +182,7 @@ export function Store() {
             {!hasCategoryFocus && (
               <h2 className="mb-6 font-display text-3xl text-pollon-black">{currentCat?.name}</h2>
             )}
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="store-product-grid">
               {currentProducts.map((p, i) => (
                 <ProductCard
                   key={p.id}
