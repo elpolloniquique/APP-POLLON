@@ -1,14 +1,17 @@
 {
   "name": "Pollería El Pollón",
   "short_name": "El Pollón",
-  "description": "Pedidos online, delivery y reservas — Pollería El Pollón Chile",
-  "start_url": "/",
+  "description": "Pollo a la brasa, delivery y pedidos online — Arica, Iquique y Alto Hospicio",
+  "id": "https://el-pollon.cl/",
+  "start_url": "https://el-pollon.cl/",
+  "scope": "https://el-pollon.cl/",
   "display": "standalone",
   "background_color": "#0f0f0f",
   "theme_color": "#c41e1e",
   "lang": "es-CL",
+  "categories": ["food", "shopping"],
   "icons": [
-    { "src": "/img/logo.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/img/logo pollon.png", "sizes": "512x512", "type": "image/png" }
+    { "src": "/img/logo.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/img/logo pollon.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ]
 }

@@ -34,7 +34,7 @@ export function SiteFooter() {
       <div className="mx-auto max-w-[1400px] px-4 py-12">
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-5">
           <div className="sm:col-span-2 lg:col-span-1">
-            <img src="/img/logo pollon.png" alt="" className="mb-4 h-14 w-14 rounded-full bg-white object-contain p-1" />
+            <img src="/img/logo pollon.png" alt="Pollería El Pollón — pollo a la brasa" className="mb-4 h-14 w-14 rounded-full bg-white object-contain p-1" />
             <h3 className="font-display text-2xl text-pollon-gold">EL POLLÓN</h3>
             <p className="mt-2 text-sm text-white/60">
               El auténtico sabor del pollo a la brasa peruano en el norte de Chile.

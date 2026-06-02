@@ -1,0 +1,20 @@
+# Pollería El Pollón — https://el-pollon.cl
+# Configuración para motores de búsqueda
+
+User-agent: *
+Allow: /
+Allow: /tienda
+Allow: /sucursal
+Allow: /terminos
+Allow: /libro-reclamaciones
+
+# Áreas privadas o transaccionales (no indexar)
+Disallow: /admin
+Disallow: /admin/
+Disallow: /cuenta
+Disallow: /cuenta/
+Disallow: /checkout
+Disallow: /pedido/
+
+# Sitemap oficial
+Sitemap: https://el-pollon.cl/sitemap.xml

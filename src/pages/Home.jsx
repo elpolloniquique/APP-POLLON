@@ -145,6 +145,7 @@ export function Home() {
       <WhatsAppFab />
 
       {/* HERO */}
+      <main id="contenido-principal">
       <section className="relative min-h-[520px] overflow-hidden md:min-h-[580px]">
         <div
           className="absolute inset-0 bg-cover bg-center"
@@ -160,7 +161,7 @@ export function Home() {
             EL SABOR QUE<br /><span className="text-pollon-gold">TE ENCANTA</span>
           </h1>
           <p className="mt-4 max-w-xl text-base text-white/85 md:text-lg">
-            Pollo a la brasa peruano, delivery y retiro en múltiples sucursales del norte de Chile.
+            Pollo a la brasa peruano en Arica, Iquique y Alto Hospicio. Delivery rápido, menú online y pedidos por web en Pollería El Pollón.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link
@@ -663,6 +664,7 @@ export function Home() {
           </div>
         </div>
       </section>
+      </main>
 
       {selectedProduct && (
         <ProductModal
