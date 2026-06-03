@@ -4,6 +4,7 @@ import { BranchMenuProvider } from './context/BranchMenuContext';
 import { AuthProvider } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
 import { SeoManager } from './components/seo/SeoManager';
+import { PollitoBotGate } from './components/chat/PollitoBotGate';
 import { AppRoutes } from './routes/AppRoutes';
 
 export default function App() {
@@ -15,6 +16,7 @@ export default function App() {
             <BranchMenuProvider>
               <SeoManager />
               <AppRoutes />
+              <PollitoBotGate />
             </BranchMenuProvider>
           </CartProvider>
         </AuthProvider>
