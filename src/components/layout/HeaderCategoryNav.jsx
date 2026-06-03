@@ -70,13 +70,13 @@ export function HeaderCategoryNav({ items }) {
             className="header-category-nav__arrow"
             aria-label="Categorías anteriores"
           >
-            <ChevronLeft className="h-5 w-5" strokeWidth={2.5} />
+            <ChevronLeft className="h-4 w-4" strokeWidth={2.5} />
           </button>
         </div>
 
         <div
           ref={trackRef}
-          className="header-category-nav__track category-scroll-track flex gap-1 overflow-x-auto overflow-y-hidden py-2 pl-1 pr-1 scrollbar-hide scroll-smooth"
+          className="header-category-nav__track category-scroll-track flex gap-0.5 overflow-x-auto overflow-y-hidden pl-1 pr-1 scrollbar-hide scroll-smooth"
         >
           {items.map((item) => {
             const active = isNavActive(item, location);
@@ -85,9 +85,9 @@ export function HeaderCategoryNav({ items }) {
                 key={item.categoryId || 'inicio'}
                 to={item.path}
                 data-nav-active={active ? 'true' : 'false'}
-                className={`font-brand shrink-0 whitespace-nowrap px-4 py-2.5 text-sm font-bold antialiased transition sm:text-base xl:px-5 xl:text-[17px] ${
+                className={`header-category-nav__link font-brand shrink-0 whitespace-nowrap font-bold antialiased transition ${
                   active
-                    ? 'rounded-md bg-zinc-800 text-white shadow-sm ring-1 ring-white/15'
+                    ? 'header-category-nav__link--active'
                     : 'text-white hover:bg-white/10 hover:text-white'
                 }`}
               >
@@ -110,7 +110,7 @@ export function HeaderCategoryNav({ items }) {
             className="header-category-nav__arrow"
             aria-label="Más categorías"
           >
-            <ChevronRight className="h-5 w-5" strokeWidth={2.5} />
+            <ChevronRight className="h-4 w-4" strokeWidth={2.5} />
           </button>
         </div>
       </div>

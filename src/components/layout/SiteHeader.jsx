@@ -213,9 +213,9 @@ export function SiteHeader({ onOpenCart, variant = 'full' }) {
   };
 
   const statusBadgeClass = (mobile) =>
-    `shrink-0 rounded-full font-extrabold uppercase tracking-wide ${
+    `header-top-bar__status shrink-0 rounded-full font-extrabold uppercase tracking-wide ${
       isOpen ? 'bg-[#4ade80] text-black shadow-sm' : 'bg-white/20 text-white'
-    } ${mobile ? 'px-2.5 py-1 text-[11px]' : 'px-5 py-1.5 text-sm'}`;
+    } ${mobile ? 'header-top-bar__status--mobile' : ''}`;
 
   const syncBranchUrl = useCallback((b) => {
     if (!b?.id || location.pathname !== '/tienda') return;
@@ -247,7 +247,7 @@ export function SiteHeader({ onOpenCart, variant = 'full' }) {
 
         {/* ═══════════════ MÓVIL: barra superior ═══════════════ */}
         <div className="bg-pollon-red text-white lg:hidden">
-          <div className="flex items-center justify-between gap-1.5 px-3 py-2.5 text-xs leading-snug sm:text-sm">
+          <div className="header-top-bar flex items-center justify-between gap-1.5 px-3 text-xs leading-snug sm:text-[13px]">
             <div className="flex min-w-0 shrink-0 items-center gap-1.5 tabular-nums font-medium">
               <span className="capitalize">{dateStrMobile}</span>
               <span className="text-white/50">|</span>
@@ -264,7 +264,7 @@ export function SiteHeader({ onOpenCart, variant = 'full' }) {
 
         {/* ═══════════════ PC: barra superior ═══════════════ */}
         <div className="hidden bg-pollon-red text-white lg:block">
-          <div className="mx-auto flex max-w-[1400px] items-center justify-between gap-3 px-4 py-2.5 text-sm font-medium">
+          <div className="header-top-bar mx-auto flex max-w-[1400px] items-center justify-between gap-3 px-4 text-[13px] font-medium lg:text-sm">
             <div className="flex items-center gap-3">
               <span className="capitalize">{dateStrDesktop}</span>
               <span className="text-white/40">|</span>
