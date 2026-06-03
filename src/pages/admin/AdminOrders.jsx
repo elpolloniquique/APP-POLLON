@@ -3,7 +3,7 @@ import { Eye, Printer, RefreshCw } from 'lucide-react';
 import { useOrders } from '../../hooks/useOrders';
 import { useStaffBranch } from '../../hooks/useStaffBranch';
 import { useAdminBranchFilter } from '../../hooks/useAdminBranchFilter';
-import { money, formatDateTime, nextEstado, estadoLabel } from '../../utils/format';
+import { money, formatDateTime, nextEstado, estadoLabel, todayISO } from '../../utils/format';
 import { printThermalReceipt } from '../../utils/orderReceipt';
 import { adminListAllBranches } from '../../services/branchService';
 import { Badge } from '../../components/ui/Badge';
@@ -29,10 +29,19 @@ export function AdminOrders() {
   const ordersScoped = useMemo(() => applyBranchFilter(orders), [orders, applyBranchFilter]);
   const [estado, setEstado] = useState('');
   const [search, setSearch] = useState('');
-  const [desde, setDesde] = useState('');
-  const [hasta, setHasta] = useState('');
+  const [desde, setDesde] = useState(() => todayISO());
+  const [hasta, setHasta] = useState(() => todayISO());
   const [viewOrder, setViewOrder] = useState(null);
   const [branches, setBranches] = useState([]);
+
+  const today = todayISO();
+  const showingTodayOnly = desde === today && hasta === today;
+  const showingAllDays = !desde && !hasta;
+
+  const resetToToday = () => {
+    setDesde(todayISO());
+    setHasta(todayISO());
+  };
 
   useEffect(() => {
     if (showBranchFilter) {
@@ -128,9 +137,22 @@ export function AdminOrders() {
         )}
       />
 
-      <div className="admin-toolbar">
-        <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} className="w-full min-w-[130px] flex-1 sm:w-auto sm:flex-none" />
-        <input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} className="w-full min-w-[130px] flex-1 sm:w-auto sm:flex-none" />
+      <div className="admin-toolbar admin-toolbar--orders">
+        <div className="admin-toolbar__dates">
+          <label className="admin-toolbar__date-field">
+            <span className="admin-toolbar__date-label">Desde</span>
+            <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+          </label>
+          <label className="admin-toolbar__date-field">
+            <span className="admin-toolbar__date-label">Hasta</span>
+            <input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
+          </label>
+          {!showingTodayOnly && (
+            <button type="button" onClick={resetToToday} className="admin-toolbar__today-btn">
+              Hoy
+            </button>
+          )}
+        </div>
         <select value={estado} onChange={(e) => setEstado(e.target.value)} className="w-full sm:w-auto">
           <option value="">Todos los estados</option>
           {ORDER_STATES.map((s) => <option key={s} value={s}>{estadoLabel(s)}</option>)}
@@ -140,6 +162,14 @@ export function AdminOrders() {
           {alarmOn ? '🔔 Alarma ON' : '🔕 OFF'}
         </button>
       </div>
+
+      <p className="admin-orders-filter-hint">
+        {showingAllDays
+          ? 'Mostrando pedidos de todos los días. Elige fechas arriba para filtrar por rango.'
+          : showingTodayOnly
+            ? 'Mostrando pedidos de hoy. Cambia las fechas para ver otro día o un rango.'
+            : `Mostrando del ${desde.split('-').reverse().join('-')} al ${hasta.split('-').reverse().join('-')}.`}
+      </p>
 
       <AdminTable
         count={filtered.length}

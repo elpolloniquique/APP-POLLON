@@ -1,15 +1,45 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useStaffBranch } from '../../hooks/useStaffBranch';
 import { ADMIN_NAV } from '../../utils/constants';
 import { LogOut, Menu, X } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+
+function useMediaQuery(query) {
+  const [matches, setMatches] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia(query).matches,
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const onChange = () => setMatches(mq.matches);
+    onChange();
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, [query]);
+
+  return matches;
+}
 
 export function AdminLayout() {
   const { profile, signOut, can, role } = useAuth();
   const { branchName, isBranchScoped, branchId } = useStaffBranch();
   const navigate = useNavigate();
+  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const isMobile = useMediaQuery('(max-width: 767px)');
+  /** Laptops ~11" (768px–1279px): drawer solo en Pedidos para ganar espacio a la tabla */
+  const isCompactLaptop = useMediaQuery('(min-width: 768px) and (max-width: 1279px)');
+  const isOrdersPage = location.pathname.startsWith('/admin/pedidos');
+  const compactOrdersMode = isCompactLaptop && isOrdersPage;
+  const useDrawerSidebar = isMobile || compactOrdersMode;
+
+  useEffect(() => {
+    if (compactOrdersMode) {
+      setSidebarOpen(false);
+    }
+  }, [compactOrdersMode, location.pathname]);
 
   const nav = ADMIN_NAV.filter((n) => can(n.perm));
 
@@ -27,13 +57,14 @@ export function AdminLayout() {
     navigate('/admin/login');
   };
 
+  const closeSidebar = () => setSidebarOpen(false);
+
   return (
     <div className="flex min-h-[100dvh] bg-gray-100">
-      {/* Sidebar — drawer móvil / fijo tablet+ */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-[min(100%,17rem)] flex-col bg-pollon-black text-white shadow-xl transition-transform duration-200 md:static md:z-auto md:w-56 md:shrink-0 md:translate-x-0 lg:w-64 ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
+        className={`fixed inset-y-0 left-0 z-50 flex w-[min(100%,17rem)] flex-col bg-pollon-black text-white shadow-xl transition-transform duration-200 ${
+          useDrawerSidebar && !sidebarOpen ? '-translate-x-full' : 'translate-x-0'
+        } ${!useDrawerSidebar ? 'md:static md:z-auto md:w-56 md:shrink-0 md:translate-x-0 lg:w-64' : ''}`}
       >
         <div className="flex items-center justify-between gap-3 border-b border-white/10 p-3 sm:p-4">
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
@@ -43,14 +74,16 @@ export function AdminLayout() {
               <p className="text-[10px] text-white/60 sm:text-xs">Panel administrativo</p>
             </div>
           </div>
-          <button
-            type="button"
-            className="rounded-lg p-1.5 hover:bg-white/10 md:hidden"
-            onClick={() => setSidebarOpen(false)}
-            aria-label="Cerrar menú"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          {useDrawerSidebar && (
+            <button
+              type="button"
+              className="rounded-lg p-1.5 hover:bg-white/10"
+              onClick={closeSidebar}
+              aria-label="Cerrar menú"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          )}
         </div>
 
         <nav className="flex-1 overflow-y-auto p-2 admin-scroll-panel">
@@ -59,7 +92,7 @@ export function AdminLayout() {
               key={item.id}
               to={item.path}
               end={item.path === '/admin'}
-              onClick={() => setSidebarOpen(false)}
+              onClick={() => { if (useDrawerSidebar) closeSidebar(); }}
               className={({ isActive }) =>
                 `mb-0.5 block rounded-xl px-3 py-2 text-sm font-medium transition sm:px-4 sm:py-2.5 ${
                   isActive ? 'bg-pollon-red text-white' : 'text-white/80 hover:bg-white/10'
@@ -89,26 +122,27 @@ export function AdminLayout() {
         </div>
       </aside>
 
-      {sidebarOpen && (
+      {sidebarOpen && useDrawerSidebar && (
         <button
           type="button"
-          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-[1px] md:hidden"
-          onClick={() => setSidebarOpen(false)}
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-[1px]"
+          onClick={closeSidebar}
           aria-label="Cerrar menú"
         />
       )}
 
-      {/* Contenido principal */}
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex shrink-0 items-center gap-3 border-b bg-white px-3 py-2.5 shadow-sm sm:px-4 sm:py-3">
-          <button
-            type="button"
-            className="rounded-lg p-1.5 hover:bg-gray-100 md:hidden"
-            onClick={() => setSidebarOpen(true)}
-            aria-label="Abrir menú"
-          >
-            <Menu className="h-6 w-6" />
-          </button>
+          {useDrawerSidebar && (
+            <button
+              type="button"
+              className="rounded-lg p-1.5 hover:bg-gray-100"
+              onClick={() => setSidebarOpen(true)}
+              aria-label="Abrir menú"
+            >
+              <Menu className="h-6 w-6" />
+            </button>
+          )}
           <h1 className="min-w-0 truncate text-base font-bold text-pollon-black sm:text-lg">Administración</h1>
         </header>
 
