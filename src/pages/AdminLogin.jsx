@@ -70,15 +70,11 @@ export function AdminLogin() {
         <h1 className="mt-4 text-center font-display text-3xl">Acceso personal</h1>
         <p className="text-center text-sm text-gray-500">Panel administrativo — solo personal autorizado</p>
 
-        {!isSupabaseConfigured() ? (
+        {!isSupabaseConfigured() && (
           <div className="mt-4 rounded-lg bg-amber-50 p-3 text-xs text-amber-900">
             <p className="font-semibold">Modo local (sin Supabase)</p>
             <p className="mt-1">Contraseña: <strong>{LEGACY_ADMIN_PASSWORD}</strong></p>
           </div>
-        ) : (
-          <p className="mt-4 rounded-lg bg-blue-50 p-3 text-xs text-blue-800">
-            Usa tu usuario de personal creado en Supabase Auth con rol asignado en la tabla <code>profiles</code>.
-          </p>
         )}
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
