@@ -27,8 +27,8 @@ export function AdminTable({
 
       {total > 0 ? (
         <AdminScrollPanel maxRows={maxRows} variant="table" className="rounded-none border-0 shadow-none">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm" style={{ minWidth }}>
+          <div className="admin-table-scroll overflow-x-auto">
+            <table className="admin-data-table w-full text-left text-sm" style={{ minWidth }}>
               <thead className="sticky top-0 z-10 bg-gray-50 text-xs uppercase shadow-sm">
                 <tr>
                   {columns.map((col) => {

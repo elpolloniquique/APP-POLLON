@@ -1,25 +1,10 @@
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useStaffBranch } from '../../hooks/useStaffBranch';
+import { useCompactAdmin } from '../../hooks/useCompactAdmin';
 import { ADMIN_NAV } from '../../utils/constants';
 import { LogOut, Menu, X } from 'lucide-react';
-import { useState, useEffect } from 'react';
-
-function useMediaQuery(query) {
-  const [matches, setMatches] = useState(() =>
-    typeof window !== 'undefined' && window.matchMedia(query).matches,
-  );
-
-  useEffect(() => {
-    const mq = window.matchMedia(query);
-    const onChange = () => setMatches(mq.matches);
-    onChange();
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
-  }, [query]);
-
-  return matches;
-}
+import { useState, useEffect, useMemo } from 'react';
 
 export function AdminLayout() {
   const { profile, signOut, can, role } = useAuth();
@@ -27,21 +12,24 @@ export function AdminLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { isCompact, isMobile, useDrawerSidebar } = useCompactAdmin();
 
-  const isMobile = useMediaQuery('(max-width: 767px)');
-  /** Laptops ~11" (768px–1279px): drawer solo en Pedidos para ganar espacio a la tabla */
-  const isCompactLaptop = useMediaQuery('(min-width: 768px) and (max-width: 1279px)');
-  const isOrdersPage = location.pathname.startsWith('/admin/pedidos');
-  const compactOrdersMode = isCompactLaptop && isOrdersPage;
-  const useDrawerSidebar = isMobile || compactOrdersMode;
+  const nav = useMemo(() => ADMIN_NAV.filter((n) => can(n.perm)), [can, role]);
+
+  const currentPageLabel = useMemo(() => {
+    const match = nav.find((item) =>
+      item.path === '/admin'
+        ? location.pathname === '/admin'
+        : location.pathname.startsWith(item.path),
+    );
+    return match?.label || 'Administración';
+  }, [nav, location.pathname]);
 
   useEffect(() => {
-    if (compactOrdersMode) {
+    if (useDrawerSidebar) {
       setSidebarOpen(false);
     }
-  }, [compactOrdersMode, location.pathname]);
-
-  const nav = ADMIN_NAV.filter((n) => can(n.perm));
+  }, [location.pathname, useDrawerSidebar]);
 
   const roleLabels = {
     super_admin: 'Super Admin',
@@ -60,11 +48,13 @@ export function AdminLayout() {
   const closeSidebar = () => setSidebarOpen(false);
 
   return (
-    <div className="flex min-h-[100dvh] bg-gray-100">
+    <div
+      className={`admin-layout flex min-h-[100dvh] bg-gray-100 ${isCompact ? 'admin-layout--compact' : ''} ${isMobile ? 'admin-layout--mobile' : ''}`}
+    >
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-[min(100%,17rem)] flex-col bg-pollon-black text-white shadow-xl transition-transform duration-200 ${
+        className={`admin-sidebar fixed inset-y-0 left-0 z-50 flex w-[min(100%,17.5rem)] flex-col bg-pollon-black text-white shadow-xl transition-transform duration-200 ${
           useDrawerSidebar && !sidebarOpen ? '-translate-x-full' : 'translate-x-0'
-        } ${!useDrawerSidebar ? 'md:static md:z-auto md:w-56 md:shrink-0 md:translate-x-0 lg:w-64' : ''}`}
+        } ${!useDrawerSidebar ? 'admin-sidebar--static' : ''}`}
       >
         <div className="flex items-center justify-between gap-3 border-b border-white/10 p-3 sm:p-4">
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
@@ -94,7 +84,7 @@ export function AdminLayout() {
               end={item.path === '/admin'}
               onClick={() => { if (useDrawerSidebar) closeSidebar(); }}
               className={({ isActive }) =>
-                `mb-0.5 block rounded-xl px-3 py-2 text-sm font-medium transition sm:px-4 sm:py-2.5 ${
+                `admin-sidebar__link mb-0.5 block rounded-xl px-3 py-2 text-sm font-medium transition sm:px-4 sm:py-2.5 ${
                   isActive ? 'bg-pollon-red text-white' : 'text-white/80 hover:bg-white/10'
                 }`
               }
@@ -125,30 +115,33 @@ export function AdminLayout() {
       {sidebarOpen && useDrawerSidebar && (
         <button
           type="button"
-          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-[1px]"
+          className="admin-sidebar-backdrop fixed inset-0 z-40 bg-black/50 backdrop-blur-[1px]"
           onClick={closeSidebar}
           aria-label="Cerrar menú"
         />
       )}
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex shrink-0 items-center gap-3 border-b bg-white px-3 py-2.5 shadow-sm sm:px-4 sm:py-3">
+      <div className="admin-shell flex min-w-0 flex-1 flex-col">
+        <header className="admin-topbar sticky top-0 z-30 flex shrink-0 items-center gap-2 border-b bg-white px-3 py-2 shadow-sm sm:gap-3 sm:px-4 sm:py-2.5">
           {useDrawerSidebar && (
             <button
               type="button"
-              className="rounded-lg p-1.5 hover:bg-gray-100"
+              className="admin-menu-btn flex shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 p-2 hover:bg-gray-100"
               onClick={() => setSidebarOpen(true)}
               aria-label="Abrir menú"
             >
-              <Menu className="h-6 w-6" />
+              <Menu className="h-5 w-5" />
             </button>
           )}
-          <h1 className="min-w-0 truncate text-base font-bold text-pollon-black sm:text-lg">Administración</h1>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Administración</p>
+            <h1 className="truncate text-sm font-bold text-pollon-black sm:text-base">{currentPageLabel}</h1>
+          </div>
         </header>
 
-        <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-3 sm:p-4 md:p-5 lg:p-6">
+        <main className="admin-main min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
           {isBranchScoped && !branchId && (
-            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900 sm:mb-4 sm:px-4 sm:text-sm">
               Tu cuenta no tiene sucursal asignada. Solo verás datos vacíos hasta que el super admin configure tu <code>branch_id</code> en Supabase.
             </div>
           )}

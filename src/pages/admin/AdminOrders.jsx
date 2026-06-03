@@ -175,37 +175,43 @@ export function AdminOrders() {
         count={filtered.length}
         countLabel={`${filtered.length} pedido${filtered.length !== 1 ? 's' : ''}`}
         emptyMessage="Sin pedidos"
-        minWidth={720}
+        minWidth={580}
+        className="admin-orders-table"
         columns={[
           { key: 'code', label: 'Código' },
-          { key: 'branch', label: 'Sucursal', className: 'hidden lg:table-cell' },
+          { key: 'branch', label: 'Sucursal', className: 'admin-col-branch hidden xl:table-cell' },
           { key: 'client', label: 'Cliente' },
-          { key: 'phone', label: 'Teléfono', className: 'hidden sm:table-cell' },
+          { key: 'phone', label: 'Tel.', className: 'admin-col-phone hidden sm:table-cell' },
           { key: 'total', label: 'Total' },
           { key: 'status', label: 'Estado' },
-          { key: 'date', label: 'Fecha', className: 'hidden md:table-cell' },
-          { key: 'actions', label: 'Acciones' },
+          { key: 'date', label: 'Hora', className: 'admin-col-date hidden md:table-cell' },
+          { key: 'actions', label: '', className: 'admin-col-actions w-[1%] whitespace-nowrap' },
         ]}
       >
         {filtered.map((o) => (
-          <tr key={o.id} className="border-t hover:bg-gray-50">
-            <td className="p-2 font-mono text-xs font-semibold sm:p-3 sm:text-sm">{o.codigo_pedido || o.ticketNumber}</td>
-            <td className="hidden p-2 text-xs lg:table-cell sm:p-3">{branchFor(o).name}</td>
-            <td className="max-w-[120px] truncate p-2 sm:max-w-none sm:p-3">{o.customer?.name}</td>
-            <td className="hidden p-2 sm:table-cell sm:p-3">{o.customer?.phone}</td>
-            <td className="p-2 font-semibold sm:p-3">{money(o.total)}</td>
-            <td className="p-2 sm:p-3"><Badge estado={o.estado}>{estadoLabel(o.estado)}</Badge></td>
-            <td className="hidden whitespace-nowrap p-2 text-xs md:table-cell sm:p-3">{formatDateTime(o.createdAt)}</td>
-            <td className="p-2 sm:p-3">
-              <div className="flex flex-wrap items-center gap-1">
-                <button type="button" onClick={() => setViewOrder(o)} className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2 py-1 text-[10px] font-semibold sm:text-xs" title="Ver">
-                  <Eye className="h-3.5 w-3.5" /> Ver
+          <tr key={o.id} className="admin-orders-row border-t hover:bg-gray-50">
+            <td className="p-2 font-mono text-[11px] font-semibold sm:p-2.5 sm:text-xs">{o.codigo_pedido || o.ticketNumber}</td>
+            <td className="admin-col-branch hidden p-2 text-xs xl:table-cell sm:p-2.5">{branchFor(o).name}</td>
+            <td className="max-w-[7rem] truncate p-2 sm:max-w-[10rem] sm:p-2.5 md:max-w-none">{o.customer?.name}</td>
+            <td className="admin-col-phone hidden whitespace-nowrap p-2 text-xs sm:table-cell sm:p-2.5">{o.customer?.phone}</td>
+            <td className="whitespace-nowrap p-2 text-xs font-semibold sm:p-2.5 sm:text-sm">{money(o.total)}</td>
+            <td className="p-2 sm:p-2.5"><Badge estado={o.estado}>{estadoLabel(o.estado)}</Badge></td>
+            <td className="admin-col-date hidden whitespace-nowrap p-2 text-[11px] text-gray-600 md:table-cell sm:p-2.5">
+              {formatDateTime(o.createdAt).split(',')[1]?.trim() || formatDateTime(o.createdAt)}
+            </td>
+            <td className="p-1.5 sm:p-2">
+              <div className="admin-orders-actions flex items-center gap-0.5 sm:gap-1">
+                <button type="button" onClick={() => setViewOrder(o)} className="admin-orders-action admin-orders-action--view" title="Ver pedido">
+                  <Eye className="h-3.5 w-3.5" />
+                  <span className="admin-orders-action__label">Ver</span>
                 </button>
-                <button type="button" onClick={() => handlePrint(o)} className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-900 sm:text-xs" title="Imprimir">
+                <button type="button" onClick={() => handlePrint(o)} className="admin-orders-action admin-orders-action--print" title="Imprimir">
                   <Printer className="h-3.5 w-3.5" />
+                  <span className="admin-orders-action__label">Imprimir</span>
                 </button>
-                <button type="button" onClick={() => changeEstado(o)} className="inline-flex items-center gap-1 rounded-lg px-1.5 py-1 text-[10px] font-semibold text-pollon-red sm:text-xs" title="Estado">
+                <button type="button" onClick={() => changeEstado(o)} className="admin-orders-action admin-orders-action--status" title="Cambiar estado">
                   <RefreshCw className="h-3.5 w-3.5" />
+                  <span className="admin-orders-action__label">Estado</span>
                 </button>
               </div>
             </td>
