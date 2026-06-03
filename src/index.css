@@ -87,7 +87,7 @@
     );
   }
   #store-products {
-    scroll-margin-top: clamp(7.5rem, 18vw, 10.5rem);
+    scroll-margin-top: clamp(7rem, 17vw, 10rem);
   }
 
   /* Header: barra superior roja (compacta) */
@@ -115,6 +115,48 @@
       font-size: 0.6875rem;
     }
   }
+
+  /* Header: barra principal blanca — solo desktop (lg+) */
+  .header-main-bar {
+    padding-block: 0.625rem;
+    gap: 0.625rem;
+  }
+  .header-main-bar__logo {
+    height: 3rem;
+    width: 3rem;
+  }
+  .header-main-bar__brand-title {
+    font-size: 1.625rem;
+    line-height: 1;
+  }
+  .header-main-bar__brand-tagline {
+    margin-top: 0.125rem;
+    font-size: 0.8125rem;
+    line-height: 1.2;
+  }
+  .header-main-bar__phone-ring {
+    height: 2.375rem;
+    width: 2.375rem;
+    flex-shrink: 0;
+  }
+  .header-main-bar__cart-icon {
+    height: 1.625rem;
+    width: 1.625rem;
+  }
+  @media (min-width: 1280px) {
+    .header-main-bar {
+      padding-block: 0.6875rem;
+      gap: 0.75rem;
+    }
+    .header-main-bar__logo {
+      height: 3.125rem;
+      width: 3.125rem;
+    }
+    .header-main-bar__brand-title {
+      font-size: 1.75rem;
+    }
+  }
+
   .home-bestsellers-scroll.admin-scroll-card {
     max-height: calc(4 * 4.25rem + 3 * 1rem);
     overscroll-behavior: contain;

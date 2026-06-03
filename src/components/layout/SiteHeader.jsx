@@ -87,7 +87,7 @@ function BranchDropdown({
           Elige tu sucursal
         </p>
       ) : (
-        <p className="mb-1.5 text-sm font-semibold text-gray-600">Sucursal actual:</p>
+        <p className="mb-1 text-xs font-semibold text-gray-600">Sucursal actual:</p>
       )}
       <button
         type="button"
@@ -97,20 +97,20 @@ function BranchDropdown({
           if (next) prefetchBranchMenus(branches.map((x) => x.id));
         }}
         className={`flex w-full items-center rounded-lg border border-gray-200 bg-white text-left shadow-sm transition hover:border-pollon-red/40 ${
-          isMobile ? 'gap-1.5 px-2.5 py-2' : 'gap-2.5 px-4 py-2.5'
+          isMobile ? 'gap-1.5 px-2.5 py-2' : 'gap-2 px-3.5 py-2'
         }`}
       >
-        <MapPin className={`shrink-0 text-pollon-red ${isMobile ? 'h-4 w-4' : 'h-5 w-5'}`} strokeWidth={2.5} />
-        <span className={`min-w-0 flex-1 truncate font-bold text-gray-900 ${isMobile ? 'text-xs' : 'text-base'}`}>
+        <MapPin className={`shrink-0 text-pollon-red ${isMobile ? 'h-4 w-4' : 'h-4 w-4'}`} strokeWidth={2.5} />
+        <span className={`min-w-0 flex-1 truncate font-bold text-gray-900 ${isMobile ? 'text-xs' : 'text-sm'}`}>
           {branchLabel}
         </span>
-        <ChevronDown className={`shrink-0 text-gray-400 transition ${branchOpen ? 'rotate-180' : ''} ${isMobile ? 'h-4 w-4' : 'h-5 w-5'}`} />
+        <ChevronDown className={`shrink-0 text-gray-400 transition ${branchOpen ? 'rotate-180' : ''} ${isMobile ? 'h-4 w-4' : 'h-4 w-4'}`} />
       </button>
       {!isMobile && (
         <Link
           to="/sucursal"
           onClick={() => setBranchOpen(false)}
-          className="mt-1.5 inline-block text-sm font-semibold text-pollon-red hover:underline"
+          className="mt-1 inline-block text-xs font-semibold text-pollon-red hover:underline"
         >
           Cambiar sucursal
         </Link>
@@ -333,20 +333,20 @@ export function SiteHeader({ onOpenCart, variant = 'full' }) {
 
         {/* ═══════════════ PC: barra principal blanca ═══════════════ */}
         <div className="hidden border-b border-gray-100 bg-white lg:block">
-          <div className="mx-auto flex max-w-[1400px] items-center gap-3 px-4 py-3.5">
-            <Link to="/" className="flex shrink-0 items-center gap-3">
+          <div className="header-main-bar mx-auto flex max-w-[1400px] items-center px-4">
+            <Link to="/" className="header-main-bar__brand flex shrink-0 items-center gap-2.5">
               <img
                 src="/img/logo pollon.png"
                 alt="El Pollón"
-                className="h-14 w-14 rounded-full border-2 border-pollon-red/30 object-contain p-0.5"
+                className="header-main-bar__logo rounded-full border-2 border-pollon-red/30 object-contain p-0.5"
               />
               <div>
-                <p className="font-brand text-3xl leading-none font-bold text-pollon-red">El Pollón</p>
-                <p className="font-brand mt-1 text-base font-semibold text-pollon-gold">Sabor Peruano</p>
+                <p className="header-main-bar__brand-title font-brand font-bold text-pollon-red">El Pollón</p>
+                <p className="header-main-bar__brand-tagline font-brand font-semibold text-pollon-gold">Sabor Peruano</p>
               </div>
             </Link>
 
-            <div className="hidden min-w-0 flex-1 justify-center px-4 lg:flex">
+            <div className="hidden min-w-0 flex-1 justify-center px-3 lg:flex">
               <BranchDropdown
                 {...branchDropdownProps}
                 branchLabel={branchLabelDesktop}
@@ -354,19 +354,19 @@ export function SiteHeader({ onOpenCart, variant = 'full' }) {
               />
             </div>
 
-            <a href={`tel:${phoneDisplay.replace(/\s/g, '')}`} className="hidden shrink-0 items-center gap-3 lg:flex">
-              <span className="flex h-11 w-11 items-center justify-center rounded-full border-2 border-pollon-red text-pollon-red">
-                <Phone className="h-5 w-5" strokeWidth={2} />
+            <a href={`tel:${phoneDisplay.replace(/\s/g, '')}`} className="header-main-bar__phone hidden shrink-0 items-center gap-2.5 lg:flex">
+              <span className="header-main-bar__phone-ring flex items-center justify-center rounded-full border-2 border-pollon-red text-pollon-red">
+                <Phone className="h-[18px] w-[18px]" strokeWidth={2} />
               </span>
               <div>
-                <p className="text-base font-bold text-gray-900">{phoneDisplay}</p>
-                <p className="text-sm text-gray-600">Llámanos o escríbenos</p>
+                <p className="text-sm font-bold leading-tight text-gray-900">{phoneDisplay}</p>
+                <p className="text-xs text-gray-600">Llámanos o escríbenos</p>
               </div>
             </a>
 
-            <div className="ml-auto flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <User className="h-7 w-7 shrink-0 text-gray-700" strokeWidth={1.5} />
+            <div className="header-main-bar__actions ml-auto flex items-center gap-2.5">
+              <div className="flex items-center gap-1.5">
+                <User className="h-6 w-6 shrink-0 text-gray-700" strokeWidth={1.5} />
                 {isAuthenticated && isCustomer ? (
                   <button
                     type="button"
@@ -376,7 +376,7 @@ export function SiteHeader({ onOpenCart, variant = 'full' }) {
                     {profile?.fullName || 'Mi cuenta'}
                   </button>
                 ) : (
-                  <div className="flex flex-col text-sm leading-snug">
+                  <div className="flex flex-col text-xs leading-snug">
                     <button type="button" onClick={() => handleAccountClick('login')} className="text-left font-semibold text-gray-800 hover:text-pollon-red">
                       Iniciar sesión
                     </button>
@@ -390,20 +390,20 @@ export function SiteHeader({ onOpenCart, variant = 'full' }) {
               <button
                 type="button"
                 onClick={onOpenCart}
-                className="flex items-center gap-2 rounded-lg px-2 py-1 transition hover:bg-red-50"
+                className="flex items-center gap-1.5 rounded-lg px-1.5 py-0.5 transition hover:bg-red-50"
                 aria-label="Mi pedido"
               >
                 <div className="relative">
-                  <ShoppingCart className="h-8 w-8 text-pollon-red" strokeWidth={2} />
+                  <ShoppingCart className="header-main-bar__cart-icon text-pollon-red" strokeWidth={2} />
                   {itemCount > 0 && (
-                    <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-pollon-red px-1 text-[10px] font-bold text-white ring-2 ring-white">
+                    <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-pollon-red px-0.5 text-[9px] font-bold text-white ring-2 ring-white">
                       {itemCount > 99 ? '99+' : itemCount}
                     </span>
                   )}
                 </div>
                 <div className="text-left">
-                  <p className="text-xs font-bold uppercase tracking-wide text-gray-600">Mi pedido</p>
-                  <p className="text-base font-bold text-gray-900">{money(subtotal)}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-gray-600">Mi pedido</p>
+                  <p className="text-sm font-bold leading-tight text-gray-900">{money(subtotal)}</p>
                 </div>
               </button>
             </div>
