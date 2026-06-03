@@ -51,6 +51,96 @@
     scrollbar-width: none;
   }
   .scrollbar-hide::-webkit-scrollbar { display: none; }
+
+  /* Botón flotante WhatsApp — logo oficial */
+  .whatsapp-fab {
+    position: fixed;
+    z-index: 40;
+    right: max(1rem, env(safe-area-inset-right, 0px));
+    bottom: max(1.25rem, env(safe-area-inset-bottom, 0px));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 3.625rem;
+    height: 3.625rem;
+    border-radius: 9999px;
+    color: #fff;
+    text-decoration: none;
+    transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.22s ease;
+  }
+  .whatsapp-fab__inner {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(145deg, #25d366 0%, #1ebe57 48%, #128c7e 100%);
+    box-shadow:
+      0 4px 16px rgb(37 211 102 / 0.45),
+      0 8px 28px rgb(0 0 0 / 0.14),
+      inset 0 1px 0 rgb(255 255 255 / 0.28);
+  }
+  .whatsapp-fab__icon {
+    width: 1.875rem;
+    height: 1.875rem;
+    filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.12));
+  }
+  .whatsapp-fab__pulse {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: rgb(37 211 102 / 0.35);
+    animation: whatsapp-fab-pulse 2.5s ease-out infinite;
+    pointer-events: none;
+  }
+  @keyframes whatsapp-fab-pulse {
+    0% {
+      transform: scale(1);
+      opacity: 0.55;
+    }
+    70% {
+      transform: scale(1.35);
+      opacity: 0;
+    }
+    100% {
+      transform: scale(1.35);
+      opacity: 0;
+    }
+  }
+  .whatsapp-fab:hover {
+    transform: scale(1.07);
+  }
+  .whatsapp-fab:hover .whatsapp-fab__inner {
+    box-shadow:
+      0 6px 22px rgb(37 211 102 / 0.5),
+      0 12px 32px rgb(0 0 0 / 0.16),
+      inset 0 1px 0 rgb(255 255 255 / 0.32);
+  }
+  .whatsapp-fab:active {
+    transform: scale(0.96);
+  }
+  @media (min-width: 640px) {
+    .whatsapp-fab {
+      right: max(1.5rem, env(safe-area-inset-right, 0px));
+      bottom: max(1.5rem, env(safe-area-inset-bottom, 0px));
+      width: 3.75rem;
+      height: 3.75rem;
+    }
+    .whatsapp-fab__icon {
+      width: 2rem;
+      height: 2rem;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .whatsapp-fab__pulse {
+      animation: none;
+      opacity: 0;
+    }
+  }
+
   .admin-scroll-panel {
     scrollbar-width: thin;
     scrollbar-color: #cbd5e1 #f1f5f9;

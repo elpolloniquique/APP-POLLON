@@ -5,7 +5,8 @@ export function WhatsAppIcon({ className = 'h-6 w-6', title = 'WhatsApp' }) {
       className={className}
       viewBox="0 0 24 24"
       fill="currentColor"
-      role="img"
+      xmlns="http://www.w3.org/2000/svg"
+      role={title ? 'img' : 'presentation'}
       aria-hidden={title ? undefined : true}
       aria-label={title || undefined}
     >

@@ -1,17 +1,23 @@
-import { MessageCircle } from 'lucide-react';
 import { useBranch } from '../../context/BranchContext';
+import { WhatsAppIcon } from '../ui/WhatsAppIcon';
 
 export function WhatsAppFab() {
   const { whatsapp } = useBranch();
+  const message = encodeURIComponent('Hola, quiero hacer un pedido en El Pollón 🍗');
+
   return (
     <a
-      href={`https://wa.me/${whatsapp}?text=${encodeURIComponent('Hola, quiero hacer un pedido en El Pollón 🍗')}`}
+      href={`https://wa.me/${whatsapp}?text=${message}`}
       target="_blank"
-      rel="noreferrer"
-      className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-2xl transition hover:scale-110"
-      aria-label="WhatsApp"
+      rel="noopener noreferrer"
+      className="whatsapp-fab"
+      aria-label="Contactar por WhatsApp"
+      title="Escríbenos por WhatsApp"
     >
-      <MessageCircle className="h-7 w-7" />
+      <span className="whatsapp-fab__pulse" aria-hidden />
+      <span className="whatsapp-fab__inner">
+        <WhatsAppIcon className="whatsapp-fab__icon" title="" />
+      </span>
     </a>
   );
 }
