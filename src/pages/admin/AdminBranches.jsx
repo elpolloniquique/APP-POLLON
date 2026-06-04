@@ -7,6 +7,7 @@ import { Plus, Pencil, Trash2, Power, PowerOff } from 'lucide-react';
 import { canManageAllBranches } from '../../services/authService';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { AdminScrollPanel } from '../../components/admin/AdminScrollPanel';
+import { formatDeliveryCost, normalizeDeliveryCost } from '../../utils/format';
 
 const emptyBranch = () => ({
   name: '',
@@ -16,7 +17,7 @@ const emptyBranch = () => ({
   phone: '',
   whatsapp: '',
   schedule: 'Lun-Dom: 11:30 - 23:00',
-  deliveryCost: 2000,
+  deliveryCost: '2500',
   deliveryEta: '30-45 min',
   deliveryEnabled: true,
   pickupEnabled: true,
@@ -56,7 +57,7 @@ export function AdminBranches() {
       await adminSaveBranch({
         ...modal,
         schedule: modal.schedule,
-        deliveryCost: Number(modal.deliveryCost),
+        deliveryCost: normalizeDeliveryCost(modal.deliveryCost),
         isActive: modal.isActive,
       }, user);
       show(modal.id ? 'Sucursal actualizada' : 'Sucursal creada al final de la lista');
@@ -173,7 +174,7 @@ export function AdminBranches() {
                 </div>
                 <p className="mt-1 text-xs text-gray-500 sm:text-sm">{b.city} · {b.address}</p>
                 <p className="text-xs sm:text-sm">WhatsApp: {b.whatsapp}</p>
-                <p className="text-xs sm:text-sm">Delivery: ${b.deliveryCost?.toLocaleString('es-CL')}</p>
+                <p className="text-xs sm:text-sm">Delivery: {formatDeliveryCost(b.deliveryCost)}</p>
                 {!b.isActive && (
                   <p className="mt-2 text-xs text-amber-800/90">
                     Oculta para clientes. Menú y productos intactos.
@@ -237,7 +238,7 @@ export function AdminBranches() {
               <input value={modal.phone} onChange={(e) => setModal({ ...modal, phone: e.target.value })} placeholder="Teléfono" className="rounded-lg border px-3 py-2" />
               <input value={modal.whatsapp} onChange={(e) => setModal({ ...modal, whatsapp: e.target.value })} placeholder="WhatsApp" className="rounded-lg border px-3 py-2" />
               <input value={modal.schedule} onChange={(e) => setModal({ ...modal, schedule: e.target.value })} placeholder="Horario" className="col-span-2 rounded-lg border px-3 py-2" />
-              <input type="number" value={modal.deliveryCost} onChange={(e) => setModal({ ...modal, deliveryCost: e.target.value })} placeholder="Costo delivery" className="rounded-lg border px-3 py-2" />
+              <input value={modal.deliveryCost} onChange={(e) => setModal({ ...modal, deliveryCost: e.target.value })} placeholder="2500 o Varía según distancia" className="col-span-2 rounded-lg border px-3 py-2 sm:col-span-1" />
               <input value={modal.deliveryEta} onChange={(e) => setModal({ ...modal, deliveryEta: e.target.value })} placeholder="Tiempo entrega" className="rounded-lg border px-3 py-2" />
               <label className="col-span-2 flex items-center gap-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
                 <input type="checkbox" checked={modal.isActive} onChange={(e) => setModal({ ...modal, isActive: e.target.checked })} />

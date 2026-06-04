@@ -1,6 +1,7 @@
 import { getSupabase, isSupabaseConfigured } from './supabaseClient';
 import { DEFAULT_BRANCHES } from '../data/branches';
 import { logAudit } from './auditService';
+import { normalizeDeliveryCost } from '../utils/format';
 
 function mapBranch(row) {
   return {
@@ -18,7 +19,7 @@ function mapBranch(row) {
     pickupEnabled: row.pickup_enabled !== false,
     reservationsEnabled: row.reservations_enabled !== false,
     deliveryZones: row.zona_delivery || 'Zona principal',
-    deliveryCost: Number(row.delivery_cost ?? row.costo_delivery) || 0,
+    deliveryCost: normalizeDeliveryCost(row.delivery_cost ?? row.costo_delivery),
     deliveryEta: row.delivery_eta || row.tiempo_entrega || '30-45 min',
     comingSoon: false,
     displayOrder: row.display_order ?? row.orden ?? 0,
@@ -179,7 +180,7 @@ export async function adminSaveBranch(branch, user) {
     delivery_enabled: branch.deliveryEnabled !== false,
     pickup_enabled: branch.pickupEnabled !== false,
     reservations_enabled: branch.reservationsEnabled !== false,
-    delivery_cost: branch.deliveryCost ?? 0,
+    delivery_cost: normalizeDeliveryCost(branch.deliveryCost) || '0',
     delivery_eta: branch.deliveryEta || '30-45 min',
     is_active: branch.isActive !== false,
     display_order: displayOrder,

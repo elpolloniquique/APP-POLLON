@@ -10,6 +10,37 @@ export function money(v) {
   return CURRENCY.format(Number(v) || 0);
 }
 
+/** Valor crudo del costo delivery (número o texto descriptivo). */
+export function normalizeDeliveryCost(value) {
+  if (value == null) return '';
+  return String(value).trim();
+}
+
+/** True si el valor es solo numérico (ej. 2500 o "3.500"). */
+export function deliveryCostIsNumeric(value) {
+  const raw = normalizeDeliveryCost(value);
+  if (!raw) return false;
+  const normalized = raw.replace(/\./g, '').replace(/\s/g, '').replace(',', '.');
+  return /^\d+(\.\d+)?$/.test(normalized);
+}
+
+/** Monto CLP para cálculos; 0 si es texto descriptivo. */
+export function deliveryCostAsNumber(value) {
+  if (!deliveryCostIsNumeric(value)) return 0;
+  const raw = normalizeDeliveryCost(value);
+  const normalized = raw.replace(/\./g, '').replace(/\s/g, '').replace(',', '.');
+  const num = Number(normalized);
+  return Number.isFinite(num) ? num : 0;
+}
+
+/** Muestra precio formateado o el texto tal cual (ej. "Varía según distancia"). */
+export function formatDeliveryCost(value, { emptyLabel = 'Consultar' } = {}) {
+  const raw = normalizeDeliveryCost(value);
+  if (!raw) return emptyLabel;
+  if (deliveryCostIsNumeric(raw)) return money(deliveryCostAsNumber(raw));
+  return raw;
+}
+
 /** Normaliza rutas locales, URLs http(s) y rutas de storage para <img src>. */
 export function resolveMediaUrl(path, fallback = '/img/todo el menu.png') {
   const raw = (path || '').trim();

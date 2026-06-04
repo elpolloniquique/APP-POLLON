@@ -7,6 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useBranch } from '../../context/BranchContext';
 import { canManageAllBranches } from '../../services/authService';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
+import { normalizeDeliveryCost } from '../../utils/format';
 
 export function AdminConfig() {
   const { profile, role } = useAuth();
@@ -18,7 +19,7 @@ export function AdminConfig() {
     whatsapp: '',
     direccion: '',
     horario: '',
-    delivery_cost: 2000,
+    delivery_cost: '',
     delivery_eta: '30-45 min',
     delivery_activo: true,
     pickup_activo: true,
@@ -38,7 +39,7 @@ export function AdminConfig() {
         whatsapp: branch.whatsapp || '',
         direccion: branch.address || '',
         horario: branch.schedule || '',
-        delivery_cost: branch.deliveryCost ?? 2000,
+        delivery_cost: branch.deliveryCost ?? '',
         delivery_eta: branch.deliveryEta || '30-45 min',
         delivery_activo: branch.deliveryEnabled !== false,
         pickup_activo: branch.pickupEnabled !== false,
@@ -69,7 +70,7 @@ export function AdminConfig() {
           whatsapp: cfg.whatsapp,
           address: cfg.direccion,
           schedule: cfg.horario,
-          deliveryCost: Number(cfg.delivery_cost) || 0,
+          deliveryCost: normalizeDeliveryCost(cfg.delivery_cost),
           deliveryEta: cfg.delivery_eta,
           deliveryEnabled: cfg.delivery_activo,
           pickupEnabled: cfg.pickup_activo,
@@ -149,11 +150,15 @@ export function AdminConfig() {
         ))}
         {isBranchScoped && (
           <div>
-            <label className="text-sm font-medium">Costo delivery (CLP)</label>
+            <label className="text-sm font-medium">Costo delivery</label>
+            <p className="mt-0.5 text-xs text-gray-500">
+              Monto fijo en pesos (ej. 2500) o texto libre (ej. Varía según distancia).
+            </p>
             <input
-              type="number"
+              type="text"
               value={cfg.delivery_cost}
-              onChange={(e) => setCfg((c) => ({ ...c, delivery_cost: Number(e.target.value) }))}
+              onChange={(e) => setCfg((c) => ({ ...c, delivery_cost: e.target.value }))}
+              placeholder="2500 o Varía según distancia"
               className="mt-1 w-full rounded-lg border px-3 py-2"
             />
           </div>

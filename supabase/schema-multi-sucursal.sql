@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS branches (
   delivery_enabled BOOLEAN DEFAULT true,
   pickup_enabled BOOLEAN DEFAULT true,
   reservations_enabled BOOLEAN DEFAULT true,
-  delivery_cost NUMERIC(12,0) DEFAULT 0,
+  delivery_cost TEXT DEFAULT '0',
   delivery_eta TEXT DEFAULT '30-45 min',
   is_active BOOLEAN DEFAULT true,
   display_order INT DEFAULT 0,

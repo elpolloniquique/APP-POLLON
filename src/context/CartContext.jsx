@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { BAG_PRICE, CART_KEY } from '../utils/constants';
 import { calcBagQty } from '../utils/productOptions';
+import { deliveryCostAsNumber } from '../utils/format';
 import { useBranch } from './BranchContext';
 
 const CartContext = createContext(null);
@@ -39,7 +40,7 @@ export function CartProvider({ children }) {
   const subtotal = useMemo(() => items.reduce((s, i) => s + (i.total || 0), 0), [items]);
   const deliveryFee = useMemo(() => {
     if (!branch || items.length === 0) return 0;
-    return branch.deliveryCost || 0;
+    return deliveryCostAsNumber(branch.deliveryCost);
   }, [branch, items.length]);
 
   const addItem = useCallback((item) => {

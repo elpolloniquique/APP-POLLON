@@ -6,7 +6,7 @@ import { CartDrawer } from '../components/cart/CartDrawer';
 import { useBranch } from '../context/BranchContext';
 import { useCart } from '../context/CartContext';
 import { MapPin, Phone, Clock, Bike } from 'lucide-react';
-import { money } from '../utils/format';
+import { formatDeliveryCost } from '../utils/format';
 
 export function BranchSelector() {
   const { branches, branch, setBranch } = useBranch();
@@ -60,7 +60,7 @@ export function BranchSelector() {
                 <p className="flex items-center gap-2"><MapPin className="h-4 w-4 text-pollon-red" /> {b.address}</p>
                 <p className="flex items-center gap-2"><Clock className="h-4 w-4 text-pollon-red" /> {b.schedule}</p>
                 <p className="flex items-center gap-2"><Phone className="h-4 w-4 text-pollon-red" /> {b.phone}</p>
-                <p className="flex items-center gap-2"><Bike className="h-4 w-4 text-pollon-red" /> Delivery: {money(b.deliveryCost)} · {b.deliveryEta}</p>
+                <p className="flex items-center gap-2"><Bike className="h-4 w-4 text-pollon-red" /> Delivery: {formatDeliveryCost(b.deliveryCost)} · {b.deliveryEta}</p>
               </div>
               {!b.comingSoon && (
                 <button

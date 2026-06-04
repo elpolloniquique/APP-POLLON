@@ -5,7 +5,7 @@ import { WhatsAppIcon } from '../ui/WhatsAppIcon';
 import { useCart } from '../../context/CartContext';
 import { useBranch } from '../../context/BranchContext';
 import { useAuth } from '../../context/AuthContext';
-import { money, buildWhatsappMessage, formatDateTime } from '../../utils/format';
+import { money, buildWhatsappMessage, formatDateTime, formatDeliveryCost, deliveryCostIsNumeric, deliveryCostAsNumber } from '../../utils/format';
 import { PAYMENT_METHODS, ORDER_TYPE_LABELS, DELIVERY_COST_RANGE } from '../../utils/constants';
 import * as orderService from '../../services/orderService';
 import { useToast } from '../../hooks/useToast';
@@ -64,6 +64,9 @@ export function CheckoutModal() {
   const submitLock = useRef(false);
 
   const isDelivery = form.orderType === 'delivery';
+  const branchDeliveryLabel = formatDeliveryCost(branch?.deliveryCost, { emptyLabel: '' });
+  const branchDeliveryFixed = deliveryCostIsNumeric(branch?.deliveryCost);
+  const branchDeliveryAmount = deliveryCostAsNumber(branch?.deliveryCost);
   const orderTotal = subtotal;
 
   useEffect(() => {
@@ -421,12 +424,32 @@ export function CheckoutModal() {
                       <Bike className="checkout-delivery-notice__icon" aria-hidden />
                       <p className="checkout-delivery-notice__title">Costo de delivery adicional</p>
                     </div>
-                    <p className="checkout-delivery-notice__range">
-                      {money(DELIVERY_COST_RANGE.min)} – {money(DELIVERY_COST_RANGE.max)}
-                    </p>
-                    <p className="checkout-delivery-notice__body">
-                      El valor varía según la distancia o su dirección de entrega. Se confirma al procesar su pedido.
-                    </p>
+                    {branchDeliveryFixed && branchDeliveryAmount > 0 ? (
+                      <>
+                        <p className="checkout-delivery-notice__range">
+                          {money(branchDeliveryAmount)}
+                        </p>
+                        <p className="checkout-delivery-notice__body">
+                          Costo referencial de esta sucursal. Puede ajustarse según tu dirección al confirmar el pedido.
+                        </p>
+                      </>
+                    ) : branchDeliveryLabel ? (
+                      <>
+                        <p className="checkout-delivery-notice__range">{branchDeliveryLabel}</p>
+                        <p className="checkout-delivery-notice__body">
+                          El valor se confirma al procesar su pedido según su dirección de entrega.
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="checkout-delivery-notice__range">
+                          {money(DELIVERY_COST_RANGE.min)} – {money(DELIVERY_COST_RANGE.max)}
+                        </p>
+                        <p className="checkout-delivery-notice__body">
+                          El valor varía según la distancia o su dirección de entrega. Se confirma al procesar su pedido.
+                        </p>
+                      </>
+                    )}
                   </div>
                 )}
                 <div className="flex justify-between border-t border-black/5 pt-2 text-lg font-bold">
