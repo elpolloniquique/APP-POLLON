@@ -107,24 +107,6 @@ function buildCustomerPlain(customer) {
   return lines.join('\n');
 }
 
-function buildCustomerWhatsApp(customer) {
-  const lines = [];
-  lines.push(`◆ Nombre:   *${customer.name || '-'}*`);
-  lines.push(`◆ Teléfono: *${customer.phone || '-'}*`);
-  lines.push('◆ Dirección:');
-  const addr = wrapText(customer.address || '-', 30);
-  if (addr) {
-    addr.split('\n').forEach((l) => lines.push(`*${l}*`));
-  } else {
-    lines.push('*-*');
-  }
-  if (customer.comments?.trim()) {
-    lines.push('◆ Observaciones:');
-    wrapText(customer.comments, 30).split('\n').forEach((l) => lines.push(`*${l}*`));
-  }
-  return lines.join('\n');
-}
-
 function buildItemsPlain(items) {
   if (!items.length) return 'Sin productos';
   return items.map((it) => {
@@ -134,21 +116,6 @@ function buildItemsPlain(items) {
       `◆ ${qty}x ${it.name}`,
       ...extras,
       formatMoneyPlain(it.total || 0),
-      '',
-    ];
-    return block.join('\n');
-  }).join('\n');
-}
-
-function buildItemsWhatsApp(items) {
-  if (!items.length) return 'Sin productos';
-  return items.map((it) => {
-    const qty = it.qty ?? 1;
-    const extras = getItemExtraLines(it);
-    const block = [
-      `◆ *${qty}x* ${it.name}`,
-      ...extras,
-      `*${formatMoneyPlain(it.total || 0)}*`,
       '',
     ];
     return block.join('\n');
@@ -183,7 +150,7 @@ function buildReceiptCore(m, { customerBlock, itemsBlock, footerExtra = [] }) {
   ].join('\n');
 }
 
-/** Texto plano — impresión térmica / copiar */
+/** Texto plano — impresión térmica y WhatsApp (mismo formato) */
 export function buildOrderReceiptText(order, branch) {
   const m = getOrderReceiptMeta(order, branch);
   return buildReceiptCore(m, {
@@ -191,33 +158,6 @@ export function buildOrderReceiptText(order, branch) {
     itemsBlock: buildItemsPlain(m.items),
     footerExtra: buildDeliveryFooterLines(m),
   });
-}
-
-/** WhatsApp — misma estructura con negritas */
-export function buildOrderReceiptWhatsAppText(order, branch) {
-  const m = getOrderReceiptMeta(order, branch);
-  const header = [
-    `*${m.orderTypeLabel.toUpperCase()} - POLLERÍA EL POLLÓN*`,
-    '',
-    `Sucursal: *${m.sucursal}*`,
-    `${m.ticketShort}  ${m.fechaStr}  ${m.horaStr}`,
-    RECEIPT_RULE,
-    '*DATOS DEL CLIENTE*',
-    RECEIPT_RULE,
-    '',
-    buildCustomerWhatsApp(m.customer),
-    '',
-    RECEIPT_RULE,
-    '*DETALLE DEL PEDIDO*',
-    RECEIPT_RULE,
-    '',
-    buildItemsWhatsApp(m.items),
-    RECEIPT_RULE,
-    `*TOTAL: ${formatMoneyPlain(m.total)}*`,
-    `Pago: ${m.payment}`,
-    ...buildDeliveryFooterLines(m),
-  ].join('\n');
-  return header;
 }
 
 function esc(str) {
@@ -327,8 +267,8 @@ export function buildThermalReceiptHtml(order, branch) {
     padding: 0;
     overflow-x: hidden;
     font-family: Arial, Helvetica, 'Segoe UI', sans-serif;
-    font-size: 12px;
-    line-height: 1.38;
+    font-size: 13px;
+    line-height: 1.4;
     background: #fff;
     color: #000;
   }
@@ -338,7 +278,7 @@ export function buildThermalReceiptHtml(order, branch) {
   }
   .title {
     font-weight: 700;
-    font-size: 13px;
+    font-size: 14px;
     letter-spacing: 0.01em;
     text-transform: uppercase;
     margin-bottom: 6px;
@@ -346,21 +286,21 @@ export function buildThermalReceiptHtml(order, branch) {
   }
   .sucursal {
     margin-bottom: 4px;
-    font-size: 12px;
+    font-size: 13px;
     line-height: 1.35;
   }
   .sucursal strong {
     font-weight: 700;
   }
   .meta-row {
-    font-size: 12px;
+    font-size: 13px;
     margin-bottom: 2px;
     white-space: nowrap;
     letter-spacing: 0.01em;
   }
   .hr {
     margin: 7px 0;
-    font-size: 11px;
+    font-size: 12px;
     line-height: 1;
     letter-spacing: 0;
     white-space: nowrap;
@@ -370,7 +310,7 @@ export function buildThermalReceiptHtml(order, branch) {
   }
   .section-head {
     font-weight: 700;
-    font-size: 12px;
+    font-size: 13px;
     letter-spacing: 0.03em;
     text-transform: uppercase;
     line-height: 1.2;
@@ -431,7 +371,7 @@ export function buildThermalReceiptHtml(order, branch) {
     margin-top: 3px;
     padding-left: 1.15em;
     font-weight: 700;
-    font-size: 12px;
+    font-size: 13px;
   }
   .item-empty {
     margin: 4px 0;
@@ -439,19 +379,19 @@ export function buildThermalReceiptHtml(order, branch) {
   }
   .total-line {
     font-weight: 700;
-    font-size: 14px;
+    font-size: 15px;
     letter-spacing: 0.01em;
     margin-bottom: 4px;
     line-height: 1.3;
   }
   .pay-line {
     font-weight: 400;
-    font-size: 12px;
+    font-size: 13px;
     margin-bottom: 3px;
   }
   .note-line {
     margin-top: 2px;
-    font-size: 12px;
+    font-size: 13px;
     line-height: 1.4;
   }
   @media screen {

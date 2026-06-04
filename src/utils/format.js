@@ -1,4 +1,4 @@
-import { buildOrderReceiptWhatsAppText } from './orderReceipt';
+import { buildOrderReceiptText } from './orderReceipt';
 
 const CURRENCY = new Intl.NumberFormat('es-CL', {
   style: 'currency',
@@ -163,5 +163,5 @@ export function wrapText(text, maxLen = TICKET_LINE_LENGTH) {
 }
 
 export function buildWhatsappMessage(order, branch) {
-  return buildOrderReceiptWhatsAppText(order, branch);
+  return buildOrderReceiptText(order, branch);
 }
