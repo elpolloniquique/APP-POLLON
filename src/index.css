@@ -233,6 +233,127 @@
     height: 1.625rem;
     width: 1.625rem;
   }
+
+  /* Header: carrito con animación al tener productos */
+  .header-cart-btn {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    border: none;
+    background: transparent;
+    border-radius: 0.5rem;
+    padding: 0.125rem 0.375rem;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+  }
+  .header-cart-btn:hover {
+    background: rgb(254 242 242);
+  }
+  .header-cart-btn--icon-only {
+    justify-content: center;
+    height: 2.5rem;
+    width: 2.5rem;
+    padding: 0;
+  }
+  .header-cart-btn__motion {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transform-origin: center bottom;
+    will-change: transform;
+  }
+  .header-cart-btn--icon-only .header-cart-btn__icon {
+    height: 1.75rem;
+    width: 1.75rem;
+  }
+  .header-cart-btn__badge {
+    position: absolute;
+    right: -0.2rem;
+    top: -0.35rem;
+    display: flex;
+    height: 1rem;
+    min-width: 1rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    background: #c00000;
+    padding-inline: 0.2rem;
+    font-size: 0.5625rem;
+    font-weight: 800;
+    color: #fff;
+    line-height: 1;
+    box-shadow: 0 0 0 2px #fff;
+  }
+  .header-cart-btn--active .header-cart-btn__badge {
+    animation: header-cart-badge-pulse 1s ease-in-out infinite;
+  }
+  .header-cart-btn--active .header-cart-btn__motion {
+    animation: header-cart-hop 1s cubic-bezier(0.45, 0, 0.2, 1) infinite;
+  }
+  .header-cart-btn--added .header-cart-btn__motion {
+    animation: header-cart-add-pop 0.72s cubic-bezier(0.34, 1.45, 0.64, 1);
+  }
+  .header-cart-btn--added.header-cart-btn--active .header-cart-btn__motion {
+    animation: header-cart-add-pop 0.72s cubic-bezier(0.34, 1.45, 0.64, 1),
+      header-cart-hop 1s cubic-bezier(0.45, 0, 0.2, 1) 0.72s infinite;
+  }
+  .header-cart-btn--added .header-cart-btn__total {
+    animation: header-cart-total-flash 0.72s ease-out;
+  }
+  @keyframes header-cart-hop {
+    0%, 72%, 100% {
+      transform: translateY(0) rotate(0deg);
+    }
+    14% {
+      transform: translateY(-5px) rotate(-2deg);
+    }
+    28% {
+      transform: translateY(0) rotate(0deg);
+    }
+  }
+  @keyframes header-cart-add-pop {
+    0% {
+      transform: translateY(0) scale(1);
+    }
+    28% {
+      transform: translateY(-8px) scale(1.14) rotate(-4deg);
+    }
+    52% {
+      transform: translateY(1px) scale(0.97) rotate(1deg);
+    }
+    100% {
+      transform: translateY(0) scale(1) rotate(0deg);
+    }
+  }
+  @keyframes header-cart-badge-pulse {
+    0%, 72%, 100% {
+      transform: scale(1);
+      box-shadow: 0 0 0 2px #fff;
+    }
+    14% {
+      transform: scale(1.12);
+      box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgb(192 0 0 / 0.18);
+    }
+  }
+  @keyframes header-cart-total-flash {
+    0%, 100% {
+      color: #111827;
+    }
+    35% {
+      color: #c00000;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .header-cart-btn--active .header-cart-btn__motion,
+    .header-cart-btn--added .header-cart-btn__motion,
+    .header-cart-btn--active .header-cart-btn__badge,
+    .header-cart-btn--added .header-cart-btn__total {
+      animation: none;
+    }
+  }
+
   @media (min-width: 1280px) {
     .header-main-bar {
       padding-block: 0.6875rem;

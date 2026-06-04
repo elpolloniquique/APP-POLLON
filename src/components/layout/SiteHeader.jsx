@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   ShoppingCart, Phone, User, MapPin, ChevronDown, Menu, X,
@@ -140,6 +140,74 @@ function BranchDropdown({
         </>
       )}
     </div>
+  );
+}
+
+function cartBtnClass(hasItems, justAdded, extra = '') {
+  return [
+    'header-cart-btn',
+    extra,
+    hasItems && 'header-cart-btn--active',
+    justAdded && 'header-cart-btn--added',
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+function HeaderCartButton({ onClick, itemCount, subtotal, variant = 'desktop' }) {
+  const hasItems = itemCount > 0;
+  const [justAdded, setJustAdded] = useState(false);
+  const prevCountRef = useRef(itemCount);
+
+  useEffect(() => {
+    if (itemCount > prevCountRef.current) {
+      setJustAdded(true);
+      const timer = window.setTimeout(() => setJustAdded(false), 720);
+      prevCountRef.current = itemCount;
+      return () => window.clearTimeout(timer);
+    }
+    prevCountRef.current = itemCount;
+    return undefined;
+  }, [itemCount]);
+
+  const badge = hasItems ? (
+    <span className="header-cart-btn__badge" aria-hidden>
+      {itemCount > (variant === 'mobile' ? 9 : 99) ? (variant === 'mobile' ? '9+' : '99+') : itemCount}
+    </span>
+  ) : null;
+
+  if (variant === 'mobile') {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className={cartBtnClass(hasItems, justAdded, 'header-cart-btn--icon-only')}
+        aria-label={hasItems ? `Mi pedido, ${itemCount} productos` : 'Mi pedido'}
+      >
+        <span className="header-cart-btn__motion">
+          <ShoppingCart className="header-cart-btn__icon text-pollon-red" strokeWidth={2} />
+          {badge}
+        </span>
+      </button>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cartBtnClass(hasItems, justAdded)}
+      aria-label={hasItems ? `Mi pedido, ${itemCount} productos, ${money(subtotal)}` : 'Mi pedido'}
+    >
+      <span className="header-cart-btn__motion">
+        <ShoppingCart className="header-cart-btn__icon header-main-bar__cart-icon text-pollon-red" strokeWidth={2} />
+        {badge}
+      </span>
+      <div className="header-cart-btn__copy text-left">
+        <p className="text-[10px] font-bold uppercase tracking-wide text-gray-600">Mi pedido</p>
+        <p className="header-cart-btn__total text-sm font-bold leading-tight text-gray-900">{money(subtotal)}</p>
+      </div>
+    </button>
   );
 }
 
@@ -304,19 +372,7 @@ export function SiteHeader({ onOpenCart, variant = 'full' }) {
             </div>
 
             <div className="flex shrink-0 items-center gap-1">
-              <button
-                type="button"
-                onClick={onOpenCart}
-                className="relative flex h-10 w-10 items-center justify-center"
-                aria-label="Mi pedido"
-              >
-                <ShoppingCart className="h-7 w-7 text-pollon-red" strokeWidth={2} />
-                {itemCount > 0 && (
-                  <span className="absolute right-0 top-0 flex h-4 w-4 items-center justify-center rounded-full bg-pollon-red text-[9px] font-bold text-white ring-2 ring-white">
-                    {itemCount > 9 ? '9+' : itemCount}
-                  </span>
-                )}
-              </button>
+              <HeaderCartButton onClick={onOpenCart} itemCount={itemCount} subtotal={subtotal} variant="mobile" />
               {showNav && (
                 <button
                   type="button"
@@ -387,25 +443,7 @@ export function SiteHeader({ onOpenCart, variant = 'full' }) {
                 )}
               </div>
 
-              <button
-                type="button"
-                onClick={onOpenCart}
-                className="flex items-center gap-1.5 rounded-lg px-1.5 py-0.5 transition hover:bg-red-50"
-                aria-label="Mi pedido"
-              >
-                <div className="relative">
-                  <ShoppingCart className="header-main-bar__cart-icon text-pollon-red" strokeWidth={2} />
-                  {itemCount > 0 && (
-                    <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-pollon-red px-0.5 text-[9px] font-bold text-white ring-2 ring-white">
-                      {itemCount > 99 ? '99+' : itemCount}
-                    </span>
-                  )}
-                </div>
-                <div className="text-left">
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-gray-600">Mi pedido</p>
-                  <p className="text-sm font-bold leading-tight text-gray-900">{money(subtotal)}</p>
-                </div>
-              </button>
+              <HeaderCartButton onClick={onOpenCart} itemCount={itemCount} subtotal={subtotal} />
             </div>
           </div>
         </div>
