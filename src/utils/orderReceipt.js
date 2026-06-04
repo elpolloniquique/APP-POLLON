@@ -5,6 +5,7 @@ import { wrapText } from './format';
 const THERMAL_MM = '80mm';
 const THERMAL_PX = 302;
 const WIN_WIDTH = 340;
+const RECEIPT_RULE = '--------------------------';
 
 export function paymentLabel(method) {
   const m = PAYMENT_METHODS.find((p) => p.id === method);
@@ -31,6 +32,8 @@ export function getOrderReceiptMeta(order, branch) {
   const items = order.items || [];
   const fechaBase = order.createdAt ? new Date(order.createdAt) : new Date();
   const ticket = String(order.ticketNumber || order.codigo_pedido || '001').padStart(6, '0');
+  const subtotal = Number(order.subtotal) || items.reduce((s, it) => s + (Number(it.total) || 0), 0);
+  const total = Number(order.total) || subtotal;
 
   return {
     ticket,
@@ -44,70 +47,177 @@ export function getOrderReceiptMeta(order, branch) {
     orderTypeLabel: ORDER_TYPE_LABELS[(order.orderType || 'delivery').toLowerCase()] || 'Delivery',
     customer,
     items,
+    subtotal,
     deliveryFee: Number(order.deliveryFee) || 0,
-    total: Number(order.total) || 0,
+    total,
     payment: paymentLabel(order.metodo_pago),
     estado: order.estado || 'pendiente',
   };
 }
 
-function buildCustomerText(customer) {
-  let msg = `Nombre:   ${customer.name || '-'}\n`;
-  msg += `Teléfono: ${customer.phone || '-'}\n`;
-  msg += `Dirección:\n`;
-  const addr = wrapText(customer.address || '-', 32);
-  msg += addr ? `${addr.split('\n').map((l) => `  ${l}`).join('\n')}\n` : '  -\n';
-  if (customer.comments?.trim()) {
-    msg += `Observaciones:\n`;
-    msg += `${wrapText(customer.comments, 32).split('\n').map((l) => `  ${l}`).join('\n')}\n`;
+/** Líneas extra del ítem: bebidas, bolsa, notas */
+function getItemExtraLines(item) {
+  const lines = [];
+
+  if (item.drinks?.length) {
+    const list = item.drinks.filter(Boolean);
+    if (list.length === 1) lines.push(list[0]);
+    else list.forEach((d, i) => lines.push(`#${i + 1}: ${d}`));
+  } else if (item.drink?.trim()) {
+    const parts = item.drink.split(' · ').map((s) => s.trim()).filter(Boolean);
+    if (parts.length === 1 && !/^#\d+:/.test(parts[0])) lines.push(parts[0]);
+    else lines.push(...parts);
   }
-  return msg;
+
+  if (item.bagQty > 0) lines.push(`Bolsa x${item.bagQty}`);
+  if (item.notes?.trim()) lines.push(item.notes.trim());
+
+  return lines;
 }
 
-function buildItemsText(items) {
-  if (!items.length) return 'Sin productos\n';
-  let msg = '';
-  items.forEach((it) => {
-    const qty = it.qty ?? 1;
-    msg += `◆ ${qty}x ${it.name}\n`;
-    if (it.drink) msg += `${it.drink}\n`;
-    if (it.bagQty > 0) msg += `Bolsa x${it.bagQty}\n`;
-    if (it.notes) msg += `${it.notes}\n`;
-    msg += `$${(it.total || 0).toLocaleString('es-CL')}\n\n`;
-  });
-  return msg;
+function formatMoneyPlain(n) {
+  return `$${(Number(n) || 0).toLocaleString('es-CL')}`;
 }
 
-function buildFooterText(m) {
-  let msg = `${'─'.repeat(32)}\n`;
-  msg += `TOTAL: $${m.total.toLocaleString('es-CL')}\n`;
-  msg += `Pago: ${m.payment}\n`;
+function buildDeliveryFooterLines(m) {
   if (m.orderType === 'delivery' && m.deliveryFee <= 0) {
-    msg += `◆ El delivery no está incluido en este total.\n`;
-  } else if (m.deliveryFee > 0) {
-    msg += `Delivery: $${m.deliveryFee.toLocaleString('es-CL')}\n`;
+    return ['◆ El delivery no está incluido en este total.'];
   }
-  return msg;
+  if (m.deliveryFee > 0) {
+    return [`Delivery: ${formatMoneyPlain(m.deliveryFee)}`];
+  }
+  return [];
 }
 
-/** Texto plano — mismo formato que impresión / WhatsApp */
+function buildCustomerPlain(customer) {
+  const lines = [];
+  lines.push(`◆ Nombre:   ${customer.name || '-'}`);
+  lines.push(`◆ Teléfono: ${customer.phone || '-'}`);
+  lines.push('◆ Dirección:');
+  const addr = wrapText(customer.address || '-', 30);
+  if (addr) {
+    addr.split('\n').forEach((l) => lines.push(`  ${l}`));
+  } else {
+    lines.push('  -');
+  }
+  if (customer.comments?.trim()) {
+    lines.push('◆ Observaciones:');
+    wrapText(customer.comments, 30).split('\n').forEach((l) => lines.push(`  ${l}`));
+  }
+  return lines.join('\n');
+}
+
+function buildCustomerWhatsApp(customer) {
+  const lines = [];
+  lines.push(`◆ Nombre:   *${customer.name || '-'}*`);
+  lines.push(`◆ Teléfono: *${customer.phone || '-'}*`);
+  lines.push('◆ Dirección:');
+  const addr = wrapText(customer.address || '-', 30);
+  if (addr) {
+    addr.split('\n').forEach((l) => lines.push(`*${l}*`));
+  } else {
+    lines.push('*-*');
+  }
+  if (customer.comments?.trim()) {
+    lines.push('◆ Observaciones:');
+    wrapText(customer.comments, 30).split('\n').forEach((l) => lines.push(`*${l}*`));
+  }
+  return lines.join('\n');
+}
+
+function buildItemsPlain(items) {
+  if (!items.length) return 'Sin productos';
+  return items.map((it) => {
+    const qty = it.qty ?? 1;
+    const extras = getItemExtraLines(it);
+    const block = [
+      `◆ ${qty}x ${it.name}`,
+      ...extras,
+      formatMoneyPlain(it.total || 0),
+      '',
+    ];
+    return block.join('\n');
+  }).join('\n');
+}
+
+function buildItemsWhatsApp(items) {
+  if (!items.length) return 'Sin productos';
+  return items.map((it) => {
+    const qty = it.qty ?? 1;
+    const extras = getItemExtraLines(it);
+    const block = [
+      `◆ *${qty}x* ${it.name}`,
+      ...extras,
+      `*${formatMoneyPlain(it.total || 0)}*`,
+      '',
+    ];
+    return block.join('\n');
+  }).join('\n');
+}
+
+function buildReceiptCore(m, { customerBlock, itemsBlock, footerExtra = [] }) {
+  const footer = [
+    RECEIPT_RULE,
+    `TOTAL: ${formatMoneyPlain(m.total)}`,
+    `Pago: ${m.payment}`,
+    ...footerExtra,
+  ].join('\n');
+
+  return [
+    `${m.orderTypeLabel.toUpperCase()} - POLLERÍA EL POLLÓN`,
+    '',
+    `Sucursal: ${m.sucursal}`,
+    `${m.ticketShort}  ${m.fechaStr}  ${m.horaStr}`,
+    RECEIPT_RULE,
+    'DATOS DEL CLIENTE',
+    RECEIPT_RULE,
+    '',
+    customerBlock,
+    '',
+    RECEIPT_RULE,
+    'DETALLE DEL PEDIDO',
+    RECEIPT_RULE,
+    '',
+    itemsBlock,
+    footer,
+  ].join('\n');
+}
+
+/** Texto plano — impresión térmica / copiar */
 export function buildOrderReceiptText(order, branch) {
   const m = getOrderReceiptMeta(order, branch);
-  const { customer, items } = m;
+  return buildReceiptCore(m, {
+    customerBlock: buildCustomerPlain(m.customer),
+    itemsBlock: buildItemsPlain(m.items),
+    footerExtra: buildDeliveryFooterLines(m),
+  });
+}
 
-  let msg = `${m.orderTypeLabel.toUpperCase()} - POLLERÍA EL POLLÓN\n\n`;
-  msg += `Sucursal: ${m.sucursal}\n`;
-  msg += `${m.ticketShort}  ${m.fechaStr}  ${m.horaStr}\n`;
-  msg += `${'─'.repeat(32)}\n`;
-  msg += `DATOS DEL CLIENTE\n`;
-  msg += `${'─'.repeat(32)}\n\n`;
-  msg += buildCustomerText(customer);
-  msg += `\n${'─'.repeat(32)}\n`;
-  msg += `DETALLE DEL PEDIDO\n`;
-  msg += `${'─'.repeat(32)}\n\n`;
-  msg += buildItemsText(items);
-  msg += buildFooterText(m);
-  return msg;
+/** WhatsApp — misma estructura con negritas */
+export function buildOrderReceiptWhatsAppText(order, branch) {
+  const m = getOrderReceiptMeta(order, branch);
+  const header = [
+    `*${m.orderTypeLabel.toUpperCase()} - POLLERÍA EL POLLÓN*`,
+    '',
+    `Sucursal: *${m.sucursal}*`,
+    `${m.ticketShort}  ${m.fechaStr}  ${m.horaStr}`,
+    RECEIPT_RULE,
+    '*DATOS DEL CLIENTE*',
+    RECEIPT_RULE,
+    '',
+    buildCustomerWhatsApp(m.customer),
+    '',
+    RECEIPT_RULE,
+    '*DETALLE DEL PEDIDO*',
+    RECEIPT_RULE,
+    '',
+    buildItemsWhatsApp(m.items),
+    RECEIPT_RULE,
+    `*TOTAL: ${formatMoneyPlain(m.total)}*`,
+    `Pago: ${m.payment}`,
+    ...buildDeliveryFooterLines(m),
+  ].join('\n');
+  return header;
 }
 
 function esc(str) {
@@ -118,35 +228,37 @@ function esc(str) {
     .replace(/"/g, '&quot;');
 }
 
-function line() {
-  return '<div class="hr"></div>';
+function ruleHtml() {
+  return `<div class="hr" aria-hidden="true">${RECEIPT_RULE}</div>`;
 }
 
 function buildCustomerHtml(customer) {
-  const addrHtml = wrapText(customer.address || '-', 30)
+  const addrLines = wrapText(customer.address || '-', 28)
     .split('\n')
-    .map((l) => `<div class="field-value block">${esc(l)}</div>`)
+    .map((l) => `<div class="field-value field-value--indent">${esc(l)}</div>`)
     .join('');
 
   const obsHtml = customer.comments?.trim()
-    ? `<div class="field">
-         <div class="field-label">Observaciones:</div>
-         ${wrapText(customer.comments, 30).split('\n').map((l) => `<div class="field-value block">${esc(l)}</div>`).join('')}
+    ? `<div class="field field--block">
+         <div class="field-head"><span class="bullet">◆</span> Observaciones:</div>
+         ${wrapText(customer.comments, 28).split('\n').map((l) => `<div class="field-value field-value--indent">${esc(l)}</div>`).join('')}
        </div>`
     : '';
 
   return `
   <div class="field">
+    <span class="bullet">◆</span>
     <span class="field-label">Nombre:</span>
     <span class="field-value">${esc(customer.name || '-')}</span>
   </div>
   <div class="field">
+    <span class="bullet">◆</span>
     <span class="field-label">Teléfono:</span>
     <span class="field-value">${esc(customer.phone || '-')}</span>
   </div>
-  <div class="field">
-    <div class="field-label">Dirección:</div>
-    ${addrHtml}
+  <div class="field field--block">
+    <div class="field-head"><span class="bullet">◆</span> Dirección:</div>
+    ${addrLines}
   </div>
   ${obsHtml}`;
 }
@@ -156,30 +268,26 @@ function buildItemsHtml(items) {
 
   return items.map((it) => {
     const qty = it.qty ?? 1;
-    const extras = [
-      it.drink ? `<div class="item-sub">${esc(it.drink)}</div>` : '',
-      it.bagQty > 0 ? `<div class="item-sub">Bolsa x${it.bagQty}</div>` : '',
-      it.notes ? `<div class="item-sub">${esc(it.notes)}</div>` : '',
-    ].join('');
+    const extras = getItemExtraLines(it)
+      .map((line) => `<div class="item-sub">${esc(line)}</div>`)
+      .join('');
     return `
     <div class="item">
-      <div class="item-line">◆ ${qty}x ${esc(it.name)}</div>
+      <div class="item-line"><span class="bullet">◆</span> <strong class="item-qty">${qty}x</strong> ${esc(it.name)}</div>
       ${extras}
-      <div class="item-price">$${(it.total || 0).toLocaleString('es-CL')}</div>
+      <div class="item-price">${formatMoneyPlain(it.total || 0)}</div>
     </div>`;
   }).join('');
 }
 
 function buildFooterHtml(m) {
-  const deliveryNote = m.orderType === 'delivery' && m.deliveryFee <= 0
-    ? '<div class="note-line">◆ El delivery no está incluido en este total.</div>'
-    : m.deliveryFee > 0
-      ? `<div class="delivery-line">Delivery: $${m.deliveryFee.toLocaleString('es-CL')}</div>`
-      : '';
+  const deliveryNote = buildDeliveryFooterLines(m)
+    .map((line) => `<div class="note-line">${esc(line)}</div>`)
+    .join('');
 
   return `
-  ${line()}
-  <div class="total-line">TOTAL: $${m.total.toLocaleString('es-CL')}</div>
+  ${ruleHtml()}
+  <div class="total-line">TOTAL: ${formatMoneyPlain(m.total)}</div>
   <div class="pay-line">Pago: ${esc(m.payment)}</div>
   ${deliveryNote}`;
 }
@@ -220,24 +328,26 @@ export function buildThermalReceiptHtml(order, branch) {
     overflow-x: hidden;
     font-family: Arial, Helvetica, 'Segoe UI', sans-serif;
     font-size: 12px;
-    line-height: 1.35;
+    line-height: 1.38;
     background: #fff;
     color: #000;
   }
   .ticket {
     width: 100%;
-    padding: 8px 10px 10px;
+    padding: 8px 10px 12px;
   }
   .title {
     font-weight: 700;
     font-size: 13px;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.01em;
     text-transform: uppercase;
     margin-bottom: 6px;
+    line-height: 1.25;
   }
   .sucursal {
     margin-bottom: 4px;
     font-size: 12px;
+    line-height: 1.35;
   }
   .sucursal strong {
     font-weight: 700;
@@ -246,47 +356,82 @@ export function buildThermalReceiptHtml(order, branch) {
     font-size: 12px;
     margin-bottom: 2px;
     white-space: nowrap;
+    letter-spacing: 0.01em;
   }
   .hr {
-    height: 0;
-    border: none;
-    border-top: 1px solid #000;
-    margin: 8px 0;
+    margin: 7px 0;
+    font-size: 11px;
+    line-height: 1;
+    letter-spacing: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    color: #000;
+    user-select: none;
   }
   .section-head {
     font-weight: 700;
     font-size: 12px;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.03em;
     text-transform: uppercase;
-    margin-bottom: 0;
+    line-height: 1.2;
   }
   .field {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 3px;
+    margin: 4px 0;
+    line-height: 1.35;
+  }
+  .field--block {
+    display: block;
     margin: 5px 0;
+  }
+  .field-head {
+    margin-bottom: 1px;
+    font-weight: 400;
+  }
+  .bullet {
+    flex-shrink: 0;
+    margin-right: 1px;
   }
   .field-label {
     font-weight: 400;
+    margin-right: 3px;
   }
   .field-value {
     font-weight: 700;
+    word-break: break-word;
   }
-  .field-value.block {
+  .field-value--indent {
     display: block;
+    padding-left: 1.15em;
     margin-top: 1px;
+    font-weight: 700;
   }
   .item {
-    margin: 7px 0;
+    margin: 8px 0;
   }
   .item-line {
     font-weight: 400;
     word-wrap: break-word;
+    overflow-wrap: anywhere;
+    line-height: 1.35;
+  }
+  .item-qty {
+    font-weight: 700;
   }
   .item-sub {
     margin-top: 1px;
+    padding-left: 1.15em;
     font-weight: 400;
+    line-height: 1.35;
   }
   .item-price {
-    margin-top: 2px;
-    font-weight: 400;
+    margin-top: 3px;
+    padding-left: 1.15em;
+    font-weight: 700;
+    font-size: 12px;
   }
   .item-empty {
     margin: 4px 0;
@@ -295,30 +440,23 @@ export function buildThermalReceiptHtml(order, branch) {
   .total-line {
     font-weight: 700;
     font-size: 14px;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.01em;
     margin-bottom: 4px;
+    line-height: 1.3;
   }
   .pay-line {
     font-weight: 400;
     font-size: 12px;
-    margin-bottom: 4px;
+    margin-bottom: 3px;
   }
   .note-line {
     margin-top: 2px;
     font-size: 12px;
     line-height: 1.4;
   }
-  .delivery-line {
-    margin-top: 2px;
-    font-size: 12px;
-  }
   @media screen {
-    html {
-      background: #e8e8e8;
-    }
-    body {
-      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18);
-    }
+    html { background: #ececec; }
+    body { box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18); }
   }
   @media print {
     @page {
@@ -337,7 +475,7 @@ export function buildThermalReceiptHtml(order, branch) {
       color: #000 !important;
       box-shadow: none !important;
     }
-    .ticket { padding: 6px 8px 8px !important; }
+    .ticket { padding: 6px 8px 10px !important; }
   }
 </style>
 </head>
@@ -347,15 +485,15 @@ export function buildThermalReceiptHtml(order, branch) {
   <div class="sucursal">Sucursal: <strong>${esc(m.sucursal)}</strong></div>
   <div class="meta-row">${esc(m.ticketShort)}&nbsp;&nbsp;${esc(m.fechaStr)}&nbsp;&nbsp;${esc(m.horaStr)}</div>
 
-  ${line()}
+  ${ruleHtml()}
   <div class="section-head">DATOS DEL CLIENTE</div>
-  ${line()}
+  ${ruleHtml()}
 
   ${buildCustomerHtml(customer)}
 
-  ${line()}
+  ${ruleHtml()}
   <div class="section-head">DETALLE DEL PEDIDO</div>
-  ${line()}
+  ${ruleHtml()}
 
   ${buildItemsHtml(items)}
   ${buildFooterHtml(m)}
@@ -415,7 +553,7 @@ function openCompactPrintWindow(html) {
       const contentH = Math.max(
         doc.body?.scrollHeight || 0,
         doc.documentElement?.scrollHeight || 0,
-        320
+        320,
       );
       const chrome = win.outerHeight - win.innerHeight;
       const targetH = Math.min(contentH + chrome + 16, 720);
