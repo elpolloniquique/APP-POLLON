@@ -5,7 +5,7 @@ import { wrapText } from './format';
 const THERMAL_MM = '80mm';
 const THERMAL_PX = 302;
 const WIN_WIDTH = 340;
-const RECEIPT_RULE = '--------------------------';
+const RECEIPT_RULE = '----------------------------------------------';
 
 export function paymentLabel(method) {
   const m = PAYMENT_METHODS.find((p) => p.id === method);
