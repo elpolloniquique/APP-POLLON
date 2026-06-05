@@ -1,6 +1,26 @@
 {
-  "rewrites": [{ "source": "/((?!api/|robots\\.txt|sitemap\\.xml|.*\\..*).*)", "destination": "/index.html" }],
+  "rewrites": [{ "source": "/((?!api/|robots\\.txt|sitemap\\.xml|manifest\\.json|sw\\.js|workbox-.*\\.js|.*\\..*).*)", "destination": "/index.html" }],
   "headers": [
+    {
+      "source": "/sw.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" },
+        { "key": "Service-Worker-Allowed", "value": "/" }
+      ]
+    },
+    {
+      "source": "/workbox-(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
+      ]
+    },
+    {
+      "source": "/manifest.json",
+      "headers": [
+        { "key": "Content-Type", "value": "application/manifest+json; charset=utf-8" },
+        { "key": "Cache-Control", "value": "public, max-age=86400" }
+      ]
+    },
     {
       "source": "/admin(.*)",
       "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
