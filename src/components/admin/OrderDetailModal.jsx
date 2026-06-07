@@ -1,15 +1,19 @@
-import { X, Printer, RefreshCw } from 'lucide-react';
+import { X, Printer, RefreshCw, Ban } from 'lucide-react';
 import { money, formatDateTime, estadoLabel, nextEstado } from '../../utils/format';
 import { getOrderReceiptMeta, printThermalReceipt, paymentLabel } from '../../utils/orderReceipt';
+import { canAdvanceOrderEstado, canCancelOrder } from '../../utils/constants';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { ORDER_TYPE_LABELS } from '../../utils/constants';
 
-export function OrderDetailModal({ order, branch, onClose, onChangeEstado, onPrint }) {
+export function OrderDetailModal({ order, branch, onClose, onChangeEstado, onCancelOrder, onPrint }) {
   if (!order) return null;
 
   const m = getOrderReceiptMeta(order, branch);
   const orderTypeLabel = ORDER_TYPE_LABELS[m.orderType] || m.orderType;
+  const canAdvance = canAdvanceOrderEstado(order.estado);
+  const canCancel = canCancelOrder(order.estado);
+  const nextLabel = estadoLabel(nextEstado(order.estado));
 
   const handlePrint = () => {
     try {
@@ -21,8 +25,13 @@ export function OrderDetailModal({ order, branch, onClose, onChangeEstado, onPri
   };
 
   const handleEstado = async () => {
-    const next = nextEstado(order.estado);
-    await onChangeEstado?.({ ...order, estado: next, deliveredAt: next === 'entregado' ? new Date().toISOString() : order.deliveredAt });
+    if (!canAdvance) return;
+    await onChangeEstado?.(order);
+  };
+
+  const handleCancel = async () => {
+    if (!canCancel) return;
+    await onCancelOrder?.(order);
   };
 
   return (
@@ -33,7 +42,6 @@ export function OrderDetailModal({ order, branch, onClose, onChangeEstado, onPri
         role="dialog"
         aria-labelledby="order-detail-title"
       >
-        {/* Header */}
         <div className="flex items-start justify-between border-b bg-gradient-to-r from-pollon-black to-gray-900 px-5 py-4 text-white">
           <div>
             <p className="text-xs font-medium uppercase tracking-wider text-pollon-orange">Detalle del pedido</p>
@@ -48,7 +56,6 @@ export function OrderDetailModal({ order, branch, onClose, onChangeEstado, onPri
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4">
-          {/* Badges */}
           <div className="flex flex-wrap gap-2">
             <Badge estado={order.estado}>{estadoLabel(order.estado)}</Badge>
             <span className="rounded-full bg-gray-100 px-3 py-0.5 text-xs font-bold uppercase text-gray-700">
@@ -59,7 +66,17 @@ export function OrderDetailModal({ order, branch, onClose, onChangeEstado, onPri
             </span>
           </div>
 
-          {/* Cliente */}
+          {!canAdvance && order.estado === 'entregado' && (
+            <p className="mt-3 rounded-lg bg-green-50 px-3 py-2 text-xs font-medium text-green-800">
+              Pedido entregado. El estado ya no puede modificarse.
+            </p>
+          )}
+          {order.estado === 'cancelado' && (
+            <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-800">
+              Pedido cancelado. No se pueden realizar más cambios.
+            </p>
+          )}
+
           <section className="mt-5 rounded-xl bg-gray-50 p-4">
             <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500">Cliente</h3>
             <dl className="mt-2 space-y-1.5 text-sm">
@@ -86,7 +103,6 @@ export function OrderDetailModal({ order, branch, onClose, onChangeEstado, onPri
             </dl>
           </section>
 
-          {/* Items — mismo detalle que WhatsApp */}
           <section className="mt-4">
             <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500">Detalle del pedido</h3>
             <ul className="mt-2 divide-y rounded-xl border border-gray-100">
@@ -108,7 +124,6 @@ export function OrderDetailModal({ order, branch, onClose, onChangeEstado, onPri
             </ul>
           </section>
 
-          {/* Totales */}
           <section className="mt-4 rounded-xl border-2 border-pollon-red/20 bg-red-50/50 p-4">
             {m.deliveryFee > 0 && (
               <div className="flex justify-between text-sm text-gray-600">
@@ -123,17 +138,30 @@ export function OrderDetailModal({ order, branch, onClose, onChangeEstado, onPri
           </section>
         </div>
 
-        {/* Acciones */}
-        <div className="flex flex-wrap gap-2 border-t bg-gray-50 px-5 py-4">
-          <Button type="button" onClick={handlePrint} className="flex flex-1 items-center justify-center gap-2">
-            <Printer className="h-4 w-4" /> Imprimir 80mm
-          </Button>
-          <Button type="button" variant="ghost" onClick={handleEstado} className="flex items-center gap-2">
-            <RefreshCw className="h-4 w-4" /> {estadoLabel(nextEstado(order.estado))}
-          </Button>
-          <Button type="button" variant="ghost" onClick={onClose} className="flex-1 sm:flex-none">
-            Cerrar
-          </Button>
+        <div className="flex flex-col gap-2 border-t bg-gray-50 px-5 py-4">
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" onClick={handlePrint} className="flex flex-1 items-center justify-center gap-2">
+              <Printer className="h-4 w-4" /> Imprimir 80mm
+            </Button>
+            {canAdvance && (
+              <Button type="button" variant="ghost" onClick={handleEstado} className="flex flex-1 items-center justify-center gap-2">
+                <RefreshCw className="h-4 w-4" /> {nextLabel}
+              </Button>
+            )}
+            <Button type="button" variant="ghost" onClick={onClose} className="flex-1 sm:flex-none">
+              Cerrar
+            </Button>
+          </div>
+          {canCancel && (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={handleCancel}
+              className="flex w-full items-center justify-center gap-2 border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+            >
+              <Ban className="h-4 w-4" /> Cancelar pedido
+            </Button>
+          )}
         </div>
       </div>
     </div>

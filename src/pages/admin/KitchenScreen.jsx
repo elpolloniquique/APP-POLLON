@@ -3,7 +3,7 @@ import { Eye, RefreshCw } from 'lucide-react';
 import { useOrders } from '../../hooks/useOrders';
 import { useAdminBranchFilter } from '../../hooks/useAdminBranchFilter';
 import { elapsedMinutes, estadoLabel, nextEstado } from '../../utils/format';
-import { ORDER_TYPE_LABELS } from '../../utils/constants';
+import { ORDER_TYPE_LABELS, canAdvanceOrderEstado } from '../../utils/constants';
 import { adminListAllBranches } from '../../services/branchService';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { AdminScrollPanel } from '../../components/admin/AdminScrollPanel';
@@ -31,6 +31,7 @@ function KitchenOrderCard({ order, onView, onAdvance }) {
   const typeLabel = ORDER_TYPE_LABELS[order.orderType] || order.orderType || 'delivery';
   const next = nextEstado(order.estado);
   const nextLabel = estadoLabel(next);
+  const canAdvance = canAdvanceOrderEstado(order.estado) && next !== order.estado;
 
   return (
     <article className="kitchen-card">
@@ -74,10 +75,11 @@ function KitchenOrderCard({ order, onView, onAdvance }) {
         </button>
         <button
           type="button"
-          className="kitchen-card__advance"
+          className="kitchen-card__advance disabled:cursor-not-allowed disabled:opacity-40"
           onClick={() => onAdvance(order)}
-          title={`Avanzar a: ${nextLabel}`}
-          aria-label={`Avanzar estado a ${nextLabel}`}
+          disabled={!canAdvance}
+          title={canAdvance ? `Avanzar a: ${nextLabel}` : 'Pedido finalizado'}
+          aria-label={canAdvance ? `Avanzar estado a ${nextLabel}` : 'Pedido finalizado'}
         >
           <RefreshCw className="h-5 w-5" aria-hidden />
         </button>
@@ -112,8 +114,9 @@ export function KitchenScreen() {
   );
 
   const changeEstado = async (order) => {
-    if (advancingId) return;
+    if (advancingId || !canAdvanceOrderEstado(order.estado)) return;
     const next = nextEstado(order.estado);
+    if (next === order.estado) return;
     const updated = {
       ...order,
       estado: next,
@@ -129,6 +132,14 @@ export function KitchenScreen() {
     } finally {
       setAdvancingId(null);
     }
+  };
+
+  const cancelOrder = async (order) => {
+    if (!window.confirm(`¿Cancelar el pedido #${order.codigo_pedido || order.ticketNumber}?`)) return;
+    const updated = { ...order, estado: 'cancelado' };
+    await updateOrder(updated);
+    await refresh();
+    if (viewOrder?.id === order.id) setViewOrder(updated);
   };
 
   const statusLine = ready && isBackendReady && realtimeStatus === 'live' ? (
@@ -181,6 +192,7 @@ export function KitchenScreen() {
           branch={branchFor(viewOrder)}
           onClose={() => setViewOrder(null)}
           onChangeEstado={changeEstado}
+          onCancelOrder={cancelOrder}
         />
       )}
     </div>

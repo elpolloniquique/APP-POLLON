@@ -113,11 +113,7 @@ export function slugify(text) {
     .replace(/^-|-$/g, '');
 }
 
-export function nextEstado(current) {
-  const flow = ['pendiente', 'confirmado', 'preparando', 'listo', 'en_delivery', 'entregado', 'cancelado'];
-  const idx = flow.indexOf(current || 'pendiente');
-  return flow[(idx + 1) % flow.length];
-}
+export { getNextOrderEstado as nextEstado } from './constants';
 
 export function estadoLabel(estado) {
   const labels = {

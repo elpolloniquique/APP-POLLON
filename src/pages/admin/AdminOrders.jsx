@@ -3,7 +3,7 @@ import { Eye, Printer, RefreshCw } from 'lucide-react';
 import { useOrders } from '../../hooks/useOrders';
 import { useStaffBranch } from '../../hooks/useStaffBranch';
 import { useAdminBranchFilter } from '../../hooks/useAdminBranchFilter';
-import { money, formatDateTime, nextEstado, estadoLabel, todayISO } from '../../utils/format';
+import { money, formatDateTime, estadoLabel, todayISO } from '../../utils/format';
 import { printThermalReceipt } from '../../utils/orderReceipt';
 import { adminListAllBranches } from '../../services/branchService';
 import { Badge } from '../../components/ui/Badge';
@@ -12,7 +12,7 @@ import { OrderDetailModal } from '../../components/admin/OrderDetailModal';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { AdminBranchFilter } from '../../components/admin/AdminBranchFilter';
 import { AdminTable } from '../../components/admin/AdminTable';
-import { ORDER_STATES } from '../../utils/constants';
+import { ORDER_STATES, canAdvanceOrderEstado, getNextOrderEstado } from '../../utils/constants';
 
 export function AdminOrders() {
   const [alarmOn, setAlarmOn] = useState(true);
@@ -88,8 +88,8 @@ export function AdminOrders() {
     a.click();
   };
 
-  const changeEstado = async (order) => {
-    const next = nextEstado(order.estado);
+  const applyEstado = async (order, next) => {
+    if (!next || next === order.estado) return;
     const updated = {
       ...order,
       estado: next,
@@ -98,6 +98,18 @@ export function AdminOrders() {
     await updateOrder(updated);
     refresh();
     if (viewOrder?.id === order.id) setViewOrder(updated);
+  };
+
+  const changeEstado = async (order) => {
+    if (!canAdvanceOrderEstado(order.estado)) return;
+    await applyEstado(order, getNextOrderEstado(order.estado));
+  };
+
+  const cancelOrder = async (order) => {
+    if (!window.confirm(`¿Cancelar el pedido #${order.codigo_pedido || order.ticketNumber}? Esta acción no se puede deshacer.`)) {
+      return;
+    }
+    await applyEstado(order, 'cancelado');
   };
 
   const handlePrint = (order) => {
@@ -209,7 +221,13 @@ export function AdminOrders() {
                   <Printer className="h-3.5 w-3.5" />
                   <span className="admin-orders-action__label">Imprimir</span>
                 </button>
-                <button type="button" onClick={() => changeEstado(o)} className="admin-orders-action admin-orders-action--status" title="Cambiar estado">
+                <button
+                  type="button"
+                  onClick={() => changeEstado(o)}
+                  disabled={!canAdvanceOrderEstado(o.estado)}
+                  className="admin-orders-action admin-orders-action--status disabled:cursor-not-allowed disabled:opacity-40"
+                  title={canAdvanceOrderEstado(o.estado) ? `Avanzar a ${estadoLabel(getNextOrderEstado(o.estado))}` : 'Pedido finalizado'}
+                >
                   <RefreshCw className="h-3.5 w-3.5" />
                   <span className="admin-orders-action__label">Estado</span>
                 </button>
@@ -225,6 +243,7 @@ export function AdminOrders() {
           branch={branchFor(viewOrder)}
           onClose={() => setViewOrder(null)}
           onChangeEstado={changeEstado}
+          onCancelOrder={cancelOrder}
         />
       )}
     </div>

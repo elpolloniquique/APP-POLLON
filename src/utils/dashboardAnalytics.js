@@ -352,8 +352,12 @@ export function buildBranchStats(orders, branches, periodId) {
 }
 
 export function buildPipelineChart(orders) {
-  const stages = ['pendiente', 'confirmado', 'preparando', 'listo', 'en_delivery', 'entregado'];
-  const counts = stages.map((s) => orders.filter((o) => o.estado === s).length);
+  const stages = ['pendiente', 'confirmado', 'preparando', 'en_delivery', 'entregado'];
+  const counts = stages.map((s) => orders.filter((o) => {
+    if (o.estado === s) return true;
+    if (s === 'en_delivery' && o.estado === 'listo') return true;
+    return false;
+  }).length);
   return {
     labels: stages,
     datasets: [{

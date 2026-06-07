@@ -35,15 +35,22 @@ export const CATEGORY_META = {
   'ofertas-personales': { title: 'Ofertas Personales', emoji: '🧑' },
 };
 
-/** Estados internos del pedido */
-export const ORDER_STATES = [
+/** Flujo activo de avance (sin "listo"; entregado y cancelado son finales) */
+export const ORDER_STATUS_FLOW = [
   'pendiente',
   'confirmado',
   'preparando',
-  'listo',
   'en_delivery',
   'entregado',
+];
+
+export const ORDER_TERMINAL_STATES = new Set(['entregado', 'cancelado']);
+
+/** Filtros en panel admin (incluye cancelado; "listo" solo para pedidos antiguos) */
+export const ORDER_STATES = [
+  ...ORDER_STATUS_FLOW,
   'cancelado',
+  'listo',
 ];
 
 /** Etiquetas para el cliente */
@@ -51,13 +58,31 @@ export const ORDER_STATUS_LABELS = {
   pendiente: { label: 'Pedido recibido', step: 1, color: 'bg-blue-500' },
   confirmado: { label: 'Confirmado', step: 2, color: 'bg-indigo-500' },
   preparando: { label: 'En cocina', step: 3, color: 'bg-amber-500' },
-  listo: { label: 'Listo para retiro', step: 4, color: 'bg-teal-500' },
-  en_delivery: { label: 'En reparto', step: 5, color: 'bg-purple-500' },
-  entregado: { label: 'Entregado', step: 6, color: 'bg-green-600' },
+  listo: { label: 'En reparto', step: 4, color: 'bg-purple-500' },
+  en_delivery: { label: 'En reparto', step: 4, color: 'bg-purple-500' },
+  entregado: { label: 'Entregado', step: 5, color: 'bg-green-600' },
   cancelado: { label: 'Cancelado', step: 0, color: 'bg-red-500' },
 };
 
-export const ORDER_STATUS_STEPS = ['pendiente', 'confirmado', 'preparando', 'listo', 'en_delivery', 'entregado'];
+export const ORDER_STATUS_STEPS = [...ORDER_STATUS_FLOW];
+
+export function canAdvanceOrderEstado(estado) {
+  return !ORDER_TERMINAL_STATES.has(estado);
+}
+
+export function canCancelOrder(estado) {
+  return !ORDER_TERMINAL_STATES.has(estado);
+}
+
+/** Siguiente estado en el flujo; entregado/cancelado no avanzan ni ciclan */
+export function getNextOrderEstado(current) {
+  if (ORDER_TERMINAL_STATES.has(current)) return current;
+  if (current === 'listo') return 'en_delivery';
+  const idx = ORDER_STATUS_FLOW.indexOf(current);
+  if (idx === -1) return ORDER_STATUS_FLOW[0];
+  if (idx >= ORDER_STATUS_FLOW.length - 1) return current;
+  return ORDER_STATUS_FLOW[idx + 1];
+}
 
 export const ORDER_TYPE_LABELS = {
   delivery: 'Delivery',
