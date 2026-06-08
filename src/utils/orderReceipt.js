@@ -276,6 +276,14 @@ export function buildThermalReceiptHtml(order, branch) {
     width: 100%;
     padding: 8px 10px 12px;
   }
+  .ticket__feed-top {
+    height: 10mm;
+    min-height: 10mm;
+  }
+  .ticket__feed-bottom {
+    height: 22mm;
+    min-height: 22mm;
+  }
   .title {
     font-weight: 700;
     font-size: 14px;
@@ -415,12 +423,23 @@ export function buildThermalReceiptHtml(order, branch) {
       color: #000 !important;
       box-shadow: none !important;
     }
-    .ticket { padding: 6px 8px 10px !important; }
+    .ticket {
+      padding: 10mm 8px 0 8px !important;
+    }
+    .ticket__feed-top {
+      height: 12mm !important;
+      min-height: 12mm !important;
+    }
+    .ticket__feed-bottom {
+      height: 28mm !important;
+      min-height: 28mm !important;
+    }
   }
 </style>
 </head>
 <body>
 <div class="ticket">
+  <div class="ticket__feed-top" aria-hidden="true"></div>
   <div class="title">${esc(m.orderTypeLabel.toUpperCase())} - POLLERÍA EL POLLÓN</div>
   <div class="sucursal">Sucursal: <strong>${esc(m.sucursal)}</strong></div>
   <div class="meta-row">${esc(m.ticketShort)}&nbsp;&nbsp;${esc(m.fechaStr)}&nbsp;&nbsp;${esc(m.horaStr)}</div>
@@ -437,6 +456,7 @@ export function buildThermalReceiptHtml(order, branch) {
 
   ${buildItemsHtml(items)}
   ${buildFooterHtml(m)}
+  <div class="ticket__feed-bottom" aria-hidden="true"></div>
 </div>
 </body>
 </html>`;

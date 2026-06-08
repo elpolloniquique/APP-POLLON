@@ -49,15 +49,18 @@ function readBody(req) {
 function tcpSend(host, port, buffer) {
   return new Promise((resolve, reject) => {
     const socket = net.connect(port, host, () => {
-      socket.write(buffer);
-      socket.end();
+      socket.write(buffer, () => {
+        socket.end();
+      });
     });
-    socket.setTimeout(8000, () => {
+    socket.setTimeout(12000, () => {
       socket.destroy();
       reject(new Error('Timeout al enviar a la impresora'));
     });
     socket.on('error', reject);
-    socket.on('close', resolve);
+    socket.on('close', () => {
+      setTimeout(resolve, 400);
+    });
   });
 }
 

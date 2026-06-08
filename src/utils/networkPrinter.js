@@ -42,11 +42,12 @@ export function isMobileOrTabletForPrint() {
   return ua || (coarse && narrow);
 }
 
+/** Red WiFi + puente local → ESC/POS (PC, tablet o móvil) con márgenes y corte */
 export function shouldUseNetworkPrint(printerConfig) {
   if (!printerConfig?.enabled) return false;
   if (!printerConfig.ip) return false;
   if (!printerConfig.bridgeUrl) return false;
-  return isMobileOrTabletForPrint();
+  return true;
 }
 
 function bytesToBase64(bytes) {
@@ -58,15 +59,37 @@ function bytesToBase64(bytes) {
   return btoa(binary);
 }
 
-/** Ticket ESC/POS 80mm — mismo texto que impresión HTML */
+/** Líneas en blanco arriba/abajo y antes del corte (80mm térmica) */
+const FEED_TOP_LINES = 5;
+const FEED_BOTTOM_LINES = 6;
+const FEED_CUT_LINES = 12;
+
+function escInit() {
+  return new Uint8Array([0x1b, 0x40]);
+}
+
+/** ESC d n — avanza n líneas (separación entre tickets) */
+function escFeedLines(n) {
+  const lines = Math.min(255, Math.max(0, n));
+  return new Uint8Array([0x1b, 0x64, lines]);
+}
+
+/** GS V 66 n — avanza n líneas y corte parcial en posición de cuchilla */
+function escFeedAndCut(lines = FEED_CUT_LINES) {
+  const n = Math.min(255, Math.max(1, lines));
+  return new Uint8Array([0x1d, 0x56, 0x42, n]);
+}
+
+/** Ticket ESC/POS 80mm — mismo texto + márgenes + expulsión + corte */
 export function buildEscPosReceipt(order, branch) {
   const text = buildOrderReceiptText(order, branch);
   const encoder = new TextEncoder();
   const parts = [
-    new Uint8Array([0x1b, 0x40]),
+    escInit(),
+    escFeedLines(FEED_TOP_LINES),
     encoder.encode(text),
-    new Uint8Array([0x0a, 0x0a, 0x0a]),
-    new Uint8Array([0x1d, 0x56, 0x00]),
+    escFeedLines(FEED_BOTTOM_LINES),
+    escFeedAndCut(FEED_CUT_LINES),
   ];
   const total = parts.reduce((n, p) => n + p.length, 0);
   const out = new Uint8Array(total);
@@ -157,7 +180,7 @@ export async function printViaNetwork(order, branch, config) {
   }
 }
 
-/** PC → window.print() sin cambios; tablet/móvil → red WiFi si está configurada */
+/** Red WiFi configurada → ESC/POS; si no, ventana HTML + window.print() */
 export async function printThermalReceiptSmart(order, branch) {
   if (!order) throw new Error('Pedido no válido');
   const printerConfig = getBranchPrinterConfig(branch);

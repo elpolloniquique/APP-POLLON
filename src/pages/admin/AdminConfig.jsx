@@ -219,10 +219,11 @@ export function AdminConfig() {
         {isBranchScoped && (
           <div className="mt-4 space-y-3 border-t border-gray-100 pt-4">
             <div>
-              <h3 className="text-sm font-bold text-pollon-black">Impresora WiFi (tablet / móvil)</h3>
+              <h3 className="text-sm font-bold text-pollon-black">Impresora WiFi (red / térmica)</h3>
               <p className="mt-1 text-xs text-gray-500">
-                La impresión en PC por USB no cambia. Para tablet o celular, conecta la impresora al WiFi del router
-                e indica su IP. Necesitas un puente local gratuito en un PC del local (ver scripts/local-print-bridge.mjs).
+                Conecta la impresora al WiFi del router, indica su IP y ejecuta el puente en un PC del local (
+                <code className="rounded bg-gray-100 px-1">node scripts/local-print-bridge.mjs</code>
+                ). Desde PC, tablet o móvil se envía el ticket con márgenes y corte automático.
               </p>
             </div>
             <label className="flex items-center gap-2">
@@ -231,7 +232,7 @@ export function AdminConfig() {
                 checked={cfg.thermal_network_print_enabled}
                 onChange={(e) => setCfg((c) => ({ ...c, thermal_network_print_enabled: e.target.checked }))}
               />
-              Activar impresión por red en tablet/móvil
+              Activar impresión por red (WiFi)
             </label>
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
