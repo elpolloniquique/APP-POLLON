@@ -1,6 +1,7 @@
 import { X, Printer, RefreshCw, Ban } from 'lucide-react';
 import { money, formatDateTime, estadoLabel, nextEstado } from '../../utils/format';
-import { getOrderReceiptMeta, printThermalReceipt, paymentLabel } from '../../utils/orderReceipt';
+import { getOrderReceiptMeta, paymentLabel } from '../../utils/orderReceipt';
+import { printThermalReceiptSmart } from '../../utils/networkPrinter';
 import { canAdvanceOrderEstado, canCancelOrder } from '../../utils/constants';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
@@ -15,9 +16,9 @@ export function OrderDetailModal({ order, branch, onClose, onChangeEstado, onCan
   const canCancel = canCancelOrder(order.estado);
   const nextLabel = estadoLabel(nextEstado(order.estado));
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     try {
-      printThermalReceipt(order, branch);
+      await printThermalReceiptSmart(order, branch);
       onPrint?.();
     } catch (e) {
       alert(e.message || 'No se pudo imprimir');

@@ -8,6 +8,7 @@ import { useBranch } from '../../context/BranchContext';
 import { canManageAllBranches } from '../../services/authService';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { normalizeDeliveryCost } from '../../utils/format';
+import { testNetworkPrinter, saveBranchPrinterConfigLocal } from '../../utils/networkPrinter';
 
 export function AdminConfig() {
   const { profile, role } = useAuth();
@@ -28,8 +29,14 @@ export function AdminConfig() {
     facebook_url: '',
     instagram_url: '',
     tiktok_url: '',
+    thermal_network_print_enabled: false,
+    thermal_printer_ip: '',
+    thermal_printer_port: 9100,
+    thermal_print_bridge_url: '',
   });
   const [saving, setSaving] = useState(false);
+  const [testingPrinter, setTestingPrinter] = useState(false);
+  const [printerTestMsg, setPrinterTestMsg] = useState('');
 
   useEffect(() => {
     if (isBranchScoped && branch) {
@@ -48,6 +55,10 @@ export function AdminConfig() {
         facebook_url: branch.facebookUrl || '',
         instagram_url: branch.instagramUrl || '',
         tiktok_url: branch.tiktokUrl || '',
+        thermal_network_print_enabled: branch.thermalNetworkPrintEnabled === true,
+        thermal_printer_ip: branch.thermalPrinterIp || '',
+        thermal_printer_port: branch.thermalPrinterPort || 9100,
+        thermal_print_bridge_url: branch.thermalPrintBridgeUrl || '',
       });
       return;
     }
@@ -79,7 +90,17 @@ export function AdminConfig() {
           facebookUrl: cfg.facebook_url,
           instagramUrl: cfg.instagram_url,
           tiktokUrl: cfg.tiktok_url,
+          thermalNetworkPrintEnabled: cfg.thermal_network_print_enabled,
+          thermalPrinterIp: cfg.thermal_printer_ip,
+          thermalPrinterPort: Number(cfg.thermal_printer_port) || 9100,
+          thermalPrintBridgeUrl: cfg.thermal_print_bridge_url,
         }, { id: profile?.id, email: profile?.email });
+        saveBranchPrinterConfigLocal(branchId, {
+          enabled: cfg.thermal_network_print_enabled,
+          ip: cfg.thermal_printer_ip,
+          port: Number(cfg.thermal_printer_port) || 9100,
+          bridgeUrl: cfg.thermal_print_bridge_url,
+        });
         await refreshBranches();
         alert('Configuración de tu local guardada');
         return;
@@ -93,6 +114,23 @@ export function AdminConfig() {
       alert(e.message || 'Error al guardar');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const testPrinter = async () => {
+    setTestingPrinter(true);
+    setPrinterTestMsg('');
+    try {
+      const msg = await testNetworkPrinter({
+        ip: cfg.thermal_printer_ip,
+        port: Number(cfg.thermal_printer_port) || 9100,
+        bridgeUrl: cfg.thermal_print_bridge_url,
+      });
+      setPrinterTestMsg(msg);
+    } catch (e) {
+      setPrinterTestMsg(e.message || 'Error al probar impresora');
+    } finally {
+      setTestingPrinter(false);
     }
   };
 
@@ -177,6 +215,68 @@ export function AdminConfig() {
           <input type="checkbox" checked={cfg.reservas_activas} onChange={(e) => setCfg((c) => ({ ...c, reservas_activas: e.target.checked }))} />
           Reservas activas
         </label>
+
+        {isBranchScoped && (
+          <div className="mt-4 space-y-3 border-t border-gray-100 pt-4">
+            <div>
+              <h3 className="text-sm font-bold text-pollon-black">Impresora WiFi (tablet / móvil)</h3>
+              <p className="mt-1 text-xs text-gray-500">
+                La impresión en PC por USB no cambia. Para tablet o celular, conecta la impresora al WiFi del router
+                e indica su IP. Necesitas un puente local gratuito en un PC del local (ver scripts/local-print-bridge.mjs).
+              </p>
+            </div>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={cfg.thermal_network_print_enabled}
+                onChange={(e) => setCfg((c) => ({ ...c, thermal_network_print_enabled: e.target.checked }))}
+              />
+              Activar impresión por red en tablet/móvil
+            </label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="text-sm font-medium">IP de la impresora</label>
+                <input
+                  value={cfg.thermal_printer_ip}
+                  onChange={(e) => setCfg((c) => ({ ...c, thermal_printer_ip: e.target.value.trim() }))}
+                  placeholder="192.168.1.100"
+                  className="mt-1 w-full rounded-lg border px-3 py-2 font-mono text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Puerto (normalmente 9100)</label>
+                <input
+                  type="number"
+                  value={cfg.thermal_printer_port}
+                  onChange={(e) => setCfg((c) => ({ ...c, thermal_printer_port: e.target.value }))}
+                  className="mt-1 w-full rounded-lg border px-3 py-2 font-mono text-sm"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium">URL del puente local</label>
+              <input
+                value={cfg.thermal_print_bridge_url}
+                onChange={(e) => setCfg((c) => ({ ...c, thermal_print_bridge_url: e.target.value.trim() }))}
+                placeholder="http://192.168.1.50:3009"
+                className="mt-1 w-full rounded-lg border px-3 py-2 font-mono text-sm"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                IP del PC donde corre: <code className="rounded bg-gray-100 px-1">node scripts/local-print-bridge.mjs</code>
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="button" variant="ghost" onClick={testPrinter} disabled={testingPrinter}>
+                {testingPrinter ? 'Probando…' : 'Probar conexión por IP'}
+              </Button>
+              {printerTestMsg && (
+                <span className={`text-xs ${printerTestMsg.includes('correctamente') || printerTestMsg.includes('accesible') ? 'text-green-700' : 'text-red-600'}`}>
+                  {printerTestMsg}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
 
         {isBranchScoped && (
           <div className="mt-4 space-y-3 border-t border-gray-100 pt-4">

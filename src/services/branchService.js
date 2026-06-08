@@ -26,6 +26,10 @@ function mapBranch(row) {
     facebookUrl: row.facebook_url || '',
     instagramUrl: row.instagram_url || '',
     tiktokUrl: row.tiktok_url || '',
+    thermalPrinterIp: row.thermal_printer_ip || '',
+    thermalPrinterPort: Number(row.thermal_printer_port) || 9100,
+    thermalPrintBridgeUrl: row.thermal_print_bridge_url || '',
+    thermalNetworkPrintEnabled: row.thermal_network_print_enabled === true,
   };
 }
 
@@ -187,6 +191,10 @@ export async function adminSaveBranch(branch, user) {
     facebook_url: branch.facebookUrl?.trim() || '',
     instagram_url: branch.instagramUrl?.trim() || '',
     tiktok_url: branch.tiktokUrl?.trim() || '',
+    thermal_printer_ip: branch.thermalPrinterIp?.trim() || '',
+    thermal_printer_port: Number(branch.thermalPrinterPort) || 9100,
+    thermal_print_bridge_url: branch.thermalPrintBridgeUrl?.trim() || '',
+    thermal_network_print_enabled: branch.thermalNetworkPrintEnabled === true,
   };
 
   const { data, error } = await sb.from('branches').upsert(row).select().single();

@@ -4,7 +4,7 @@ import { useOrders } from '../../hooks/useOrders';
 import { useStaffBranch } from '../../hooks/useStaffBranch';
 import { useAdminBranchFilter } from '../../hooks/useAdminBranchFilter';
 import { money, formatDateTime, estadoLabel, todayISO } from '../../utils/format';
-import { printThermalReceipt } from '../../utils/orderReceipt';
+import { printThermalReceiptSmart } from '../../utils/networkPrinter';
 import { adminListAllBranches } from '../../services/branchService';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
@@ -112,11 +112,11 @@ export function AdminOrders() {
     await applyEstado(order, 'cancelado');
   };
 
-  const handlePrint = (order) => {
+  const handlePrint = async (order) => {
     try {
-      printThermalReceipt(order, branchFor(order));
+      await printThermalReceiptSmart(order, branchFor(order));
     } catch (e) {
-      alert(e.message || 'Permite ventanas emergentes para imprimir');
+      alert(e.message || 'No se pudo imprimir');
     }
   };
 
