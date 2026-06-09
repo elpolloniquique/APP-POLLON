@@ -12,6 +12,43 @@ import { testNetworkPrinter, saveBranchPrinterConfigLocal } from '../../utils/ne
 import { ReservationScheduleEditor } from '../../components/admin/ReservationScheduleEditor';
 import { normalizeReservationSchedule, DEFAULT_RESERVATION_SLOT } from '../../utils/orderTypeConfig';
 
+const INPUT = 'admin-config-input';
+const INPUT_MONO = 'admin-config-input admin-config-input--mono';
+
+function ConfigSection({ title, description, children }) {
+  return (
+    <section className="admin-config-section">
+      <div className="admin-config-section__head">
+        <h3 className="admin-config-section__title">{title}</h3>
+        {description && <p className="admin-config-section__desc">{description}</p>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function ConfigField({ label, hint, children, span = 1 }) {
+  return (
+    <div className={span === 2 ? 'sm:col-span-2' : undefined}>
+      <label className="admin-config-field__label">{label}</label>
+      {hint && <p className="admin-config-field__hint">{hint}</p>}
+      <div className="admin-config-field__control">{children}</div>
+    </div>
+  );
+}
+
+function ConfigToggle({ label, checked, onChange, children }) {
+  return (
+    <div className="admin-config-toggle">
+      <label className="admin-config-toggle__label">
+        <input type="checkbox" checked={checked} onChange={onChange} />
+        <span className="admin-config-toggle__text">{label}</span>
+      </label>
+      {checked && children && <div className="admin-config-toggle__body">{children}</div>}
+    </div>
+  );
+}
+
 export function AdminConfig() {
   const { profile, role } = useAuth();
   const { branch, branchName, isBranchScoped, branchId } = useStaffBranch();
@@ -163,18 +200,18 @@ export function AdminConfig() {
     );
   }
 
-  const branchFields = {
-    nombre_tienda: 'Nombre del local',
-    telefono: 'Teléfono',
-    whatsapp: 'WhatsApp',
-    direccion: 'Dirección',
-    horario: 'Horario de atención',
-    delivery_eta: 'Tiempo estimado delivery',
-    mensaje_cliente: 'Mensaje a clientes',
-  };
+  const branchFields = [
+    { key: 'nombre_tienda', label: 'Nombre del local', span: 2 },
+    { key: 'telefono', label: 'Teléfono' },
+    { key: 'whatsapp', label: 'WhatsApp' },
+    { key: 'direccion', label: 'Dirección', span: 2 },
+    { key: 'horario', label: 'Horario de atención', span: 2 },
+    { key: 'delivery_eta', label: 'Tiempo estimado delivery' },
+    { key: 'mensaje_cliente', label: 'Mensaje a clientes', span: 2 },
+  ];
 
   return (
-    <div className="admin-page max-w-2xl">
+    <div className="admin-config-page admin-page">
       <AdminPageHeader
         title={isBranchScoped ? 'Configuración del local' : 'Configuración general'}
         subtitle={
@@ -186,223 +223,215 @@ export function AdminConfig() {
         }
         branchLabel={isBranchScoped ? branchName : undefined}
       />
-      <div className="space-y-3 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-black/5">
-        {Object.entries(branchFields).map(([key, label]) => (
-          <div key={key}>
-            <label className="text-sm font-medium">{label}</label>
-            <input
-              value={cfg[key] || ''}
-              onChange={(e) => setCfg((c) => ({ ...c, [key]: e.target.value }))}
-              className="mt-1 w-full rounded-lg border px-3 py-2"
-            />
-          </div>
-        ))}
-        {isBranchScoped && (
-          <div>
-            <label className="text-sm font-medium">Costo delivery</label>
-            <p className="mt-0.5 text-xs text-gray-500">
-              Monto fijo en pesos (ej. 2500) o texto libre (ej. Varía según distancia).
-            </p>
-            <input
-              type="text"
-              value={cfg.delivery_cost}
-              onChange={(e) => setCfg((c) => ({ ...c, delivery_cost: e.target.value }))}
-              placeholder="2500 o Varía según distancia"
-              className="mt-1 w-full rounded-lg border px-3 py-2"
-            />
-          </div>
-        )}
-        <div className="space-y-3 border-t border-gray-100 pt-4">
-          <div>
-            <h3 className="text-sm font-bold text-pollon-black">Tipos de pedido en la tienda</h3>
-            <p className="mt-1 text-xs text-gray-500">
-              Controla qué opciones ve el cliente al confirmar su pedido. Si desactivas una, no aparecerá en el checkout.
-            </p>
-          </div>
 
-          <label className="flex items-center gap-2">
-            <input type="checkbox" checked={cfg.delivery_activo} onChange={(e) => setCfg((c) => ({ ...c, delivery_activo: e.target.checked }))} />
-            Delivery activo
-          </label>
+      <div className="admin-config-shell ring-1 ring-black/5">
+        <div className="admin-config-scroll admin-scroll-panel">
+          <ConfigSection
+            title="Datos del local"
+            description="Información que ven tus clientes en la tienda y en el checkout."
+          >
+            <div className="admin-config-grid">
+              {branchFields.map(({ key, label, span }) => (
+                <ConfigField key={key} label={label} span={span || 1}>
+                  <input
+                    value={cfg[key] || ''}
+                    onChange={(e) => setCfg((c) => ({ ...c, [key]: e.target.value }))}
+                    className={INPUT}
+                  />
+                </ConfigField>
+              ))}
+              {isBranchScoped && (
+                <ConfigField
+                  label="Costo delivery"
+                  hint="Monto fijo (ej. 2500) o texto libre (ej. Varía según distancia)."
+                  span={2}
+                >
+                  <input
+                    type="text"
+                    value={cfg.delivery_cost}
+                    onChange={(e) => setCfg((c) => ({ ...c, delivery_cost: e.target.value }))}
+                    placeholder="2500 o Varía según distancia"
+                    className={INPUT}
+                  />
+                </ConfigField>
+              )}
+            </div>
+          </ConfigSection>
+
+          <ConfigSection
+            title="Tipos de pedido"
+            description="Activa o desactiva las opciones que aparecen al confirmar un pedido."
+          >
+            <div className="admin-config-stack">
+              <ConfigToggle
+                label="Delivery activo"
+                checked={cfg.delivery_activo}
+                onChange={(e) => setCfg((c) => ({ ...c, delivery_activo: e.target.checked }))}
+              />
+
+              {isBranchScoped && (
+                <>
+                  <ConfigToggle
+                    label="Retiro en local activo"
+                    checked={cfg.pickup_activo}
+                    onChange={(e) => setCfg((c) => ({ ...c, pickup_activo: e.target.checked }))}
+                  >
+                    <ConfigField
+                      label="Monto mínimo retiro (CLP)"
+                      hint="Ej: 10000 para exigir al menos $10.000. Deja 0 si no hay mínimo."
+                    >
+                      <input
+                        type="number"
+                        min={0}
+                        step={500}
+                        value={cfg.pickup_min_order}
+                        onChange={(e) => setCfg((c) => ({ ...c, pickup_min_order: e.target.value }))}
+                        placeholder="0"
+                        className={`${INPUT_MONO} max-w-xs`}
+                      />
+                    </ConfigField>
+                  </ConfigToggle>
+
+                  <ConfigToggle
+                    label="Reservas activas"
+                    checked={cfg.reservas_activas}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setCfg((c) => {
+                        const next = { ...c, reservas_activas: checked };
+                        if (checked && !c.reservation_schedule?.slots?.length) {
+                          next.reservation_schedule = { slots: [{ ...DEFAULT_RESERVATION_SLOT }] };
+                        }
+                        return next;
+                      });
+                    }}
+                  >
+                    <div className="space-y-4">
+                      <ConfigField
+                        label="Monto mínimo reserva (pedidos grandes)"
+                        hint="Solo se podrá reservar si el carrito alcanza este monto. Ej: 50000."
+                      >
+                        <input
+                          type="number"
+                          min={0}
+                          step={1000}
+                          value={cfg.reservation_min_order}
+                          onChange={(e) => setCfg((c) => ({ ...c, reservation_min_order: e.target.value }))}
+                          placeholder="0"
+                          className={`${INPUT_MONO} max-w-xs`}
+                        />
+                      </ConfigField>
+                      <ConfigField
+                        label="Horarios disponibles"
+                        hint="El cliente solo podrá reservar en los días y horas configurados."
+                      >
+                        <ReservationScheduleEditor
+                          value={cfg.reservation_schedule}
+                          onChange={(schedule) => setCfg((c) => ({ ...c, reservation_schedule: schedule }))}
+                        />
+                      </ConfigField>
+                    </div>
+                  </ConfigToggle>
+                </>
+              )}
+
+              {!isBranchScoped && (
+                <ConfigToggle
+                  label="Reservas activas (global)"
+                  checked={cfg.reservas_activas}
+                  onChange={(e) => setCfg((c) => ({ ...c, reservas_activas: e.target.checked }))}
+                />
+              )}
+            </div>
+          </ConfigSection>
 
           {isBranchScoped && (
-            <>
-              <label className="flex items-center gap-2">
-                <input type="checkbox" checked={cfg.pickup_activo} onChange={(e) => setCfg((c) => ({ ...c, pickup_activo: e.target.checked }))} />
-                Retiro en local activo
-              </label>
-
-              {cfg.pickup_activo && (
-                <div className="ml-6 rounded-xl border border-gray-100 bg-gray-50/80 p-4">
-                  <label className="text-sm font-medium">Monto mínimo retiro en local (CLP)</label>
-                  <p className="mt-0.5 text-xs text-gray-500">
-                    Ej: 10000 para exigir al menos $10.000. Deja 0 si no hay mínimo.
-                  </p>
-                  <input
-                    type="number"
-                    min={0}
-                    step={500}
-                    value={cfg.pickup_min_order}
-                    onChange={(e) => setCfg((c) => ({ ...c, pickup_min_order: e.target.value }))}
-                    placeholder="0"
-                    className="mt-2 w-full max-w-xs rounded-lg border px-3 py-2 font-mono text-sm"
-                  />
-                </div>
-              )}
-
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={cfg.reservas_activas}
-                  onChange={(e) => {
-                    const checked = e.target.checked;
-                    setCfg((c) => {
-                      const next = { ...c, reservas_activas: checked };
-                      if (checked && !c.reservation_schedule?.slots?.length) {
-                        next.reservation_schedule = { slots: [{ ...DEFAULT_RESERVATION_SLOT }] };
-                      }
-                      return next;
-                    });
-                  }}
-                />
-                Reservas activas
-              </label>
-
-              {cfg.reservas_activas && (
-                <div className="ml-6 space-y-4 rounded-xl border border-gray-100 bg-gray-50/80 p-4">
-                  <div>
-                    <label className="text-sm font-medium">Monto mínimo para reserva (pedidos grandes)</label>
-                    <p className="mt-0.5 text-xs text-gray-500">
-                      Solo se podrá reservar si el carrito alcanza este monto. Ej: 50000.
-                    </p>
-                    <input
-                      type="number"
-                      min={0}
-                      step={1000}
-                      value={cfg.reservation_min_order}
-                      onChange={(e) => setCfg((c) => ({ ...c, reservation_min_order: e.target.value }))}
-                      placeholder="0"
-                      className="mt-2 w-full max-w-xs rounded-lg border px-3 py-2 font-mono text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Horarios disponibles para reservar</label>
-                    <p className="mt-0.5 text-xs text-gray-500">
-                      El cliente solo podrá elegir reserva en los días y horas que configures aquí.
-                    </p>
-                    <div className="mt-3">
-                      <ReservationScheduleEditor
-                        value={cfg.reservation_schedule}
-                        onChange={(schedule) => setCfg((c) => ({ ...c, reservation_schedule: schedule }))}
+            <ConfigSection
+              title="Impresora WiFi"
+              description="Impresión térmica por red. Ejecuta el puente en un PC del local: node scripts/local-print-bridge.mjs"
+            >
+              <div className="admin-config-stack">
+                <ConfigToggle
+                  label="Activar impresión por red (WiFi)"
+                  checked={cfg.thermal_network_print_enabled}
+                  onChange={(e) => setCfg((c) => ({ ...c, thermal_network_print_enabled: e.target.checked }))}
+                >
+                  <div className="admin-config-grid">
+                    <ConfigField label="IP de la impresora">
+                      <input
+                        value={cfg.thermal_printer_ip}
+                        onChange={(e) => setCfg((c) => ({ ...c, thermal_printer_ip: e.target.value.trim() }))}
+                        placeholder="192.168.1.100"
+                        className={INPUT_MONO}
                       />
-                    </div>
+                    </ConfigField>
+                    <ConfigField label="Puerto (9100)">
+                      <input
+                        type="number"
+                        value={cfg.thermal_printer_port}
+                        onChange={(e) => setCfg((c) => ({ ...c, thermal_printer_port: e.target.value }))}
+                        className={INPUT_MONO}
+                      />
+                    </ConfigField>
+                    <ConfigField
+                      label="URL del puente local"
+                      hint="IP del PC donde corre el puente. Ej: http://192.168.1.50:3009"
+                      span={2}
+                    >
+                      <input
+                        value={cfg.thermal_print_bridge_url}
+                        onChange={(e) => setCfg((c) => ({ ...c, thermal_print_bridge_url: e.target.value.trim() }))}
+                        placeholder="http://192.168.1.50:3009"
+                        className={INPUT_MONO}
+                      />
+                    </ConfigField>
                   </div>
-                </div>
-              )}
-            </>
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                    <Button type="button" variant="ghost" onClick={testPrinter} disabled={testingPrinter}>
+                      {testingPrinter ? 'Probando…' : 'Probar conexión'}
+                    </Button>
+                    {printerTestMsg && (
+                      <span className={`text-xs ${printerTestMsg.includes('correctamente') || printerTestMsg.includes('accesible') ? 'text-green-700' : 'text-red-600'}`}>
+                        {printerTestMsg}
+                      </span>
+                    )}
+                  </div>
+                </ConfigToggle>
+              </div>
+            </ConfigSection>
           )}
 
-          {!isBranchScoped && (
-            <label className="flex items-center gap-2">
-              <input type="checkbox" checked={cfg.reservas_activas} onChange={(e) => setCfg((c) => ({ ...c, reservas_activas: e.target.checked }))} />
-              Reservas activas (global)
-            </label>
+          {isBranchScoped && (
+            <ConfigSection
+              title="Redes sociales"
+              description="Enlaces visibles en el footer cuando el cliente elige tu sucursal."
+            >
+              <div className="admin-config-grid">
+                {[
+                  { key: 'facebook_url', label: 'Facebook', placeholder: 'https://facebook.com/elpollon' },
+                  { key: 'instagram_url', label: 'Instagram', placeholder: 'https://instagram.com/elpollon' },
+                  { key: 'tiktok_url', label: 'TikTok', placeholder: 'https://tiktok.com/@elpollon' },
+                ].map(({ key, label, placeholder }) => (
+                  <ConfigField key={key} label={label} span={2}>
+                    <input
+                      type="url"
+                      value={cfg[key] || ''}
+                      onChange={(e) => setCfg((c) => ({ ...c, [key]: e.target.value }))}
+                      placeholder={placeholder}
+                      className={INPUT}
+                    />
+                  </ConfigField>
+                ))}
+              </div>
+            </ConfigSection>
           )}
         </div>
 
-        {isBranchScoped && (
-          <div className="mt-4 space-y-3 border-t border-gray-100 pt-4">
-            <div>
-              <h3 className="text-sm font-bold text-pollon-black">Impresora WiFi (red / térmica)</h3>
-              <p className="mt-1 text-xs text-gray-500">
-                Conecta la impresora al WiFi del router, indica su IP y ejecuta el puente en un PC del local (
-                <code className="rounded bg-gray-100 px-1">node scripts/local-print-bridge.mjs</code>
-                ). Desde PC, tablet o móvil se envía el ticket con márgenes y corte automático.
-              </p>
-            </div>
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={cfg.thermal_network_print_enabled}
-                onChange={(e) => setCfg((c) => ({ ...c, thermal_network_print_enabled: e.target.checked }))}
-              />
-              Activar impresión por red (WiFi)
-            </label>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <label className="text-sm font-medium">IP de la impresora</label>
-                <input
-                  value={cfg.thermal_printer_ip}
-                  onChange={(e) => setCfg((c) => ({ ...c, thermal_printer_ip: e.target.value.trim() }))}
-                  placeholder="192.168.1.100"
-                  className="mt-1 w-full rounded-lg border px-3 py-2 font-mono text-sm"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium">Puerto (normalmente 9100)</label>
-                <input
-                  type="number"
-                  value={cfg.thermal_printer_port}
-                  onChange={(e) => setCfg((c) => ({ ...c, thermal_printer_port: e.target.value }))}
-                  className="mt-1 w-full rounded-lg border px-3 py-2 font-mono text-sm"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="text-sm font-medium">URL del puente local</label>
-              <input
-                value={cfg.thermal_print_bridge_url}
-                onChange={(e) => setCfg((c) => ({ ...c, thermal_print_bridge_url: e.target.value.trim() }))}
-                placeholder="http://192.168.1.50:3009"
-                className="mt-1 w-full rounded-lg border px-3 py-2 font-mono text-sm"
-              />
-              <p className="mt-1 text-xs text-gray-500">
-                IP del PC donde corre: <code className="rounded bg-gray-100 px-1">node scripts/local-print-bridge.mjs</code>
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button type="button" variant="ghost" onClick={testPrinter} disabled={testingPrinter}>
-                {testingPrinter ? 'Probando…' : 'Probar conexión por IP'}
-              </Button>
-              {printerTestMsg && (
-                <span className={`text-xs ${printerTestMsg.includes('correctamente') || printerTestMsg.includes('accesible') ? 'text-green-700' : 'text-red-600'}`}>
-                  {printerTestMsg}
-                </span>
-              )}
-            </div>
-          </div>
-        )}
-
-        {isBranchScoped && (
-          <div className="mt-4 space-y-3 border-t border-gray-100 pt-4">
-            <div>
-              <h3 className="text-sm font-bold text-pollon-black">Redes sociales</h3>
-              <p className="mt-1 text-xs text-gray-500">
-                Se muestran en el footer cuando el cliente elige tu sucursal. URL completa o solo el usuario.
-              </p>
-            </div>
-            {[
-              { key: 'facebook_url', label: 'Facebook', placeholder: 'https://facebook.com/elpollon' },
-              { key: 'instagram_url', label: 'Instagram', placeholder: 'https://instagram.com/elpollon' },
-              { key: 'tiktok_url', label: 'TikTok', placeholder: 'https://tiktok.com/@elpollon' },
-            ].map(({ key, label, placeholder }) => (
-              <div key={key}>
-                <label className="text-sm font-medium">{label}</label>
-                <input
-                  type="url"
-                  value={cfg[key] || ''}
-                  onChange={(e) => setCfg((c) => ({ ...c, [key]: e.target.value }))}
-                  placeholder={placeholder}
-                  className="mt-1 w-full rounded-lg border px-3 py-2 text-sm"
-                />
-              </div>
-            ))}
-          </div>
-        )}
-
-        <Button onClick={save} disabled={saving}>
-          {saving ? 'Guardando…' : 'Guardar configuración'}
-        </Button>
+        <footer className="admin-config-footer">
+          <Button onClick={save} disabled={saving} className="min-w-[10rem]">
+            {saving ? 'Guardando…' : 'Guardar configuración'}
+          </Button>
+        </footer>
       </div>
     </div>
   );

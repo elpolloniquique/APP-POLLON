@@ -38,7 +38,7 @@ export function ReservationScheduleEditor({ value, onChange }) {
   return (
     <div className="space-y-3">
       {slots.map((slot, index) => (
-        <div key={index} className="rounded-xl border border-gray-200 bg-gray-50/80 p-4">
+        <div key={index} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between gap-2">
             <p className="text-xs font-bold uppercase tracking-wide text-gray-600">
               Franja {index + 1}
