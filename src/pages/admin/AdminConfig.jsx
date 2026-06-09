@@ -9,6 +9,8 @@ import { canManageAllBranches } from '../../services/authService';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { normalizeDeliveryCost } from '../../utils/format';
 import { testNetworkPrinter, saveBranchPrinterConfigLocal } from '../../utils/networkPrinter';
+import { ReservationScheduleEditor } from '../../components/admin/ReservationScheduleEditor';
+import { normalizeReservationSchedule, DEFAULT_RESERVATION_SLOT } from '../../utils/orderTypeConfig';
 
 export function AdminConfig() {
   const { profile, role } = useAuth();
@@ -25,6 +27,9 @@ export function AdminConfig() {
     delivery_activo: true,
     pickup_activo: true,
     reservas_activas: true,
+    pickup_min_order: 0,
+    reservation_min_order: 0,
+    reservation_schedule: { slots: [] },
     mensaje_cliente: '¡Gracias por tu pedido!',
     facebook_url: '',
     instagram_url: '',
@@ -51,6 +56,9 @@ export function AdminConfig() {
         delivery_activo: branch.deliveryEnabled !== false,
         pickup_activo: branch.pickupEnabled !== false,
         reservas_activas: branch.reservationsEnabled !== false,
+        pickup_min_order: branch.pickupMinOrder || 0,
+        reservation_min_order: branch.reservationMinOrder || 0,
+        reservation_schedule: normalizeReservationSchedule(branch.reservationSchedule),
         mensaje_cliente: '¡Gracias por tu pedido!',
         facebook_url: branch.facebookUrl || '',
         instagram_url: branch.instagramUrl || '',
@@ -86,6 +94,9 @@ export function AdminConfig() {
           deliveryEnabled: cfg.delivery_activo,
           pickupEnabled: cfg.pickup_activo,
           reservationsEnabled: cfg.reservas_activas,
+          pickupMinOrder: Math.max(0, Number(cfg.pickup_min_order) || 0),
+          reservationMinOrder: Math.max(0, Number(cfg.reservation_min_order) || 0),
+          reservationSchedule: normalizeReservationSchedule(cfg.reservation_schedule),
           isActive: branch.isActive !== false,
           facebookUrl: cfg.facebook_url,
           instagramUrl: cfg.instagram_url,
@@ -201,20 +212,103 @@ export function AdminConfig() {
             />
           </div>
         )}
-        <label className="flex items-center gap-2">
-          <input type="checkbox" checked={cfg.delivery_activo} onChange={(e) => setCfg((c) => ({ ...c, delivery_activo: e.target.checked }))} />
-          Delivery activo
-        </label>
-        {isBranchScoped && (
+        <div className="space-y-3 border-t border-gray-100 pt-4">
+          <div>
+            <h3 className="text-sm font-bold text-pollon-black">Tipos de pedido en la tienda</h3>
+            <p className="mt-1 text-xs text-gray-500">
+              Controla qué opciones ve el cliente al confirmar su pedido. Si desactivas una, no aparecerá en el checkout.
+            </p>
+          </div>
+
           <label className="flex items-center gap-2">
-            <input type="checkbox" checked={cfg.pickup_activo} onChange={(e) => setCfg((c) => ({ ...c, pickup_activo: e.target.checked }))} />
-            Retiro en local activo
+            <input type="checkbox" checked={cfg.delivery_activo} onChange={(e) => setCfg((c) => ({ ...c, delivery_activo: e.target.checked }))} />
+            Delivery activo
           </label>
-        )}
-        <label className="flex items-center gap-2">
-          <input type="checkbox" checked={cfg.reservas_activas} onChange={(e) => setCfg((c) => ({ ...c, reservas_activas: e.target.checked }))} />
-          Reservas activas
-        </label>
+
+          {isBranchScoped && (
+            <>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={cfg.pickup_activo} onChange={(e) => setCfg((c) => ({ ...c, pickup_activo: e.target.checked }))} />
+                Retiro en local activo
+              </label>
+
+              {cfg.pickup_activo && (
+                <div className="ml-6 rounded-xl border border-gray-100 bg-gray-50/80 p-4">
+                  <label className="text-sm font-medium">Monto mínimo retiro en local (CLP)</label>
+                  <p className="mt-0.5 text-xs text-gray-500">
+                    Ej: 10000 para exigir al menos $10.000. Deja 0 si no hay mínimo.
+                  </p>
+                  <input
+                    type="number"
+                    min={0}
+                    step={500}
+                    value={cfg.pickup_min_order}
+                    onChange={(e) => setCfg((c) => ({ ...c, pickup_min_order: e.target.value }))}
+                    placeholder="0"
+                    className="mt-2 w-full max-w-xs rounded-lg border px-3 py-2 font-mono text-sm"
+                  />
+                </div>
+              )}
+
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={cfg.reservas_activas}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setCfg((c) => {
+                      const next = { ...c, reservas_activas: checked };
+                      if (checked && !c.reservation_schedule?.slots?.length) {
+                        next.reservation_schedule = { slots: [{ ...DEFAULT_RESERVATION_SLOT }] };
+                      }
+                      return next;
+                    });
+                  }}
+                />
+                Reservas activas
+              </label>
+
+              {cfg.reservas_activas && (
+                <div className="ml-6 space-y-4 rounded-xl border border-gray-100 bg-gray-50/80 p-4">
+                  <div>
+                    <label className="text-sm font-medium">Monto mínimo para reserva (pedidos grandes)</label>
+                    <p className="mt-0.5 text-xs text-gray-500">
+                      Solo se podrá reservar si el carrito alcanza este monto. Ej: 50000.
+                    </p>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1000}
+                      value={cfg.reservation_min_order}
+                      onChange={(e) => setCfg((c) => ({ ...c, reservation_min_order: e.target.value }))}
+                      placeholder="0"
+                      className="mt-2 w-full max-w-xs rounded-lg border px-3 py-2 font-mono text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Horarios disponibles para reservar</label>
+                    <p className="mt-0.5 text-xs text-gray-500">
+                      El cliente solo podrá elegir reserva en los días y horas que configures aquí.
+                    </p>
+                    <div className="mt-3">
+                      <ReservationScheduleEditor
+                        value={cfg.reservation_schedule}
+                        onChange={(schedule) => setCfg((c) => ({ ...c, reservation_schedule: schedule }))}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {!isBranchScoped && (
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={cfg.reservas_activas} onChange={(e) => setCfg((c) => ({ ...c, reservas_activas: e.target.checked }))} />
+              Reservas activas (global)
+            </label>
+          )}
+        </div>
 
         {isBranchScoped && (
           <div className="mt-4 space-y-3 border-t border-gray-100 pt-4">

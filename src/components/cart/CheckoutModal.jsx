@@ -7,10 +7,30 @@ import { useBranch } from '../../context/BranchContext';
 import { useAuth } from '../../context/AuthContext';
 import { money, buildWhatsappMessage, formatDateTime, formatDeliveryCost, deliveryCostIsNumeric, deliveryCostAsNumber } from '../../utils/format';
 import { PAYMENT_METHODS, ORDER_TYPE_LABELS, DELIVERY_COST_RANGE } from '../../utils/constants';
+import {
+  getAvailableOrderTypes,
+  getDefaultOrderType,
+  validateOrderTypeChoice,
+  getOrderTypeHint,
+} from '../../utils/orderTypeConfig';
 import * as orderService from '../../services/orderService';
 import { useToast } from '../../hooks/useToast';
 
 const ORDER_TYPES = ['delivery', 'retiro', 'reserva'];
+
+function OrderTypeHint({ hint }) {
+  if (!hint) return null;
+  const isWarning = hint.variant === 'warning';
+  return (
+    <p
+      className={`mt-2 rounded-lg px-3 py-2 text-xs leading-snug ${
+        isWarning ? 'bg-amber-50 text-amber-900 ring-1 ring-amber-200' : 'bg-blue-50 text-blue-900 ring-1 ring-blue-100'
+      }`}
+    >
+      {hint.text}
+    </p>
+  );
+}
 
 function paymentInfoMessage(paymentId, orderType) {
   if (paymentId === 'efectivo') {
@@ -64,6 +84,8 @@ export function CheckoutModal() {
   const submitLock = useRef(false);
 
   const isDelivery = form.orderType === 'delivery';
+  const availableOrderTypes = getAvailableOrderTypes(branch);
+  const orderTypeHint = getOrderTypeHint(branch, form.orderType, subtotal);
   const branchDeliveryLabel = formatDeliveryCost(branch?.deliveryCost, { emptyLabel: '' });
   const branchDeliveryFixed = deliveryCostIsNumeric(branch?.deliveryCost);
   const branchDeliveryAmount = deliveryCostAsNumber(branch?.deliveryCost);
@@ -95,6 +117,13 @@ export function CheckoutModal() {
     }
   }, [checkoutOpen, isCustomer, profile]);
 
+  useEffect(() => {
+    if (!checkoutOpen || !branch) return;
+    const types = getAvailableOrderTypes(branch);
+    if (!types.length) return;
+    setForm((f) => (types.includes(f.orderType) ? f : { ...f, orderType: getDefaultOrderType(branch) }));
+  }, [checkoutOpen, branch]);
+
   if (!checkoutOpen) {
     return Toast;
   }
@@ -123,6 +152,8 @@ export function CheckoutModal() {
     if (!items.length) return 'Tu carrito está vacío';
     if (!branch) return 'Selecciona una sucursal';
     if (!branchOpen) return 'La sucursal está cerrada en este momento';
+    const typeErr = validateOrderTypeChoice(branch, form.orderType, subtotal);
+    if (typeErr) return typeErr;
     return null;
   };
 
@@ -311,20 +342,29 @@ export function CheckoutModal() {
             <div className="checkout-modal__body admin-scroll-panel">
               <div>
                 <label className="text-xs font-bold uppercase tracking-wide text-gray-500">Tipo de pedido</label>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {ORDER_TYPES.map((t) => (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => update('orderType', t)}
-                      className={`rounded-lg px-4 py-2 text-sm font-bold transition ${
-                        form.orderType === t ? 'bg-pollon-red text-white shadow-sm' : 'bg-gray-100 text-pollon-black hover:bg-gray-200'
-                      }`}
-                    >
-                      {ORDER_TYPE_LABELS[t] || t}
-                    </button>
-                  ))}
-                </div>
+                {availableOrderTypes.length ? (
+                  <>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {ORDER_TYPES.filter((t) => availableOrderTypes.includes(t)).map((t) => (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => update('orderType', t)}
+                          className={`rounded-lg px-4 py-2 text-sm font-bold transition ${
+                            form.orderType === t ? 'bg-pollon-red text-white shadow-sm' : 'bg-gray-100 text-pollon-black hover:bg-gray-200'
+                          }`}
+                        >
+                          {ORDER_TYPE_LABELS[t] || t}
+                        </button>
+                      ))}
+                    </div>
+                    <OrderTypeHint hint={orderTypeHint} />
+                  </>
+                ) : (
+                  <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-amber-200">
+                    Esta sucursal no tiene tipos de pedido habilitados. Contacta al local.
+                  </p>
+                )}
               </div>
 
               <input
@@ -464,7 +504,7 @@ export function CheckoutModal() {
               </div>
               <button
                 type="submit"
-                disabled={submitting}
+                disabled={submitting || !availableOrderTypes.length}
                 className="w-full rounded-xl bg-pollon-red py-4 text-sm font-bold uppercase tracking-wide text-white shadow-md transition hover:bg-pollon-red-dark disabled:opacity-50"
               >
                 {submitting ? 'Registrando pedido…' : 'Confirmar pedido'}
