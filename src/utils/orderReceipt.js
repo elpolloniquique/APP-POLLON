@@ -79,8 +79,8 @@ function formatMoneyPlain(n) {
   return `$${(Number(n) || 0).toLocaleString('es-CL')}`;
 }
 
-const RECEIPT_BULLET = '';
-const ESCPOS_BULLET = '';
+const RECEIPT_BULLET = '.';
+const ESCPOS_BULLET = '.';
 
 function buildDeliveryFooterLines(m, bullet = RECEIPT_BULLET) {
   if (m.orderType === 'delivery' && m.deliveryFee <= 0) {
