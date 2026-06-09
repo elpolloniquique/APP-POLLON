@@ -79,9 +79,12 @@ function formatMoneyPlain(n) {
   return `$${(Number(n) || 0).toLocaleString('es-CL')}`;
 }
 
-function buildDeliveryFooterLines(m) {
+const RECEIPT_BULLET = '◆';
+const ESCPOS_BULLET = '-';
+
+function buildDeliveryFooterLines(m, bullet = RECEIPT_BULLET) {
   if (m.orderType === 'delivery' && m.deliveryFee <= 0) {
-    return ['◆ El delivery no está incluido en este total.'];
+    return [`${bullet} El delivery no está incluido en este total.`];
   }
   if (m.deliveryFee > 0) {
     return [`Delivery: ${formatMoneyPlain(m.deliveryFee)}`];
@@ -89,11 +92,11 @@ function buildDeliveryFooterLines(m) {
   return [];
 }
 
-function buildCustomerPlain(customer) {
+function buildCustomerPlain(customer, bullet = RECEIPT_BULLET) {
   const lines = [];
-  lines.push(`◆ Nombre:   ${customer.name || '-'}`);
-  lines.push(`◆ Teléfono: ${customer.phone || '-'}`);
-  lines.push('◆ Dirección:');
+  lines.push(`${bullet} Nombre:   ${customer.name || '-'}`);
+  lines.push(`${bullet} Teléfono: ${customer.phone || '-'}`);
+  lines.push(`${bullet} Dirección:`);
   const addr = wrapText(customer.address || '-', 30);
   if (addr) {
     addr.split('\n').forEach((l) => lines.push(`  ${l}`));
@@ -101,19 +104,19 @@ function buildCustomerPlain(customer) {
     lines.push('  -');
   }
   if (customer.comments?.trim()) {
-    lines.push('◆ Observaciones:');
+    lines.push(`${bullet} Observaciones:`);
     wrapText(customer.comments, 30).split('\n').forEach((l) => lines.push(`  ${l}`));
   }
   return lines.join('\n');
 }
 
-function buildItemsPlain(items) {
+function buildItemsPlain(items, bullet = RECEIPT_BULLET) {
   if (!items.length) return 'Sin productos';
   return items.map((it) => {
     const qty = it.qty ?? 1;
     const extras = getItemExtraLines(it);
     const block = [
-      `◆ ${qty}x ${it.name}`,
+      `${bullet} ${qty}x ${it.name}`,
       ...extras,
       formatMoneyPlain(it.total || 0),
       '',
@@ -122,7 +125,7 @@ function buildItemsPlain(items) {
   }).join('\n');
 }
 
-function buildReceiptCore(m, { customerBlock, itemsBlock, footerExtra = [] }) {
+function buildReceiptCore(m, { customerBlock, itemsBlock, footerExtra = [], compact = false }) {
   const footer = [
     RECEIPT_RULE,
     `TOTAL: ${formatMoneyPlain(m.total)}`,
@@ -130,24 +133,26 @@ function buildReceiptCore(m, { customerBlock, itemsBlock, footerExtra = [] }) {
     ...footerExtra,
   ].join('\n');
 
-  return [
+  const header = [
     `${m.orderTypeLabel.toUpperCase()} - POLLERÍA EL POLLÓN`,
-    '',
+    compact ? null : '',
     `Sucursal: ${m.sucursal}`,
     `${m.ticketShort}  ${m.fechaStr}  ${m.horaStr}`,
     RECEIPT_RULE,
     'DATOS DEL CLIENTE',
     RECEIPT_RULE,
-    '',
+    compact ? null : '',
     customerBlock,
-    '',
+    compact ? null : '',
     RECEIPT_RULE,
     'DETALLE DEL PEDIDO',
     RECEIPT_RULE,
-    '',
+    compact ? null : '',
     itemsBlock,
     footer,
-  ].join('\n');
+  ].filter((line) => line !== null);
+
+  return header.join('\n');
 }
 
 /** Texto plano — impresión térmica y WhatsApp (mismo formato) */
@@ -157,6 +162,17 @@ export function buildOrderReceiptText(order, branch) {
     customerBlock: buildCustomerPlain(m.customer),
     itemsBlock: buildItemsPlain(m.items),
     footerExtra: buildDeliveryFooterLines(m),
+  });
+}
+
+/** Texto ESC/POS por red — guiones ASCII, menos espacio arriba, acentos vía CP850 */
+export function buildOrderReceiptTextEscPos(order, branch) {
+  const m = getOrderReceiptMeta(order, branch);
+  return buildReceiptCore(m, {
+    customerBlock: buildCustomerPlain(m.customer, ESCPOS_BULLET),
+    itemsBlock: buildItemsPlain(m.items, ESCPOS_BULLET),
+    footerExtra: buildDeliveryFooterLines(m, ESCPOS_BULLET),
+    compact: true,
   });
 }
 

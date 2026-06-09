@@ -1,4 +1,4 @@
-import { buildOrderReceiptText } from './orderReceipt';
+import { buildOrderReceiptTextEscPos } from './orderReceipt';
 
 const STORAGE_PREFIX = 'pollon_thermal_printer_v1_';
 
@@ -60,12 +60,45 @@ function bytesToBase64(bytes) {
 }
 
 /** Líneas en blanco arriba/abajo y antes del corte (80mm térmica) */
-const FEED_TOP_LINES = 1;
-const FEED_BOTTOM_LINES = 1;
-const FEED_CUT_LINES = 5;
+const FEED_TOP_LINES = 0;
+const FEED_BOTTOM_LINES = 3;
+const FEED_CUT_LINES = 8;
+
+/** CP850 — acentos y símbolos españoles en impresoras térmicas ESC/POS */
+const CP850_MAP = {
+  á: 0xa0, é: 0x82, í: 0xa1, ó: 0xa2, ú: 0xa3, ñ: 0xa4, ü: 0x81,
+  Á: 0xb5, É: 0x90, Í: 0xd6, Ó: 0xe0, Ú: 0xe9, Ñ: 0xa5, Ü: 0x9a,
+  '¿': 0xa8, '¡': 0xad, '°': 0xf8,
+};
+
+function encodeCp850(text) {
+  const bytes = [];
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    const code = ch.charCodeAt(0);
+    if (code === 0x0a || code === 0x0d || code === 0x09) {
+      bytes.push(code);
+    } else if (code < 0x80) {
+      bytes.push(code);
+    } else if (CP850_MAP[ch] !== undefined) {
+      bytes.push(CP850_MAP[ch]);
+    } else {
+      const base = ch.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const baseCode = base.charCodeAt(0);
+      if (base.length === 1 && baseCode < 0x80) bytes.push(baseCode);
+      else bytes.push(0x3f);
+    }
+  }
+  return new Uint8Array(bytes);
+}
 
 function escInit() {
   return new Uint8Array([0x1b, 0x40]);
+}
+
+/** ESC t 2 — tabla CP850 (español) */
+function escSelectCp850() {
+  return new Uint8Array([0x1b, 0x74, 0x02]);
 }
 
 /** ESC d n — avanza n líneas (separación entre tickets) */
@@ -80,14 +113,14 @@ function escFeedAndCut(lines = FEED_CUT_LINES) {
   return new Uint8Array([0x1d, 0x56, 0x42, n]);
 }
 
-/** Ticket ESC/POS 80mm — mismo texto + márgenes + expulsión + corte */
+/** Ticket ESC/POS 80mm — texto red + CP850 + márgenes + corte */
 export function buildEscPosReceipt(order, branch) {
-  const text = buildOrderReceiptText(order, branch);
-  const encoder = new TextEncoder();
+  const text = buildOrderReceiptTextEscPos(order, branch);
   const parts = [
     escInit(),
+    escSelectCp850(),
     escFeedLines(FEED_TOP_LINES),
-    encoder.encode(text),
+    encodeCp850(text),
     escFeedLines(FEED_BOTTOM_LINES),
     escFeedAndCut(FEED_CUT_LINES),
   ];
