@@ -60,8 +60,8 @@ function bytesToBase64(bytes) {
 }
 
 /** Líneas en blanco arriba/abajo y antes del corte (80mm térmica) */
-const FEED_TOP_LINES = 5;
-const FEED_BOTTOM_LINES = 6;
+const FEED_TOP_LINES = 3;
+const FEED_BOTTOM_LINES = 3;
 const FEED_CUT_LINES = 12;
 
 function escInit() {
@@ -103,7 +103,7 @@ export function buildEscPosReceipt(order, branch) {
 
 export async function testNetworkPrinter(config) {
   if (!config?.bridgeUrl) {
-    throw new Error('Indica la URL del puente local (ej. http://192.168.1.50:3009)');
+    throw new Error('Indica la URL del puente local (ej. http://192.168.1.86:3009)');
   }
   if (!config?.ip) {
     throw new Error('Indica la IP de la impresora térmica');
