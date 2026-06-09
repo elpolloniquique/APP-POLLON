@@ -60,9 +60,9 @@ function bytesToBase64(bytes) {
 }
 
 /** Líneas en blanco arriba/abajo y antes del corte (80mm térmica) */
-const FEED_TOP_LINES = 3;
-const FEED_BOTTOM_LINES = 3;
-const FEED_CUT_LINES = 12;
+const FEED_TOP_LINES = 1;
+const FEED_BOTTOM_LINES = 1;
+const FEED_CUT_LINES = 5;
 
 function escInit() {
   return new Uint8Array([0x1b, 0x40]);
