@@ -161,3 +161,36 @@ export function wrapText(text, maxLen = TICKET_LINE_LENGTH) {
 export function buildWhatsappMessage(order, branch) {
   return buildOrderReceiptText(order, branch);
 }
+
+/** Normaliza teléfono chileno para wa.me / WhatsApp Web */
+export function normalizeWhatsappPhone(phone) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (digits.length < 8) return null;
+  if (digits.startsWith('56') && digits.length >= 11) return digits;
+  if (digits.startsWith('9') && digits.length === 9) return `56${digits}`;
+  if (digits.length >= 10) return digits.startsWith('56') ? digits : `56${digits}`;
+  return null;
+}
+
+const WHATSAPP_WINDOW_NAME = 'pollon_whatsapp_confirm';
+
+/**
+ * Abre chat con el cliente. Reutiliza la misma ventana/pestaña nombrada
+ * para no abrir múltiples chats al confirmar varios pedidos.
+ */
+export function openWhatsappToCustomer(phone, message) {
+  const normalized = normalizeWhatsappPhone(phone);
+  if (!normalized) {
+    throw new Error('Teléfono del cliente no válido para WhatsApp');
+  }
+  const text = encodeURIComponent(message);
+  const webUrl = `https://web.whatsapp.com/send?phone=${normalized}&text=${text}`;
+  const mobileUrl = `https://wa.me/${normalized}?text=${text}`;
+  const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+  const url = isMobile ? mobileUrl : webUrl;
+  const opened = window.open(url, WHATSAPP_WINDOW_NAME);
+  if (!opened) {
+    window.location.assign(mobileUrl);
+  }
+  return normalized;
+}

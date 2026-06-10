@@ -1,11 +1,20 @@
 import { X, Printer, RefreshCw, Ban } from 'lucide-react';
-import { money, formatDateTime, estadoLabel, nextEstado } from '../../utils/format';
-import { getOrderReceiptMeta, paymentLabel } from '../../utils/orderReceipt';
+import { money, formatDateTime, estadoLabel, nextEstado, openWhatsappToCustomer } from '../../utils/format';
+import { getOrderReceiptMeta, paymentLabel, buildCustomerOrderConfirmationMessage } from '../../utils/orderReceipt';
 import { printThermalReceiptSmart } from '../../utils/networkPrinter';
-import { canAdvanceOrderEstado, canCancelOrder } from '../../utils/constants';
+import { canAdvanceOrderEstado, canCancelOrder, ORDER_TYPE_LABELS } from '../../utils/constants';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
-import { ORDER_TYPE_LABELS } from '../../utils/constants';
+import { WhatsAppIcon } from '../ui/WhatsAppIcon';
+
+function itemExtras(it) {
+  const lines = [];
+  if (it.drinks?.length) lines.push(...it.drinks.filter(Boolean));
+  else if (it.drink?.trim()) lines.push(`Bebida: ${it.drink}`);
+  if (it.bagQty > 0) lines.push(`Bolsa x${it.bagQty}`);
+  if (it.notes?.trim()) lines.push(`Nota: ${it.notes}`);
+  return lines;
+}
 
 export function OrderDetailModal({ order, branch, onClose, onChangeEstado, onCancelOrder, onPrint }) {
   if (!order) return null;
@@ -15,6 +24,7 @@ export function OrderDetailModal({ order, branch, onClose, onChangeEstado, onCan
   const canAdvance = canAdvanceOrderEstado(order.estado);
   const canCancel = canCancelOrder(order.estado);
   const nextLabel = estadoLabel(nextEstado(order.estado));
+  const ticketCode = order.codigo_pedido || order.ticketNumber;
 
   const handlePrint = async () => {
     try {
@@ -22,6 +32,15 @@ export function OrderDetailModal({ order, branch, onClose, onChangeEstado, onCan
       onPrint?.();
     } catch (e) {
       alert(e.message || 'No se pudo imprimir');
+    }
+  };
+
+  const handleWhatsApp = () => {
+    try {
+      const message = buildCustomerOrderConfirmationMessage(order, branch);
+      openWhatsappToCustomer(m.customer.phone, message);
+    } catch (e) {
+      alert(e.message || 'No se pudo abrir WhatsApp');
     }
   };
 
@@ -36,120 +55,136 @@ export function OrderDetailModal({ order, branch, onClose, onChangeEstado, onCan
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/55 p-4" onClick={onClose}>
+    <div className="order-detail-overlay" onClick={onClose} role="presentation">
       <div
-        className="flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+        className="order-detail-modal"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-labelledby="order-detail-title"
       >
-        <div className="flex items-start justify-between border-b bg-gradient-to-r from-pollon-black to-gray-900 px-5 py-4 text-white">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-pollon-orange">Detalle del pedido</p>
-            <h2 id="order-detail-title" className="font-display text-3xl tracking-wide">
-              #{order.codigo_pedido || order.ticketNumber}
-            </h2>
-            <p className="mt-1 text-sm text-white/70">{formatDateTime(order.createdAt)} · {m.sucursal}</p>
+        <header className="order-detail-modal__header">
+          <div className="min-w-0 flex-1">
+            <p className="order-detail-modal__eyebrow">Detalle del pedido</p>
+            <h2 id="order-detail-title" className="order-detail-modal__title">#{ticketCode}</h2>
+            <p className="order-detail-modal__meta">
+              {formatDateTime(order.createdAt)} · {m.sucursal}
+            </p>
           </div>
-          <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-white/10" aria-label="Cerrar">
-            <X className="h-5 w-5" />
+          <button type="button" onClick={onClose} className="order-detail-modal__close" aria-label="Cerrar">
+            <X className="h-4 w-4" />
           </button>
-        </div>
+        </header>
 
-        <div className="flex-1 overflow-y-auto px-5 py-4">
-          <div className="flex flex-wrap gap-2">
+        <div className="order-detail-modal__body admin-scroll-panel">
+          <div className="order-detail-modal__badges">
             <Badge estado={order.estado}>{estadoLabel(order.estado)}</Badge>
-            <span className="rounded-full bg-gray-100 px-3 py-0.5 text-xs font-bold uppercase text-gray-700">
-              {orderTypeLabel}
-            </span>
-            <span className="rounded-full bg-amber-50 px-3 py-0.5 text-xs font-bold text-amber-800">
+            <span className="order-detail-modal__chip">{orderTypeLabel}</span>
+            <span className="order-detail-modal__chip order-detail-modal__chip--pay">
               {paymentLabel(order.metodo_pago)}
             </span>
           </div>
 
           {!canAdvance && order.estado === 'entregado' && (
-            <p className="mt-3 rounded-lg bg-green-50 px-3 py-2 text-xs font-medium text-green-800">
+            <p className="order-detail-modal__alert order-detail-modal__alert--ok">
               Pedido entregado. El estado ya no puede modificarse.
             </p>
           )}
           {order.estado === 'cancelado' && (
-            <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-800">
+            <p className="order-detail-modal__alert order-detail-modal__alert--err">
               Pedido cancelado. No se pueden realizar más cambios.
             </p>
           )}
 
-          <section className="mt-5 rounded-xl bg-gray-50 p-4">
-            <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500">Cliente</h3>
-            <dl className="mt-2 space-y-1.5 text-sm">
-              <div className="flex justify-between gap-2">
-                <dt className="text-gray-500">Nombre</dt>
-                <dd className="font-semibold text-right">{m.customer.name || '—'}</dd>
+          <section className="order-detail-modal__block">
+            <h3 className="order-detail-modal__label">Cliente</h3>
+            <dl className="order-detail-modal__dl">
+              <div className="order-detail-modal__row">
+                <dt>Nombre</dt>
+                <dd>{m.customer.name || '—'}</dd>
               </div>
-              <div className="flex justify-between gap-2">
-                <dt className="text-gray-500">Teléfono</dt>
-                <dd className="font-mono font-semibold">
-                  <a href={`tel:${m.customer.phone}`} className="text-pollon-red hover:underline">{m.customer.phone || '—'}</a>
+              <div className="order-detail-modal__row">
+                <dt>Teléfono</dt>
+                <dd>
+                  <a href={`tel:${m.customer.phone}`} className="order-detail-modal__phone">
+                    {m.customer.phone || '—'}
+                  </a>
                 </dd>
               </div>
-              <div>
-                <dt className="text-gray-500">Dirección</dt>
-                <dd className="mt-0.5 font-medium">{m.customer.address || '—'}</dd>
+              <div className="order-detail-modal__row order-detail-modal__row--stack">
+                <dt>Dirección</dt>
+                <dd>{m.customer.address || '—'}</dd>
               </div>
               {m.customer.comments?.trim() && (
-                <div>
-                  <dt className="text-gray-500">Observaciones</dt>
-                  <dd className="mt-0.5 italic text-gray-700">{m.customer.comments}</dd>
+                <div className="order-detail-modal__row order-detail-modal__row--stack">
+                  <dt>Observaciones</dt>
+                  <dd className="order-detail-modal__obs">{m.customer.comments}</dd>
                 </div>
               )}
             </dl>
           </section>
 
-          <section className="mt-4">
-            <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500">Detalle del pedido</h3>
-            <ul className="mt-2 divide-y rounded-xl border border-gray-100">
-              {m.items.map((it, i) => (
-                <li key={i} className="flex gap-3 px-4 py-3">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-pollon-red/10 text-xs font-bold text-pollon-red">
-                    {it.qty ?? 1}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold leading-snug">{it.name}</p>
-                    {it.drink && <p className="text-xs text-gray-500">Bebida: {it.drink}</p>}
-                    {it.bagQty > 0 && <p className="text-xs text-gray-500">Bolsa x{it.bagQty}</p>}
-                    {it.notes && <p className="text-xs text-amber-700">Nota: {it.notes}</p>}
-                  </div>
-                  <span className="shrink-0 font-bold">{money(it.total)}</span>
-                </li>
-              ))}
-              {!m.items.length && <li className="px-4 py-6 text-center text-sm text-gray-400">Sin productos</li>}
+          <section className="order-detail-modal__block">
+            <h3 className="order-detail-modal__label">Productos</h3>
+            <ul className="order-detail-modal__items">
+              {m.items.map((it, i) => {
+                const extras = itemExtras(it);
+                return (
+                  <li key={i} className="order-detail-modal__item">
+                    <span className="order-detail-modal__qty">{it.qty ?? 1}</span>
+                    <div className="order-detail-modal__item-body">
+                      <div className="order-detail-modal__item-head">
+                        <p className="order-detail-modal__item-name">{it.name}</p>
+                        <span className="order-detail-modal__item-price">{money(it.total)}</span>
+                      </div>
+                      {extras.map((line) => (
+                        <p key={line} className="order-detail-modal__item-extra">{line}</p>
+                      ))}
+                    </div>
+                  </li>
+                );
+              })}
+              {!m.items.length && (
+                <li className="order-detail-modal__empty">Sin productos</li>
+              )}
             </ul>
           </section>
 
-          <section className="mt-4 rounded-xl border-2 border-pollon-red/20 bg-red-50/50 p-4">
+          <div className="order-detail-modal__total">
             {m.deliveryFee > 0 && (
-              <div className="flex justify-between text-sm text-gray-600">
+              <div className="order-detail-modal__total-row">
                 <span>Delivery</span>
                 <span>{money(m.deliveryFee)}</span>
               </div>
             )}
-            <div className="mt-1 flex justify-between text-lg font-bold text-pollon-red">
-              <span>TOTAL</span>
+            <div className="order-detail-modal__total-row order-detail-modal__total-row--main">
+              <span>Total</span>
               <span>{money(m.total)}</span>
             </div>
-          </section>
+          </div>
         </div>
 
-        <div className="flex flex-col gap-2 border-t bg-gray-50 px-5 py-4">
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" onClick={handlePrint} className="flex flex-1 items-center justify-center gap-2">
-              <Printer className="h-4 w-4" /> Imprimir 80mm
+        <footer className="order-detail-modal__footer">
+          <div className="order-detail-modal__actions">
+            <Button type="button" onClick={handlePrint} className="order-detail-modal__btn-main">
+              <Printer className="h-4 w-4" />
+              <span>Imprimir</span>
             </Button>
+            <button
+              type="button"
+              onClick={handleWhatsApp}
+              className="order-detail-modal__wa"
+              title="Confirmar pedido por WhatsApp"
+              aria-label="Enviar confirmación por WhatsApp al cliente"
+            >
+              <WhatsAppIcon className="h-5 w-5" title="" />
+            </button>
             {canAdvance && (
-              <Button type="button" variant="ghost" onClick={handleEstado} className="flex flex-1 items-center justify-center gap-2">
-                <RefreshCw className="h-4 w-4" /> {nextLabel}
+              <Button type="button" variant="ghost" onClick={handleEstado} className="order-detail-modal__btn-ghost">
+                <RefreshCw className="h-4 w-4" />
+                <span className="hidden sm:inline">{nextLabel}</span>
               </Button>
             )}
-            <Button type="button" variant="ghost" onClick={onClose} className="flex-1 sm:flex-none">
+            <Button type="button" variant="ghost" onClick={onClose} className="order-detail-modal__btn-ghost">
               Cerrar
             </Button>
           </div>
@@ -158,12 +193,13 @@ export function OrderDetailModal({ order, branch, onClose, onChangeEstado, onCan
               type="button"
               variant="ghost"
               onClick={handleCancel}
-              className="flex w-full items-center justify-center gap-2 border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+              className="order-detail-modal__cancel"
             >
-              <Ban className="h-4 w-4" /> Cancelar pedido
+              <Ban className="h-4 w-4" />
+              Cancelar pedido
             </Button>
           )}
-        </div>
+        </footer>
       </div>
     </div>
   );

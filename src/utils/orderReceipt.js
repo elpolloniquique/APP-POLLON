@@ -176,6 +176,27 @@ export function buildOrderReceiptTextEscPos(order, branch) {
   });
 }
 
+/** Mensaje WhatsApp al cliente — confirmación de pedido recibido (admin) */
+export function buildCustomerOrderConfirmationMessage(order, branch) {
+  const m = getOrderReceiptMeta(order, branch);
+  const receipt = buildOrderReceiptText(order, branch);
+  const firstName = (m.customer.name || 'Cliente').trim().split(/\s+/)[0];
+
+  return [
+    `Hola ${firstName},`,
+    '',
+    `Somos ${m.sucursal} — Pollería El Pollón.`,
+    '',
+    `Tu pedido N° ${m.ticketShort} fue recibido correctamente. Te enviamos el detalle:`,
+    '',
+    receipt,
+    '',
+    'Por favor, confírmanos que todo está correcto respondiendo a este mensaje.',
+    '',
+    '¡Gracias por tu preferencia!',
+  ].join('\n');
+}
+
 function esc(str) {
   return String(str ?? '')
     .replace(/&/g, '&amp;')
