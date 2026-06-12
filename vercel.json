@@ -1,5 +1,5 @@
 {
-  "rewrites": [{ "source": "/((?!api/|robots\\.txt|sitemap\\.xml|manifest\\.json|sw\\.js|workbox-.*\\.js|.*\\..*).*)", "destination": "/index.html" }],
+  "rewrites": [{ "source": "/((?!api/|robots\\.txt|sitemap\\.xml|sitemap-vercel\\.xml|manifest\\.json|sw\\.js|workbox-.*\\.js|.*\\..*).*)", "destination": "/index.html" }],
   "headers": [
     {
       "source": "/sw.js",
@@ -46,6 +46,13 @@
     },
     {
       "source": "/sitemap.xml",
+      "headers": [
+        { "key": "Content-Type", "value": "application/xml; charset=utf-8" },
+        { "key": "Cache-Control", "value": "public, max-age=3600" }
+      ]
+    },
+    {
+      "source": "/sitemap-vercel.xml",
       "headers": [
         { "key": "Content-Type", "value": "application/xml; charset=utf-8" },
         { "key": "Cache-Control", "value": "public, max-age=3600" }
