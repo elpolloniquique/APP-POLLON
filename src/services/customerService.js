@@ -109,6 +109,42 @@ export async function getCustomerOrders(customerId) {
   return (data || []).map(mapOrder);
 }
 
+/**
+ * Vincula un pedido hecho como invitado a la cuenta del cliente
+ * (código de seguimiento + teléfono del checkout).
+ */
+export async function claimOrderByTicket(ticketCode, phone) {
+  const { data, error } = await sb().rpc('claim_order_by_ticket', {
+    p_ticket: String(ticketCode || '').trim(),
+    p_phone: String(phone || '').trim() || null,
+  });
+  if (error) {
+    let msg = error.message || error.details || 'No se pudo vincular el pedido';
+    msg = msg
+      .replace(/^.*error:\s*/i, '')
+      .replace(/^.*exception:\s*/i, '')
+      .replace(/\s+CONTEXT:[\s\S]*$/i, '')
+      .trim();
+    if (/claim_order_by_ticket|function .* does not exist/i.test(msg)) {
+      throw new Error(
+        'Falta activar la función en Supabase. Ejecuta el SQL migration-claim-order-by-ticket.sql',
+      );
+    }
+    throw new Error(msg || 'No se pudo vincular el pedido');
+  }
+  if (!data?.ok || !data?.order_id) {
+    throw new Error('No se pudo vincular el pedido');
+  }
+
+  const order = await getOrderById(data.order_id);
+  return {
+    order,
+    alreadyLinked: !!data.already_linked,
+    orderId: data.order_id,
+    ticketNumber: data.codigo_pedido,
+  };
+}
+
 export async function getOrderById(orderId, customerId) {
   let q = sb().from('pedidos').select('*').eq('id', orderId);
   if (customerId) q = q.eq('customer_id', customerId);
