@@ -22,7 +22,13 @@ export async function upsertMyLocation({ lat, lng, heading, speed, accuracy }) {
     p_speed: speed ?? null,
     p_accuracy: accuracy ?? null,
   });
-  if (error) throw error;
+  if (error) {
+    const msg = error.message || '';
+    if (msg.includes('telefono')) {
+      throw new Error('Ejecuta fix-delivery-production-ready.sql en Supabase');
+    }
+    throw new Error(msg || 'No se pudo publicar GPS');
+  }
   return data;
 }
 
@@ -33,7 +39,7 @@ export async function listLiveLocations() {
     .from('ep_driver_location_latest')
     .select('*, ep_driver_profiles(id, vehicle_plate, operational_status, profiles(full_name, phone))')
     .order('updated_at', { ascending: false });
-  if (error) throw error;
+  if (error) throw new Error(error.message || 'Error GPS en vivo');
   return (data || []).map((row) => ({
     ...row,
     driver: row.ep_driver_profiles,
@@ -60,13 +66,13 @@ export async function listLiveAssignments(branchId = null) {
     ];
   }
   const sb = getSupabase();
-  let q = sb
+  const q = sb
     .from('ep_delivery_assignments')
     .select('*, ep_delivery_jobs(*), ep_driver_profiles(id, vehicle_plate, profiles(full_name))')
     .eq('status', 'active')
     .order('accepted_at', { ascending: false });
   const { data, error } = await q;
-  if (error) throw error;
+  if (error) throw new Error(error.message || 'Error asignaciones en vivo');
   let rows = data || [];
   if (branchId) {
     rows = rows.filter((r) => !r.ep_delivery_jobs?.branch_id || r.ep_delivery_jobs.branch_id === branchId);
@@ -90,7 +96,7 @@ export async function getDispatchReport(branchId = null, from = null, to = null)
     p_from: from || new Date(Date.now() - 7 * 86400000).toISOString(),
     p_to: to || new Date().toISOString(),
   });
-  if (error) throw error;
+  if (error) throw new Error(error.message || 'Error reporte');
   return data;
 }
 
@@ -114,7 +120,7 @@ export async function getDispatchSettings(branchId) {
     .select('*')
     .eq('branch_id', branchId)
     .maybeSingle();
-  if (error) throw error;
+  if (error) throw new Error(error.message);
   return data;
 }
 
@@ -131,22 +137,60 @@ export async function saveDispatchSettings(branchId, settings) {
     .upsert(payload, { onConflict: 'branch_id' })
     .select()
     .single();
-  if (error) throw error;
+  if (error) throw new Error(error.message);
   return data;
 }
 
-/** Watch GPS del dispositivo y publicar a Supabase */
+/** Watch GPS del dispositivo y publicar a Supabase cada ~8s */
 export function startGpsWatch(onUpdate, { intervalMs = 8000 } = {}) {
   if (!navigator.geolocation) {
-    onUpdate?.(null, new Error('GPS no disponible en este dispositivo'));
+    onUpdate?.(null, new Error('Este dispositivo no tiene GPS / geolocalización'));
     return () => {};
   }
 
   let lastSent = 0;
+  let stopped = false;
+
+  // Primera lectura inmediata
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      if (stopped) return;
+      const payload = {
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        heading: pos.coords.heading,
+        speed: pos.coords.speed,
+        accuracy: pos.coords.accuracy,
+      };
+      try {
+        await upsertMyLocation(payload);
+        lastSent = Date.now();
+        onUpdate?.(payload, null);
+      } catch (err) {
+        onUpdate?.(payload, err);
+      }
+    },
+    (err) => onUpdate?.(null, new Error(err.message || 'Permiso de ubicación denegado')),
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+  );
+
   const watchId = navigator.geolocation.watchPosition(
     async (pos) => {
+      if (stopped) return;
       const now = Date.now();
-      if (now - lastSent < intervalMs) return;
+      if (now - lastSent < intervalMs) {
+        onUpdate?.(
+          {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            heading: pos.coords.heading,
+            speed: pos.coords.speed,
+            accuracy: pos.coords.accuracy,
+          },
+          null
+        );
+        return;
+      }
       lastSent = now;
       const payload = {
         lat: pos.coords.latitude,
@@ -162,9 +206,12 @@ export function startGpsWatch(onUpdate, { intervalMs = 8000 } = {}) {
         onUpdate?.(payload, err);
       }
     },
-    (err) => onUpdate?.(null, err),
-    { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+    (err) => onUpdate?.(null, new Error(err.message || 'Error GPS')),
+    { enableHighAccuracy: true, maximumAge: 3000, timeout: 20000 }
   );
 
-  return () => navigator.geolocation.clearWatch(watchId);
+  return () => {
+    stopped = true;
+    navigator.geolocation.clearWatch(watchId);
+  };
 }

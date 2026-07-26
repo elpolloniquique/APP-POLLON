@@ -48,22 +48,27 @@ export function DriverHome() {
   useEffect(() => () => { stopGps?.(); }, [stopGps]);
 
   const toggleOnline = async () => {
-    const next = summary?.driver?.operational_status === 'available' ? 'offline' : 'available';
+    const currentlyOnline = ['available', 'heading_to_branch', 'delivering', 'carrying_orders', 'offered'].includes(
+      summary?.driver?.operational_status
+    );
+    const next = currentlyOnline ? 'offline' : 'available';
     setBusy(true);
+    setError('');
     try {
       await setMyOperationalStatus(next);
-      if (next === 'available' && !gpsOn) {
+      if (next === 'available') {
+        stopGps?.();
         const stop = startGpsWatch((pos, err) => {
           if (pos) setGpsPos(pos);
-          if (err && !pos) setError(err.message);
+          if (err) setError(err.message || 'Error GPS');
         });
         setStopGps(() => stop);
         setGpsOn(true);
-      }
-      if (next === 'offline' && stopGps) {
-        stopGps();
+      } else {
+        stopGps?.();
         setStopGps(null);
         setGpsOn(false);
+        setGpsPos(null);
       }
       await load();
     } catch (err) {
@@ -113,7 +118,13 @@ export function DriverHome() {
         <div>
           <p className="text-sm text-white/60">Estado</p>
           <p className="text-lg font-bold">{isOnline ? 'En línea' : 'Desconectado'}</p>
-          {gpsPos && <p className="text-[10px] text-white/40">GPS {gpsPos.lat.toFixed(4)}, {gpsPos.lng.toFixed(4)}</p>}
+          <p className={`text-[10px] ${gpsOn && gpsPos ? 'text-green-400' : 'text-white/40'}`}>
+            {gpsOn && gpsPos
+              ? `GPS activo · ${gpsPos.lat.toFixed(5)}, ${gpsPos.lng.toFixed(5)}`
+              : gpsOn
+                ? 'GPS esperando señal…'
+                : 'GPS apagado'}
+          </p>
         </div>
         <button
           type="button"

@@ -63,4 +63,8 @@ export default defineConfig({
   ],
   server: { port: 5173, open: true },
   build: { outDir: 'dist', sourcemap: false },
+  // MapLibre trae workers; el prebundle de Vite a veces rompe el worker en dev
+  optimizeDeps: {
+    exclude: ['maplibre-gl'],
+  },
 });

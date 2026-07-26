@@ -1,97 +1,49 @@
-# Módulo Repartidores / Despacho GPS — El Pollón
+# Verificación módulo Delivery / GPS
 
-Sistema estilo **Uber / inDriver** integrado en `el-pollon` **sin modificar** menú, caja, cocina ni ventas multi-sucursal.
+## 1) Ejecuta en Supabase (obligatorio ahora)
 
-## Stack mapas (100% gratis)
-
-| Pieza | Tecnología |
-|-------|------------|
-| Motor mapa | MapLibre GL |
-| Calles | CARTO Voyager @2x |
-| Satélite | Esri World Imagery |
-| Rutas | OSRM (`router.project-osrm.org` o self-host) |
-| Geocoding | Nominatim OSM |
-
-**No** se usan Mapbox / MapTiler / Google Maps tiles de pago.
-
-## 1. Migración SQL (obligatorio)
-
-En Supabase → SQL Editor, ejecuta:
+Archivo:
 
 ```
-supabase/migration-repartidores-delivery.sql
+supabase/fix-delivery-production-ready.sql
 ```
 
-## 2. Crear repartidor
+Al final verás un JSON `verificacion` con `ok: true` y tablas/funciones en verde.
 
-1. Authentication → Create user (email + password)
-2. En tabla `profiles`:
+También puedes correr:
 
 ```sql
-UPDATE profiles
-SET role = 'delivery',  -- o 'repartidor'
-    branch_id = '<uuid-sucursal-opcional>'
-WHERE email = 'repartidor@tudominio.cl';
+SELECT public.ep_verify_delivery_module();
 ```
 
-3. El repartidor inicia sesión desde la tienda (Mi cuenta) o `/admin/login`
-4. Es redirigido automáticamente a `/repartidor`
+## 2) Checklist rápido (ya probado en tu proyecto)
 
-5. En Admin → **Repartidores** → **Aprobar**
+| Componente | Estado |
+|------------|--------|
+| Tablas `ep_*` | Existen (HTTP 200) |
+| `ep_pricing_rules` | Seed "Tarifa base El Pollón" |
+| `branches` / `pedidos` | OK |
+| OSRM routing | HTTP 200 |
+| CARTO tiles | HTTP 200 |
+| MapLibre | En build producción |
 
-## 3. Flujo operativo
+## 3) Prueba manual repartidor
 
-```
-Pedido delivery listo en cocina
-  → Admin Despacho → Sincronizar pedidos
-  → Ofertar a repartidores
-  → App repartidor recibe oferta (Realtime)
-  → Aceptar → GPS se rastrea
-  → Admin En vivo ve mapa
-  → Recogido → Entregado → sync estado en `pedidos`
-```
+1. Login con cuenta `role = delivery`
+2. Ir a `/repartidor` → **Conectarme** → aceptar permiso GPS del navegador
+3. Debe mostrar: `GPS activo · lat, lng`
+4. Admin → **En vivo**: debe aparecer el marker del repartidor
+5. Admin → **Despacho** → Sincronizar → Ofertar
+6. Repartidor recibe card → Aceptar → Recogido → Entregado
 
-## 4. Rutas nuevas
+## 4) Si falla GPS en celular
 
-### Admin
-- `/admin/repartidores`
-- `/admin/repartidores/config`
-- `/admin/repartidores/tarifas`
-- `/admin/repartidores/despacho`
-- `/admin/repartidores/en-vivo`
-- `/admin/repartidores/reportes`
+- Usa HTTPS (Vercel) o `localhost`
+- Chrome/Safari: permitir ubicación
+- Android: ubicación en alta precisión
 
-### Repartidor
-- `/repartidor` — ofertas + viaje
-- `/repartidor/mapa`
-- `/repartidor/historial`
-- `/repartidor/ingresos`
-- `/repartidor/perfil`
+## 5) Mapas (gratis)
 
-## 5. Variables de entorno
-
-```env
-VITE_OSRM_URL=https://router.project-osrm.org
-```
-
-Para producción, self-host OSRM y apunta `VITE_OSRM_URL` a tu servidor.
-
-## 6. Archivos clave (aditivos)
-
-```
-src/services/driverService.js
-src/services/dispatchService.js
-src/services/pricingService.js
-src/services/trackingService.js
-src/utils/geo.js | osrm.js | mapStyles.js
-src/components/delivery/*
-src/pages/admin/AdminDrivers.jsx ... AdminLiveMap.jsx
-src/pages/driver/*
-supabase/migration-repartidores-delivery.sql
-```
-
-## 7. Qué NO se tocó
-
-- Checkout / carrito / menú por sucursal
-- Caja diaria / stock / campañas
-- Cocina / pedidos (solo lectura + sync opcional de estado `en_delivery` / `entregado` vía RPC)
+- Calles: CARTO Voyager
+- Satélite: Esri
+- Rutas: `VITE_OSRM_URL` (default project-osrm.org)

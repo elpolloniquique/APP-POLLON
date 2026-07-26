@@ -49,9 +49,20 @@ export function LiveMap({
     map.on('load', () => {
       mapRef.current = map;
       setReady(true);
+      // Asegura render correcto en contenedores flex/modal
+      requestAnimationFrame(() => map.resize());
     });
 
+    const onResize = () => map.resize();
+    window.addEventListener('resize', onResize);
+    const ro = typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(() => map.resize())
+      : null;
+    if (ro && containerRef.current) ro.observe(containerRef.current);
+
     return () => {
+      window.removeEventListener('resize', onResize);
+      ro?.disconnect();
       Object.values(markersRef.current).forEach((m) => m.remove());
       markersRef.current = {};
       map.remove();

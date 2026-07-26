@@ -3,6 +3,7 @@ import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { useAdminBranchFilter } from '../../hooks/useAdminBranchFilter';
 import { AdminBranchFilter } from '../../components/admin/AdminBranchFilter';
 import { getDispatchSettings, saveDispatchSettings } from '../../services/trackingService';
+import { verifyDeliveryModule } from '../../services/driverService';
 import { Button } from '../../components/ui/Button';
 import { Loader } from '../../components/ui/Loader';
 
@@ -22,6 +23,8 @@ export function AdminDriverConfig() {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
+  const [health, setHealth] = useState(null);
+  const [healthBusy, setHealthBusy] = useState(false);
 
   useEffect(() => {
     if (!activeBranchId) {
@@ -64,6 +67,19 @@ export function AdminDriverConfig() {
     }
   };
 
+  const runHealth = async () => {
+    setHealthBusy(true);
+    setHealth(null);
+    try {
+      const result = await verifyDeliveryModule();
+      setHealth(result);
+    } catch (err) {
+      setHealth({ ok: false, error: err.message });
+    } finally {
+      setHealthBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-4 p-3 sm:p-4 lg:p-6">
       <AdminPageHeader
@@ -73,6 +89,28 @@ export function AdminDriverConfig() {
           <AdminBranchFilter value={selectedBranchId || activeBranchId || ''} onChange={setSelectedBranchId} branches={branches} />
         ) : null}
       />
+
+      <div className="rounded-2xl border bg-white p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold">Salud del módulo GPS / SQL</p>
+            <p className="text-xs text-gray-500">Verifica tablas y RPCs en Supabase</p>
+          </div>
+          <Button type="button" onClick={runHealth} disabled={healthBusy}>
+            {healthBusy ? 'Comprobando…' : 'Verificar conexión'}
+          </Button>
+        </div>
+        {health && (
+          <pre className={`mt-3 overflow-auto rounded-xl p-3 text-xs ${health.ok ? 'bg-green-50 text-green-900' : 'bg-amber-50 text-amber-950'}`}>
+            {JSON.stringify(health, null, 2)}
+          </pre>
+        )}
+        {health && !health.ok && (
+          <p className="mt-2 text-sm text-amber-800">
+            Ejecuta en Supabase SQL Editor: <code className="rounded bg-amber-100 px-1">supabase/fix-delivery-production-ready.sql</code>
+          </p>
+        )}
+      </div>
 
       {!activeBranchId && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">

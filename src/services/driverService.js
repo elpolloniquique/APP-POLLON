@@ -1,5 +1,13 @@
 import { getSupabase, isSupabaseConfigured } from './supabaseClient';
 
+function rpcError(error, fallback) {
+  const msg = error?.message || error?.details || error?.hint || fallback;
+  if (String(msg).includes('telefono')) {
+    return 'SQL desactualizado: ejecuta supabase/fix-delivery-production-ready.sql';
+  }
+  return msg;
+}
+
 const DEMO_DRIVERS = [
   {
     id: 'demo-drv-1',
@@ -12,18 +20,6 @@ const DEMO_DRIVERS = [
     vehicle_plate: 'AB-12-34',
     phone: '+56911111111',
     profiles: { full_name: 'Carlos Repartidor', email: 'repartidor@demo.cl', phone: '+56911111111' },
-  },
-  {
-    id: 'demo-drv-2',
-    profile_id: 'demo-p2',
-    admin_status: 'pending',
-    operational_status: 'offline',
-    preferred_branch_id: null,
-    max_orders: 2,
-    vehicle_type: 'motocicleta',
-    vehicle_plate: '',
-    phone: '+56922222222',
-    profiles: { full_name: 'Ana Postulante', email: 'ana@demo.cl', phone: '+56922222222' },
   },
 ];
 
@@ -38,7 +34,7 @@ export async function listDrivers({ branchId } = {}) {
     .order('created_at', { ascending: false });
   if (branchId) q = q.eq('preferred_branch_id', branchId);
   const { data, error } = await q;
-  if (error) throw error;
+  if (error) throw new Error(rpcError(error, 'Error al listar repartidores'));
   return data || [];
 }
 
@@ -52,7 +48,7 @@ export async function updateDriverAdminStatus(driverId, adminStatus, notes = '')
   };
   if (adminStatus === 'approved') patch.approved_at = new Date().toISOString();
   const { data, error } = await sb.from('ep_driver_profiles').update(patch).eq('id', driverId).select().single();
-  if (error) throw error;
+  if (error) throw new Error(rpcError(error, 'No se pudo actualizar estado'));
   return data;
 }
 
@@ -63,24 +59,41 @@ export async function updateDriverProfile(driverId, updates) {
     .from('ep_driver_profiles')
     .update({ ...updates, updated_at: new Date().toISOString() })
     .eq('id', driverId)
-    .select()
+    .select('*, profiles(full_name, email, phone)')
     .single();
-  if (error) throw error;
+  if (error) throw new Error(rpcError(error, 'No se pudo guardar el perfil'));
   return data;
 }
 
 export async function ensureMyDriverProfile() {
-  if (!isSupabaseConfigured()) {
-    return DEMO_DRIVERS[0];
-  }
+  if (!isSupabaseConfigured()) return DEMO_DRIVERS[0];
   const sb = getSupabase();
-  const { data, error } = await sb.rpc('ep_ensure_driver_profile');
-  if (error) throw error;
-  const { data: row } = await sb
+
+  const { data: driverId, error } = await sb.rpc('ep_ensure_driver_profile');
+  if (error) throw new Error(rpcError(error, 'No se pudo crear perfil de repartidor'));
+
+  const { data: row, error: rowErr } = await sb
     .from('ep_driver_profiles')
     .select('*, profiles(full_name, email, phone)')
-    .eq('id', data)
-    .single();
+    .eq('id', driverId)
+    .maybeSingle();
+
+  if (rowErr) throw new Error(rpcError(rowErr, 'Perfil creado pero no se pudo leer (RLS)'));
+  if (!row) {
+    // Fallback: buscar por profile propio
+    const { data: { user } } = await sb.auth.getUser();
+    if (!user) throw new Error('Sesión no válida');
+    const { data: profile } = await sb.from('profiles').select('id').eq('auth_user_id', user.id).maybeSingle();
+    if (!profile) throw new Error('No hay fila en profiles para este usuario');
+    const { data: byProfile, error: e2 } = await sb
+      .from('ep_driver_profiles')
+      .select('*, profiles(full_name, email, phone)')
+      .eq('profile_id', profile.id)
+      .maybeSingle();
+    if (e2) throw new Error(rpcError(e2, 'Error leyendo perfil repartidor'));
+    if (!byProfile) throw new Error('Perfil repartidor no visible. Ejecuta fix-delivery-production-ready.sql');
+    return byProfile;
+  }
   return row;
 }
 
@@ -88,7 +101,7 @@ export async function setMyOperationalStatus(status) {
   if (!isSupabaseConfigured()) return { ok: true, status };
   const sb = getSupabase();
   const { data, error } = await sb.rpc('ep_set_my_operational_status', { p_status: status });
-  if (error) throw error;
+  if (error) throw new Error(rpcError(error, 'No se pudo cambiar estado'));
   return data;
 }
 
@@ -125,6 +138,9 @@ export async function getMyDriverSummary() {
       .gte('delivered_at', new Date(new Date().setHours(0, 0, 0, 0)).toISOString()),
   ]);
 
+  if (offersRes.error) throw new Error(rpcError(offersRes.error, 'Error ofertas'));
+  if (assignRes.error) throw new Error(rpcError(assignRes.error, 'Error asignaciones'));
+
   const done = doneRes.data || [];
   return {
     driver,
@@ -133,4 +149,16 @@ export async function getMyDriverSummary() {
     todayDeliveries: done.length,
     todayFees: done.reduce((s, x) => s + (x.driver_fee || 0), 0),
   };
+}
+
+export async function verifyDeliveryModule() {
+  if (!isSupabaseConfigured()) {
+    return { ok: true, demo: true };
+  }
+  const sb = getSupabase();
+  const { data, error } = await sb.rpc('ep_verify_delivery_module');
+  if (error) {
+    return { ok: false, error: error.message, hint: 'Ejecuta fix-delivery-production-ready.sql' };
+  }
+  return data;
 }

@@ -90,9 +90,15 @@ export function AdminLiveMap() {
       .filter(Boolean);
   }, [assignments, locations]);
 
+  const branchCenter = useMemo(() => {
+    const b = branches?.find((x) => x.id === filterBranch) || branches?.[0];
+    if (b?.lat != null && b?.lng != null) return { lat: Number(b.lat), lng: Number(b.lng) };
+    return null;
+  }, [branches, filterBranch]);
+
   const center = markers[0]
     ? { lat: markers[0].lat, lng: markers[0].lng }
-    : DEFAULT_MAP_CENTER;
+    : (branchCenter || DEFAULT_MAP_CENTER);
 
   return (
     <div className="flex h-[calc(100dvh-4rem)] flex-col gap-3 p-3 sm:p-4 lg:p-6">

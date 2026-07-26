@@ -321,7 +321,7 @@ BEGIN
     INSERT INTO ep_driver_profiles (profile_id, admin_status, phone)
     SELECT pid,
       CASE WHEN public.ep_is_driver_role() THEN 'approved' ELSE 'pending' END,
-      COALESCE(p.phone, p.telefono, '')
+      COALESCE(p.phone, '')
     FROM profiles p WHERE p.id = pid
     RETURNING id INTO did;
   END IF;
