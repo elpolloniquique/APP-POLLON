@@ -77,21 +77,35 @@ export function AdminLayout() {
         </div>
 
         <nav className="flex-1 overflow-y-auto p-2 admin-scroll-panel">
-          {nav.map((item) => (
-            <NavLink
-              key={item.id}
-              to={item.path}
-              end={item.path === '/admin'}
-              onClick={() => { if (useDrawerSidebar) closeSidebar(); }}
-              className={({ isActive }) =>
-                `admin-sidebar__link mb-0.5 block rounded-xl px-3 py-2 text-sm font-medium transition sm:px-4 sm:py-2.5 ${
-                  isActive ? 'bg-pollon-red text-white' : 'text-white/80 hover:bg-white/10'
-                }`
-              }
-            >
-              {item.label}
-            </NavLink>
-          ))}
+          {nav.map((item, idx) => {
+            const prev = nav[idx - 1];
+            const showDivider = item.group === 'delivery' && prev?.group !== 'delivery';
+            return (
+              <div key={item.id}>
+                {showDivider && (
+                  <p className="mb-1 mt-3 px-3 text-[10px] font-bold uppercase tracking-wider text-emerald-400/90">
+                    Delivery / GPS
+                  </p>
+                )}
+                <NavLink
+                  to={item.path}
+                  end={item.path === '/admin'}
+                  onClick={() => { if (useDrawerSidebar) closeSidebar(); }}
+                  className={({ isActive }) =>
+                    `admin-sidebar__link mb-0.5 block rounded-xl px-3 py-2 text-sm font-medium transition sm:px-4 sm:py-2.5 ${
+                      isActive
+                        ? 'bg-pollon-red text-white'
+                        : item.group === 'delivery'
+                          ? 'text-emerald-300/90 hover:bg-white/10 hover:text-emerald-200'
+                          : 'text-white/80 hover:bg-white/10'
+                    }`
+                  }
+                >
+                  {item.label}
+                </NavLink>
+              </div>
+            );
+          })}
         </nav>
 
         <div className="shrink-0 border-t border-white/10 p-3 sm:p-4">

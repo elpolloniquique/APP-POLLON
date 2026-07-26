@@ -37,8 +37,21 @@ export function isStaffRole(role) {
   return STAFF_ROLES.includes(r);
 }
 
+export function isDriverRole(role) {
+  const r = normalizeRole(role);
+  return r === ROLES.DELIVERY || r === 'repartidor';
+}
+
 export function isCustomerRole(role) {
   return normalizeRole(role) === ROLES.CLIENTE;
+}
+
+/** Ruta home post-login según rol */
+export function getHomePathForRole(role) {
+  const r = normalizeRole(role);
+  if (isDriverRole(r)) return '/repartidor';
+  if (isStaffRole(r)) return getDefaultAdminPath(r);
+  return '/cuenta';
 }
 
 export function getLegacySession() {
@@ -278,7 +291,8 @@ export function getDefaultAdminPath(role) {
     [ROLES.ADMIN_SUCURSAL]: '/admin',
     [ROLES.CAJERA]: '/admin',
     [ROLES.COCINA]: '/admin/cocina',
-    [ROLES.DELIVERY]: '/admin/pedidos',
+    [ROLES.DELIVERY]: '/repartidor',
+    repartidor: '/repartidor',
   };
   if (defaults[r]) return defaults[r];
 

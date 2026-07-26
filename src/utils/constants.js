@@ -132,16 +132,26 @@ export const STAFF_ROLES = [
   ROLES.ADMINISTRADOR,
 ];
 
+/** Permisos del módulo delivery GPS (aditivo — no altera menú/caja/cocina) */
+const DELIVERY_MODULE_PERMS = [
+  'drivers',
+  'driver_config',
+  'driver_rates',
+  'dispatch',
+  'live_map',
+  'driver_reports',
+];
+
 export const ROLE_PERMISSIONS = {
-  super_admin: ['dashboard', 'menu', 'orders', 'kitchen', 'products', 'categories', 'branches', 'cash', 'inventory', 'reports', 'settings', 'users', 'customers', 'campaigns'],
-  admin_sucursal: ['dashboard', 'menu', 'orders', 'kitchen', 'customers', 'branches', 'cash', 'inventory', 'reports', 'settings'],
-  administrador: ['dashboard', 'menu', 'orders', 'kitchen', 'customers', 'branches', 'cash', 'inventory', 'reports', 'settings'],
-  cajera: ['dashboard', 'orders', 'kitchen'],
-  cajero: ['dashboard', 'orders', 'kitchen'],
+  super_admin: ['dashboard', 'menu', 'orders', 'kitchen', 'products', 'categories', 'branches', 'cash', 'inventory', 'reports', 'settings', 'users', 'customers', 'campaigns', ...DELIVERY_MODULE_PERMS],
+  admin_sucursal: ['dashboard', 'menu', 'orders', 'kitchen', 'customers', 'branches', 'cash', 'inventory', 'reports', 'settings', ...DELIVERY_MODULE_PERMS],
+  administrador: ['dashboard', 'menu', 'orders', 'kitchen', 'customers', 'branches', 'cash', 'inventory', 'reports', 'settings', ...DELIVERY_MODULE_PERMS],
+  cajera: ['dashboard', 'orders', 'kitchen', 'dispatch', 'live_map'],
+  cajero: ['dashboard', 'orders', 'kitchen', 'dispatch', 'live_map'],
   cocina: ['kitchen'],
   cocinero: ['kitchen'],
-  delivery: ['orders'],
-  repartidor: ['orders'],
+  delivery: ['driver_app'],
+  repartidor: ['driver_app'],
   cliente: [],
 };
 
@@ -157,4 +167,11 @@ export const ADMIN_NAV = [
   { id: 'stock', path: '/admin/stock', label: 'Stock', perm: 'inventory' },
   { id: 'reportes', path: '/admin/reportes', label: 'Reportes', perm: 'reports' },
   { id: 'config', path: '/admin/config', label: 'Configuración', perm: 'settings' },
+  // Módulo repartidores / despacho GPS (Uber-style)
+  { id: 'drivers', path: '/admin/repartidores', label: 'Repartidores', perm: 'drivers', group: 'delivery' },
+  { id: 'driver_config', path: '/admin/repartidores/config', label: 'Configuración repartidores', perm: 'driver_config', group: 'delivery' },
+  { id: 'driver_rates', path: '/admin/repartidores/tarifas', label: 'Tarifas', perm: 'driver_rates', group: 'delivery' },
+  { id: 'dispatch', path: '/admin/repartidores/despacho', label: 'Despacho', perm: 'dispatch', group: 'delivery' },
+  { id: 'live_map', path: '/admin/repartidores/en-vivo', label: 'En vivo', perm: 'live_map', group: 'delivery' },
+  { id: 'driver_reports', path: '/admin/repartidores/reportes', label: 'Reporte de repartidores', perm: 'driver_reports', group: 'delivery' },
 ];

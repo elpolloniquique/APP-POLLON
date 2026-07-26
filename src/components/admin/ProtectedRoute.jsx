@@ -2,7 +2,7 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { AdminDashboard } from '../../pages/admin/AdminDashboard';
 import { Loader } from '../ui/Loader';
-import { getDefaultAdminPath, hasPermission, isStaffRole, normalizeRole } from '../../services/authService';
+import { getDefaultAdminPath, hasPermission, isStaffRole, isDriverRole, normalizeRole } from '../../services/authService';
 
 export function ProtectedRoute({ children, perm }) {
   const { session, profile, loading, can, role } = useAuth();
@@ -11,6 +11,12 @@ export function ProtectedRoute({ children, perm }) {
   if (!session) return <Navigate to="/admin/login" replace />;
 
   const normalizedRole = normalizeRole(profile?.rol || profile?.role || role);
+
+  // Repartidores no usan el panel admin — van a su app
+  if (isDriverRole(normalizedRole)) {
+    return <Navigate to="/repartidor" replace />;
+  }
+
   if (!isStaffRole(normalizedRole) && !session.legacy) {
     return <Navigate to="/cuenta" replace />;
   }
@@ -29,6 +35,9 @@ export function AdminHome() {
   if (loading) return <Loader text="Cargando panel…" />;
 
   const normalizedRole = normalizeRole(profile?.rol || profile?.role || role);
+  if (isDriverRole(normalizedRole)) {
+    return <Navigate to="/repartidor" replace />;
+  }
   if (hasPermission(normalizedRole, 'dashboard')) {
     return <AdminDashboard />;
   }

@@ -16,8 +16,21 @@ import { AdminConfig } from '../pages/admin/AdminConfig';
 import { AdminCustomers } from '../pages/admin/AdminCustomers';
 import { AdminCampaigns } from '../pages/admin/AdminCampaigns';
 import { KitchenScreen } from '../pages/admin/KitchenScreen';
+import { AdminDrivers } from '../pages/admin/AdminDrivers';
+import { AdminDriverConfig } from '../pages/admin/AdminDriverConfig';
+import { AdminDriverRates } from '../pages/admin/AdminDriverRates';
+import { AdminDispatch } from '../pages/admin/AdminDispatch';
+import { AdminLiveMap } from '../pages/admin/AdminLiveMap';
+import { AdminDriverReports } from '../pages/admin/AdminDriverReports';
 import { ProtectedRoute, AdminHome } from '../components/admin/ProtectedRoute';
 import { CustomerRoute } from '../components/auth/CustomerRoute';
+import { DriverRoute } from '../components/delivery/DriverRoute';
+import { DriverLayout } from '../components/delivery/DriverLayout';
+import { DriverHome } from '../pages/driver/DriverHome';
+import { DriverMapPage } from '../pages/driver/DriverMapPage';
+import { DriverHistory } from '../pages/driver/DriverHistory';
+import { DriverEarnings } from '../pages/driver/DriverEarnings';
+import { DriverProfile } from '../pages/driver/DriverProfile';
 import { AccountLayout } from '../pages/account/AccountLayout';
 import { AccountProfile } from '../pages/account/AccountProfile';
 import { AccountOrders } from '../pages/account/AccountOrders';
@@ -51,6 +64,22 @@ export function AppRoutes() {
         <Route path="seguimiento/:orderId" element={<OrderTracking />} />
       </Route>
 
+      {/* App repartidor (PWA mobile-first) */}
+      <Route
+        path="/repartidor"
+        element={(
+          <DriverRoute>
+            <DriverLayout />
+          </DriverRoute>
+        )}
+      >
+        <Route index element={<DriverHome />} />
+        <Route path="mapa" element={<DriverMapPage />} />
+        <Route path="historial" element={<DriverHistory />} />
+        <Route path="ingresos" element={<DriverEarnings />} />
+        <Route path="perfil" element={<DriverProfile />} />
+      </Route>
+
       <Route path="/admin/login" element={<AdminLogin />} />
       <Route
         path="/admin"
@@ -71,6 +100,14 @@ export function AppRoutes() {
         <Route path="stock" element={<ProtectedRoute perm="inventory"><AdminInventory /></ProtectedRoute>} />
         <Route path="reportes" element={<ProtectedRoute perm="reports"><AdminReports /></ProtectedRoute>} />
         <Route path="config" element={<ProtectedRoute perm="settings"><AdminConfig /></ProtectedRoute>} />
+
+        {/* Módulo delivery GPS — aditivo */}
+        <Route path="repartidores" element={<ProtectedRoute perm="drivers"><AdminDrivers /></ProtectedRoute>} />
+        <Route path="repartidores/config" element={<ProtectedRoute perm="driver_config"><AdminDriverConfig /></ProtectedRoute>} />
+        <Route path="repartidores/tarifas" element={<ProtectedRoute perm="driver_rates"><AdminDriverRates /></ProtectedRoute>} />
+        <Route path="repartidores/despacho" element={<ProtectedRoute perm="dispatch"><AdminDispatch /></ProtectedRoute>} />
+        <Route path="repartidores/en-vivo" element={<ProtectedRoute perm="live_map"><AdminLiveMap /></ProtectedRoute>} />
+        <Route path="repartidores/reportes" element={<ProtectedRoute perm="driver_reports"><AdminDriverReports /></ProtectedRoute>} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

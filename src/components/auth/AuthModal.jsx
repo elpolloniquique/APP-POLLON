@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { X, Mail, Lock, User, Phone, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { isSupabaseConfigured } from '../../services/supabaseClient';
+import { getHomePathForRole, isDriverRole, normalizeRole } from '../../services/authService';
 
 const TABS = [
   { id: 'login', label: 'Iniciar sesión' },
@@ -39,8 +40,9 @@ export function AuthModal({ open, onClose, defaultTab = 'login' }) {
     try {
       const { profile: p } = await signIn(form.email, form.password);
       onClose();
-      if (p && ['super_admin', 'admin_sucursal', 'administrador', 'cajera', 'cajero', 'cocina', 'delivery', 'repartidor'].includes(p.rol || p.role)) {
-        navigate('/admin');
+      const role = normalizeRole(p?.rol || p?.role);
+      if (isDriverRole(role) || ['super_admin', 'admin_sucursal', 'administrador', 'cajera', 'cajero', 'cocina', 'delivery', 'repartidor'].includes(role)) {
+        navigate(getHomePathForRole(role));
       } else {
         navigate('/cuenta');
       }
