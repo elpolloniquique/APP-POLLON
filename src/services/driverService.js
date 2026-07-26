@@ -30,7 +30,7 @@ export async function listDrivers({ branchId } = {}) {
   const sb = getSupabase();
   let q = sb
     .from('ep_driver_profiles')
-    .select('*, profiles(id, full_name, email, phone, role, branch_id)')
+    .select('*, profiles!profile_id(id, full_name, email, phone, role, branch_id)')
     .order('created_at', { ascending: false });
   if (branchId) q = q.eq('preferred_branch_id', branchId);
   const { data, error } = await q;
@@ -59,7 +59,7 @@ export async function updateDriverProfile(driverId, updates) {
     .from('ep_driver_profiles')
     .update({ ...updates, updated_at: new Date().toISOString() })
     .eq('id', driverId)
-    .select('*, profiles(full_name, email, phone)')
+    .select('*, profiles!profile_id(full_name, email, phone)')
     .single();
   if (error) throw new Error(rpcError(error, 'No se pudo guardar el perfil'));
   return data;
@@ -74,7 +74,7 @@ export async function ensureMyDriverProfile() {
 
   const { data: row, error: rowErr } = await sb
     .from('ep_driver_profiles')
-    .select('*, profiles(full_name, email, phone)')
+    .select('*, profiles!profile_id(full_name, email, phone)')
     .eq('id', driverId)
     .maybeSingle();
 
@@ -87,7 +87,7 @@ export async function ensureMyDriverProfile() {
     if (!profile) throw new Error('No hay fila en profiles para este usuario');
     const { data: byProfile, error: e2 } = await sb
       .from('ep_driver_profiles')
-      .select('*, profiles(full_name, email, phone)')
+      .select('*, profiles!profile_id(full_name, email, phone)')
       .eq('profile_id', profile.id)
       .maybeSingle();
     if (e2) throw new Error(rpcError(e2, 'Error leyendo perfil repartidor'));

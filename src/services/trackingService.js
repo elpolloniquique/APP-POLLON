@@ -37,7 +37,7 @@ export async function listLiveLocations() {
   const sb = getSupabase();
   const { data, error } = await sb
     .from('ep_driver_location_latest')
-    .select('*, ep_driver_profiles(id, vehicle_plate, operational_status, profiles(full_name, phone))')
+    .select('*, ep_driver_profiles(id, vehicle_plate, operational_status, profiles!profile_id(full_name, phone))')
     .order('updated_at', { ascending: false });
   if (error) throw new Error(error.message || 'Error GPS en vivo');
   return (data || []).map((row) => ({
@@ -68,7 +68,7 @@ export async function listLiveAssignments(branchId = null) {
   const sb = getSupabase();
   const q = sb
     .from('ep_delivery_assignments')
-    .select('*, ep_delivery_jobs(*), ep_driver_profiles(id, vehicle_plate, profiles(full_name))')
+    .select('*, ep_delivery_jobs(*), ep_driver_profiles(id, vehicle_plate, profiles!profile_id(full_name))')
     .eq('status', 'active')
     .order('accepted_at', { ascending: false });
   const { data, error } = await q;

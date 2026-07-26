@@ -47,7 +47,7 @@ export async function listDeliveryJobs({ branchId, status } = {}) {
   const sb = getSupabase();
   let q = sb
     .from('ep_delivery_jobs')
-    .select('*, ep_driver_profiles(id, vehicle_plate, profiles(full_name, phone))')
+    .select('*, ep_driver_profiles(id, vehicle_plate, profiles!profile_id(full_name, phone))')
     .order('created_at', { ascending: false })
     .limit(100);
   if (branchId) q = q.eq('branch_id', branchId);
