@@ -111,7 +111,7 @@ CREATE TABLE IF NOT EXISTS public.ep_driver_profiles (
   photo_url TEXT DEFAULT '',
   notes TEXT DEFAULT '',
   approved_at TIMESTAMPTZ,
-  approved_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  approved_by UUID,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

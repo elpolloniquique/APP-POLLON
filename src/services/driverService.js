@@ -5,6 +5,9 @@ function rpcError(error, fallback) {
   if (String(msg).includes('telefono')) {
     return 'SQL desactualizado: ejecuta supabase/fix-delivery-production-ready.sql';
   }
+  if (String(msg).includes('more than one relationship')) {
+    return 'Relación profiles ambigua. Actualiza la app o ejecuta fix-ep-profiles-relationship.sql';
+  }
   return msg;
 }
 
@@ -23,6 +26,28 @@ const DEMO_DRIVERS = [
   },
 ];
 
+/** Adjunta profiles sin embed (evita ambigüedad profile_id vs approved_by) */
+async function attachProfiles(rows) {
+  const list = Array.isArray(rows) ? rows : rows ? [rows] : [];
+  if (!list.length) return Array.isArray(rows) ? [] : null;
+
+  const ids = [...new Set(list.map((r) => r.profile_id).filter(Boolean))];
+  if (!ids.length) {
+    return Array.isArray(rows) ? list.map((r) => ({ ...r, profiles: null })) : { ...rows, profiles: null };
+  }
+
+  const sb = getSupabase();
+  const { data: profiles, error } = await sb
+    .from('profiles')
+    .select('id, full_name, email, phone, role, branch_id')
+    .in('id', ids);
+  if (error) throw new Error(rpcError(error, 'Error leyendo profiles'));
+
+  const byId = Object.fromEntries((profiles || []).map((p) => [p.id, p]));
+  const merged = list.map((r) => ({ ...r, profiles: byId[r.profile_id] || null }));
+  return Array.isArray(rows) ? merged : merged[0];
+}
+
 export async function listDrivers({ branchId } = {}) {
   if (!isSupabaseConfigured()) {
     return DEMO_DRIVERS.filter((d) => !branchId || !d.preferred_branch_id || d.preferred_branch_id === branchId);
@@ -30,12 +55,12 @@ export async function listDrivers({ branchId } = {}) {
   const sb = getSupabase();
   let q = sb
     .from('ep_driver_profiles')
-    .select('*, profiles!profile_id(id, full_name, email, phone, role, branch_id)')
+    .select('*')
     .order('created_at', { ascending: false });
   if (branchId) q = q.eq('preferred_branch_id', branchId);
   const { data, error } = await q;
   if (error) throw new Error(rpcError(error, 'Error al listar repartidores'));
-  return data || [];
+  return attachProfiles(data || []);
 }
 
 export async function updateDriverAdminStatus(driverId, adminStatus, notes = '') {
@@ -47,7 +72,7 @@ export async function updateDriverAdminStatus(driverId, adminStatus, notes = '')
     updated_at: new Date().toISOString(),
   };
   if (adminStatus === 'approved') patch.approved_at = new Date().toISOString();
-  const { data, error } = await sb.from('ep_driver_profiles').update(patch).eq('id', driverId).select().single();
+  const { data, error } = await sb.from('ep_driver_profiles').update(patch).eq('id', driverId).select('*').single();
   if (error) throw new Error(rpcError(error, 'No se pudo actualizar estado'));
   return data;
 }
@@ -59,10 +84,10 @@ export async function updateDriverProfile(driverId, updates) {
     .from('ep_driver_profiles')
     .update({ ...updates, updated_at: new Date().toISOString() })
     .eq('id', driverId)
-    .select('*, profiles!profile_id(full_name, email, phone)')
+    .select('*')
     .single();
   if (error) throw new Error(rpcError(error, 'No se pudo guardar el perfil'));
-  return data;
+  return attachProfiles(data);
 }
 
 export async function ensureMyDriverProfile() {
@@ -74,27 +99,26 @@ export async function ensureMyDriverProfile() {
 
   const { data: row, error: rowErr } = await sb
     .from('ep_driver_profiles')
-    .select('*, profiles!profile_id(full_name, email, phone)')
+    .select('*')
     .eq('id', driverId)
     .maybeSingle();
 
   if (rowErr) throw new Error(rpcError(rowErr, 'Perfil creado pero no se pudo leer (RLS)'));
   if (!row) {
-    // Fallback: buscar por profile propio
     const { data: { user } } = await sb.auth.getUser();
     if (!user) throw new Error('Sesión no válida');
     const { data: profile } = await sb.from('profiles').select('id').eq('auth_user_id', user.id).maybeSingle();
     if (!profile) throw new Error('No hay fila en profiles para este usuario');
     const { data: byProfile, error: e2 } = await sb
       .from('ep_driver_profiles')
-      .select('*, profiles!profile_id(full_name, email, phone)')
+      .select('*')
       .eq('profile_id', profile.id)
       .maybeSingle();
     if (e2) throw new Error(rpcError(e2, 'Error leyendo perfil repartidor'));
     if (!byProfile) throw new Error('Perfil repartidor no visible. Ejecuta fix-delivery-production-ready.sql');
-    return byProfile;
+    return attachProfiles(byProfile);
   }
-  return row;
+  return attachProfiles(row);
 }
 
 export async function setMyOperationalStatus(status) {

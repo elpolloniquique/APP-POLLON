@@ -47,14 +47,46 @@ export async function listDeliveryJobs({ branchId, status } = {}) {
   const sb = getSupabase();
   let q = sb
     .from('ep_delivery_jobs')
-    .select('*, ep_driver_profiles(id, vehicle_plate, profiles!profile_id(full_name, phone))')
+    .select('*')
     .order('created_at', { ascending: false })
     .limit(100);
   if (branchId) q = q.eq('branch_id', branchId);
   if (status) q = q.eq('status', status);
   const { data, error } = await q;
   if (error) throw error;
-  return data || [];
+
+  const rows = data || [];
+  const driverIds = [...new Set(rows.map((j) => j.assigned_driver_id).filter(Boolean))];
+  if (!driverIds.length) return rows;
+
+  const { data: drivers, error: dErr } = await sb
+    .from('ep_driver_profiles')
+    .select('id, vehicle_plate, profile_id')
+    .in('id', driverIds);
+  if (dErr) throw dErr;
+
+  const profileIds = [...new Set((drivers || []).map((d) => d.profile_id).filter(Boolean))];
+  let profilesById = {};
+  if (profileIds.length) {
+    const { data: profiles, error: pErr } = await sb
+      .from('profiles')
+      .select('id, full_name, phone')
+      .in('id', profileIds);
+    if (pErr) throw pErr;
+    profilesById = Object.fromEntries((profiles || []).map((p) => [p.id, p]));
+  }
+
+  const driversById = Object.fromEntries(
+    (drivers || []).map((d) => [
+      d.id,
+      { id: d.id, vehicle_plate: d.vehicle_plate, profiles: profilesById[d.profile_id] || null },
+    ])
+  );
+
+  return rows.map((j) => ({
+    ...j,
+    ep_driver_profiles: j.assigned_driver_id ? driversById[j.assigned_driver_id] || null : null,
+  }));
 }
 
 export async function upsertJobFromOrder(orderId) {

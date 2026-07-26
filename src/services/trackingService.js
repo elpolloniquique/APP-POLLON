@@ -12,6 +12,40 @@ const DEMO_LOCATIONS = [
   },
 ];
 
+async function loadDriverCards(driverIds) {
+  const ids = [...new Set((driverIds || []).filter(Boolean))];
+  if (!ids.length) return {};
+  const sb = getSupabase();
+  const { data: drivers, error } = await sb
+    .from('ep_driver_profiles')
+    .select('id, vehicle_plate, operational_status, profile_id')
+    .in('id', ids);
+  if (error) throw new Error(error.message || 'Error perfiles GPS');
+
+  const profileIds = [...new Set((drivers || []).map((d) => d.profile_id).filter(Boolean))];
+  let profilesById = {};
+  if (profileIds.length) {
+    const { data: profiles, error: pErr } = await sb
+      .from('profiles')
+      .select('id, full_name, phone')
+      .in('id', profileIds);
+    if (pErr) throw new Error(pErr.message || 'Error profiles GPS');
+    profilesById = Object.fromEntries((profiles || []).map((p) => [p.id, p]));
+  }
+
+  return Object.fromEntries(
+    (drivers || []).map((d) => [
+      d.id,
+      {
+        id: d.id,
+        vehicle_plate: d.vehicle_plate,
+        operational_status: d.operational_status,
+        profiles: profilesById[d.profile_id] || null,
+      },
+    ])
+  );
+}
+
 export async function upsertMyLocation({ lat, lng, heading, speed, accuracy }) {
   if (!isSupabaseConfigured()) return { ok: true };
   const sb = getSupabase();
@@ -37,12 +71,15 @@ export async function listLiveLocations() {
   const sb = getSupabase();
   const { data, error } = await sb
     .from('ep_driver_location_latest')
-    .select('*, ep_driver_profiles(id, vehicle_plate, operational_status, profiles!profile_id(full_name, phone))')
+    .select('*')
     .order('updated_at', { ascending: false });
   if (error) throw new Error(error.message || 'Error GPS en vivo');
+
+  const byDriver = await loadDriverCards((data || []).map((r) => r.driver_id));
   return (data || []).map((row) => ({
     ...row,
-    driver: row.ep_driver_profiles,
+    ep_driver_profiles: byDriver[row.driver_id] || null,
+    driver: byDriver[row.driver_id] || null,
   }));
 }
 
@@ -66,18 +103,23 @@ export async function listLiveAssignments(branchId = null) {
     ];
   }
   const sb = getSupabase();
-  const q = sb
+  const { data, error } = await sb
     .from('ep_delivery_assignments')
-    .select('*, ep_delivery_jobs(*), ep_driver_profiles(id, vehicle_plate, profiles!profile_id(full_name))')
+    .select('*, ep_delivery_jobs(*)')
     .eq('status', 'active')
     .order('accepted_at', { ascending: false });
-  const { data, error } = await q;
   if (error) throw new Error(error.message || 'Error asignaciones en vivo');
+
   let rows = data || [];
   if (branchId) {
     rows = rows.filter((r) => !r.ep_delivery_jobs?.branch_id || r.ep_delivery_jobs.branch_id === branchId);
   }
-  return rows;
+
+  const byDriver = await loadDriverCards(rows.map((r) => r.driver_id));
+  return rows.map((r) => ({
+    ...r,
+    ep_driver_profiles: byDriver[r.driver_id] || null,
+  }));
 }
 
 export async function getDispatchReport(branchId = null, from = null, to = null) {
@@ -151,7 +193,6 @@ export function startGpsWatch(onUpdate, { intervalMs = 8000 } = {}) {
   let lastSent = 0;
   let stopped = false;
 
-  // Primera lectura inmediata
   navigator.geolocation.getCurrentPosition(
     async (pos) => {
       if (stopped) return;
