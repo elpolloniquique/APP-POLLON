@@ -726,16 +726,21 @@
     gap: 0.75rem;
   }
   .admin-main {
-    padding: 0.75rem;
+    padding: 1rem 1.25rem;
   }
   @media (min-width: 640px) {
     .admin-main {
-      padding: 1rem;
+      padding: 1.25rem 2rem;
+    }
+  }
+  @media (min-width: 1024px) {
+    .admin-main {
+      padding: 1.5rem 2.5rem;
     }
   }
   @media (min-width: 1367px) {
     .admin-main {
-      padding: 1.25rem 1.5rem;
+      padding: 1.75rem 3.5rem;
     }
   }
 
