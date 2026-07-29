@@ -739,19 +739,7 @@
     }
   }
 
-  /* ── Panel admin: layout compacto (≤1366px — móvil + laptop 11") ── */
-  .admin-sidebar--static {
-    position: static;
-    z-index: auto;
-    width: 14rem;
-    flex-shrink: 0;
-    transform: translateX(0) !important;
-  }
-  @media (min-width: 1024px) {
-    .admin-sidebar--static {
-      width: 16rem;
-    }
-  }
+  /* Sidebar siempre drawer (hamburguesa) — sin modo estático */
   @media (max-width: 1366px) {
     .admin-main {
       padding: 0.625rem 0.75rem 0.875rem;
