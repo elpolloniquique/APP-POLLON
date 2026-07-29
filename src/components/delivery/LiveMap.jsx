@@ -24,6 +24,7 @@ export function LiveMap({
   const mapRef = useRef(null);
   const markersRef = useRef({});
   const [ready, setReady] = useState(false);
+  const [mapError, setMapError] = useState('');
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return undefined;
@@ -46,7 +47,13 @@ export function LiveMap({
       'top-right'
     );
 
+    map.on('error', (evt) => {
+      const msg = evt?.error?.message || 'No se pudo cargar el mapa base';
+      setMapError(msg);
+    });
+
     map.on('load', () => {
+      setMapError('');
       mapRef.current = map;
       setReady(true);
       // Asegura render correcto en contenedores flex/modal
@@ -75,6 +82,7 @@ export function LiveMap({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
+    setMapError('');
     map.setStyle(getMapStyle(styleId));
   }, [styleId, ready]);
 
@@ -171,6 +179,11 @@ export function LiveMap({
   return (
     <div className={`relative overflow-hidden rounded-2xl border border-gray-200 bg-gray-100 ${className}`}>
       <div ref={containerRef} className="h-full min-h-[320px] w-full" />
+      {mapError && (
+        <div className="absolute inset-x-3 bottom-3 z-10 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 shadow">
+          Error de tiles del mapa. Se aplicó un proveedor base alternativo.
+        </div>
+      )}
       <div className="absolute left-3 top-3 z-10 flex gap-1 rounded-xl bg-white/95 p-1 shadow">
         {['streets', 'satellite'].map((id) => (
           <button

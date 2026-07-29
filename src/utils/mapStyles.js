@@ -1,4 +1,4 @@
-/** Estilos de mapa 100% gratis — CARTO + Esri (sin API key) */
+/** Estilos de mapa 100% gratis — OSM + Esri (sin API key) */
 
 export const MAP_STYLES = {
   streets: {
@@ -7,28 +7,20 @@ export const MAP_STYLES = {
     style: {
       version: 8,
       sources: {
-        carto: {
+        osm: {
           type: 'raster',
           tiles: [
-            'https://a.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}@2x.png',
-            'https://b.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}@2x.png',
-            'https://c.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}@2x.png',
+            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
           ],
-          tileSize: 512,
-          attribution: '© OpenStreetMap © CARTO',
-        },
-        labels: {
-          type: 'raster',
-          tiles: [
-            'https://a.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}@2x.png',
-            'https://b.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}@2x.png',
-          ],
-          tileSize: 512,
+          tileSize: 256,
+          attribution: '© OpenStreetMap contributors',
         },
       },
       layers: [
-        { id: 'carto', type: 'raster', source: 'carto' },
-        { id: 'labels', type: 'raster', source: 'labels' },
+        { id: 'osm', type: 'raster', source: 'osm' },
       ],
     },
   },
@@ -49,9 +41,9 @@ export const MAP_STYLES = {
         labels: {
           type: 'raster',
           tiles: [
-            'https://a.basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}@2x.png',
+            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           ],
-          tileSize: 512,
+          tileSize: 256,
         },
       },
       layers: [
