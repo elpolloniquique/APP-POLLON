@@ -1,5 +1,6 @@
 const estadoColors = {
   pendiente: 'bg-amber-100 text-amber-800',
+  aceptado: 'bg-teal-100 text-teal-800',
   confirmado: 'bg-blue-100 text-blue-800',
   preparando: 'bg-orange-100 text-orange-800',
   listo: 'bg-emerald-100 text-emerald-800',

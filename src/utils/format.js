@@ -118,6 +118,7 @@ export { getNextOrderEstado as nextEstado } from './constants';
 export function estadoLabel(estado) {
   const labels = {
     pendiente: 'Nuevo',
+    aceptado: 'Aceptado',
     confirmado: 'Confirmado',
     preparando: 'En cocina',
     listo: 'Listo',

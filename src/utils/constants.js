@@ -38,6 +38,7 @@ export const CATEGORY_META = {
 /** Flujo activo de avance (sin "listo"; entregado y cancelado son finales) */
 export const ORDER_STATUS_FLOW = [
   'pendiente',
+  'aceptado',
   'confirmado',
   'preparando',
   'en_delivery',
@@ -56,11 +57,12 @@ export const ORDER_STATES = [
 /** Etiquetas para el cliente */
 export const ORDER_STATUS_LABELS = {
   pendiente: { label: 'Pedido recibido', step: 1, color: 'bg-blue-500' },
-  confirmado: { label: 'Confirmado', step: 2, color: 'bg-indigo-500' },
-  preparando: { label: 'En cocina', step: 3, color: 'bg-amber-500' },
-  listo: { label: 'En reparto', step: 4, color: 'bg-purple-500' },
-  en_delivery: { label: 'En reparto', step: 4, color: 'bg-purple-500' },
-  entregado: { label: 'Entregado', step: 5, color: 'bg-green-600' },
+  aceptado: { label: 'Aceptado', step: 2, color: 'bg-teal-500' },
+  confirmado: { label: 'Confirmado', step: 3, color: 'bg-indigo-500' },
+  preparando: { label: 'En cocina', step: 4, color: 'bg-amber-500' },
+  listo: { label: 'En reparto', step: 5, color: 'bg-purple-500' },
+  en_delivery: { label: 'En reparto', step: 5, color: 'bg-purple-500' },
+  entregado: { label: 'Entregado', step: 6, color: 'bg-green-600' },
   cancelado: { label: 'Cancelado', step: 0, color: 'bg-red-500' },
 };
 
