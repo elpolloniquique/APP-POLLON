@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { X, CheckCircle, Bike } from 'lucide-react';
+import { AddressAutocomplete } from './AddressAutocomplete';
 import { WhatsAppIcon } from '../ui/WhatsAppIcon';
 import { useCart } from '../../context/CartContext';
 import { useBranch } from '../../context/BranchContext';
@@ -74,6 +75,8 @@ export function CheckoutModal() {
     name: '',
     phone: '',
     address: '',
+    addressLat: null,
+    addressLng: null,
     orderType: 'delivery',
     payment: 'efectivo',
     comments: '',
@@ -148,7 +151,10 @@ export function CheckoutModal() {
   const validate = () => {
     if (!form.name.trim()) return 'Ingresa tu nombre';
     if (!form.phone.trim() || form.phone.length < 8) return 'Ingresa un teléfono válido';
-    if (form.orderType === 'delivery' && !form.address.trim()) return 'Ingresa tu dirección';
+    if (form.orderType === 'delivery') {
+      if (!form.address.trim()) return 'Ingresa tu dirección de entrega';
+      if (!form.addressLat || !form.addressLng) return 'Selecciona una dirección de la lista para que el repartidor pueda ubicarte';
+    }
     if (!items.length) return 'Tu carrito está vacío';
     if (!branch) return 'Selecciona una sucursal';
     if (!branchOpen) return 'La sucursal está cerrada en este momento';
@@ -174,6 +180,8 @@ export function CheckoutModal() {
           name: form.name.trim(),
           phone: form.phone.trim(),
           address: form.orderType === 'delivery' ? form.address.trim() : branch.address,
+          addressLat: form.orderType === 'delivery' ? form.addressLat : (branch?.lat ?? null),
+          addressLng: form.orderType === 'delivery' ? form.addressLng : (branch?.lng ?? null),
           comments: form.comments.trim(),
         },
         items: [...items],
@@ -385,13 +393,27 @@ export function CheckoutModal() {
               />
 
               {form.orderType === 'delivery' && (
-                <input
-                  required
-                  placeholder="Dirección de entrega"
+                <AddressAutocomplete
                   value={form.address}
-                  onChange={(e) => update('address', e.target.value)}
-                  onFocus={scrollToField}
-                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm"
+                  required
+                  onChange={(label, geo) => {
+                    setForm((f) => ({
+                      ...f,
+                      address: label,
+                      addressLat: geo?.lat ?? null,
+                      addressLng: geo?.lng ?? null,
+                    }));
+                  }}
+                  onSelect={(geo) => {
+                    if (geo) {
+                      setForm((f) => ({
+                        ...f,
+                        address: geo.shortLabel,
+                        addressLat: geo.lat,
+                        addressLng: geo.lng,
+                      }));
+                    }
+                  }}
                 />
               )}
 
