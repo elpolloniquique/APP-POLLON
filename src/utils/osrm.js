@@ -3,6 +3,8 @@
  * Producción: VITE_OSRM_URL=https://tu-osrm.dominio
  */
 
+import { searchPreciseAddresses } from './addressGeocode';
+
 const OSRM_BASE = (import.meta.env.VITE_OSRM_URL || 'https://router.project-osrm.org').replace(/\/$/, '');
 
 /**
@@ -34,23 +36,14 @@ export async function fetchOsrmRoute(from, to) {
   }
 }
 
-/** Geocoding gratis Nominatim (OpenStreetMap) — uso respetuoso */
-export async function geocodeAddress(query, countryCode = 'cl') {
+/** Geocoding preciso (calle + nº) vía Nominatim/Photon/Overpass */
+export async function geocodeAddress(query, _countryCode = 'cl') {
   if (!query?.trim()) return null;
-  const url = new URL('https://nominatim.openstreetmap.org/search');
-  url.searchParams.set('q', query);
-  url.searchParams.set('format', 'json');
-  url.searchParams.set('limit', '1');
-  url.searchParams.set('countrycodes', countryCode);
   try {
-    const res = await fetch(url.toString(), {
-      headers: { Accept: 'application/json', 'Accept-Language': 'es' },
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    const hit = data?.[0];
+    const hits = await searchPreciseAddresses(query, { limit: 1 });
+    const hit = hits?.[0];
     if (!hit) return null;
-    return { lat: Number(hit.lat), lng: Number(hit.lon), label: hit.display_name };
+    return { lat: hit.lat, lng: hit.lng, label: hit.shortLabel, precision: hit.precision };
   } catch {
     return null;
   }

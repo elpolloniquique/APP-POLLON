@@ -396,6 +396,9 @@ export function CheckoutModal() {
                 <AddressAutocomplete
                   value={form.address}
                   required
+                  cityBias={branch?.city || 'Iquique'}
+                  biasLat={branch?.lat}
+                  biasLng={branch?.lng}
                   onChange={(label, geo) => {
                     setForm((f) => ({
                       ...f,
