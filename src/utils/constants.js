@@ -132,6 +132,10 @@ export const STAFF_ROLES = [
   ROLES.COCINA,
   ROLES.DELIVERY,
   ROLES.ADMINISTRADOR,
+  'despachador',
+  'cajero',
+  'cocinero',
+  'repartidor',
 ];
 
 /** Permisos del módulo delivery GPS (aditivo — no altera menú/caja/cocina) */
@@ -150,6 +154,7 @@ export const ROLE_PERMISSIONS = {
   administrador: ['dashboard', 'menu', 'orders', 'kitchen', 'customers', 'branches', 'cash', 'inventory', 'reports', 'settings', ...DELIVERY_MODULE_PERMS],
   cajera: ['dashboard', 'orders', 'kitchen', 'dispatch', 'live_map'],
   cajero: ['dashboard', 'orders', 'kitchen', 'dispatch', 'live_map'],
+  despachador: ['dashboard', 'orders', 'kitchen', 'dispatch', 'live_map'],
   cocina: ['kitchen'],
   cocinero: ['kitchen'],
   delivery: ['driver_app'],

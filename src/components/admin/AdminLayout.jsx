@@ -53,6 +53,8 @@ export function AdminLayout() {
     super_admin: 'Super Admin',
     admin_sucursal: 'Admin sucursal',
     cajera: 'Cajera',
+    cajero: 'Cajero',
+    despachador: 'Despachador',
     cocina: 'Cocina',
     delivery: 'Repartidor',
   };

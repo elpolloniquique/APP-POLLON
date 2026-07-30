@@ -33,6 +33,8 @@ function mapBranch(row) {
     thermalPrinterPort: Number(row.thermal_printer_port) || 9100,
     thermalPrintBridgeUrl: row.thermal_print_bridge_url || '',
     thermalNetworkPrintEnabled: row.thermal_network_print_enabled === true,
+    lat: row.lat != null ? Number(row.lat) : null,
+    lng: row.lng != null ? Number(row.lng) : null,
   };
 }
 

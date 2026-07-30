@@ -122,6 +122,72 @@ export async function listLiveAssignments(branchId = null) {
   }));
 }
 
+/** Detalle de pedidos activos de un repartidor (para modal VER) */
+export async function getDriverActiveOrdersDetail(driverId) {
+  if (!isSupabaseConfigured() || !driverId) return { driver: null, orders: [], grandTotal: 0 };
+  const sb = getSupabase();
+
+  const { data: assignments, error } = await sb
+    .from('ep_delivery_assignments')
+    .select('*, ep_delivery_jobs(*)')
+    .eq('driver_id', driverId)
+    .eq('status', 'active')
+    .order('accepted_at', { ascending: true });
+  if (error) throw new Error(error.message);
+
+  const rows = assignments || [];
+  const byDriver = await loadDriverCards([driverId]);
+  const driver = byDriver[driverId] || null;
+
+  const orderIds = rows
+    .map((a) => a.ep_delivery_jobs?.source_order_id)
+    .filter(Boolean);
+
+  let itemsByOrder = {};
+  if (orderIds.length) {
+    const { data: details } = await sb
+      .from('detalle_pedidos')
+      .select('pedido_id, nombre_producto, cantidad, precio_unitario, subtotal')
+      .in('pedido_id', orderIds);
+    for (const d of details || []) {
+      if (!itemsByOrder[d.pedido_id]) itemsByOrder[d.pedido_id] = [];
+      itemsByOrder[d.pedido_id].push({
+        name: d.nombre_producto,
+        qty: d.cantidad,
+        unitPrice: d.precio_unitario,
+        subtotal: d.subtotal,
+      });
+    }
+  }
+
+  const orders = rows.map((a, idx) => {
+    const job = a.ep_delivery_jobs || {};
+    const oid = job.source_order_id;
+    const items = itemsByOrder[oid] || [];
+    const itemsTotal = items.reduce((s, it) => s + (Number(it.subtotal) || 0), 0);
+    const total = itemsTotal || Number(job.order_total) || 0;
+    return {
+      assignmentId: a.id,
+      phase: a.phase,
+      acceptedAt: a.accepted_at,
+      index: idx + 1,
+      ticket: job.ticket_code,
+      customerName: job.customer_name,
+      customerAddress: job.customer_address,
+      customerLat: job.customer_lat,
+      customerLng: job.customer_lng,
+      deliveryFee: job.delivery_fee || 0,
+      orderTotal: total,
+      items,
+      sourceOrderId: oid,
+      jobId: job.id,
+    };
+  });
+
+  const grandTotal = orders.reduce((s, o) => s + (o.orderTotal || 0) + (o.deliveryFee || 0), 0);
+  return { driver, orders, grandTotal };
+}
+
 export async function getDispatchReport(branchId = null, from = null, to = null) {
   if (!isSupabaseConfigured()) {
     return {
@@ -151,7 +217,7 @@ export async function getDispatchSettings(branchId) {
       max_search_radius_km: 8,
       arrival_radius_m: 80,
       customer_arrival_radius_m: 60,
-      max_orders_per_driver: 2,
+      max_orders_per_driver: 3,
       require_gps: true,
       voice_alerts: false,
     };
