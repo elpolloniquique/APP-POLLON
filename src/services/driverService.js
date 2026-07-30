@@ -18,7 +18,7 @@ const DEMO_DRIVERS = [
     admin_status: 'approved',
     operational_status: 'available',
     preferred_branch_id: null,
-    max_orders: 2,
+    max_orders: 3,
     vehicle_type: 'motocicleta',
     vehicle_plate: 'AB-12-34',
     phone: '+56911111111',
