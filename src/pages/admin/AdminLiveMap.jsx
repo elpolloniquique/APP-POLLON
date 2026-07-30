@@ -4,7 +4,6 @@ import { AdminBranchFilter } from '../../components/admin/AdminBranchFilter';
 import { useAdminBranchFilter } from '../../hooks/useAdminBranchFilter';
 import { LiveMap } from '../../components/delivery/LiveMap';
 import { LiveDriverSidebar } from '../../components/delivery/LiveDriverSidebar';
-import { DriverOrdersModal } from '../../components/delivery/DriverOrdersModal';
 import {
   listLiveLocations,
   listLiveAssignments,
@@ -249,13 +248,13 @@ export function AdminLiveMap() {
     ? { lat: markers[0].lat, lng: markers[0].lng }
     : { lat: store.lat, lng: store.lng };
 
-  const openDetail = async (item) => {
-    setViewDriverId(item.driverId);
-    setFollowId(`drv-${item.driverId}`);
+  const loadDetail = async (driverId) => {
+    setViewDriverId(driverId);
+    setFollowId(`drv-${driverId}`);
     setDetailLoading(true);
     setDetail(null);
     try {
-      const d = await getDriverActiveOrdersDetail(item.driverId);
+      const d = await getDriverActiveOrdersDetail(driverId);
       setDetail(d);
     } catch (e) {
       setError(e.message);
@@ -264,7 +263,20 @@ export function AdminLiveMap() {
     }
   };
 
-  const viewedGroup = driverGroups.find((d) => d.driverId === viewDriverId);
+  const openDetail = async (item) => {
+    // Mismo repartidor abierto → cerrar; otro → abrir (cierra el anterior)
+    if (viewDriverId === item.driverId) {
+      setViewDriverId(null);
+      setDetail(null);
+      return;
+    }
+    await loadDetail(item.driverId);
+  };
+
+  const closeDetail = () => {
+    setViewDriverId(null);
+    setDetail(null);
+  };
 
   return (
     <div className="flex h-[calc(100dvh-3.5rem)] flex-col gap-3 p-3 sm:p-4 lg:px-8 lg:py-5">
@@ -284,45 +296,42 @@ export function AdminLiveMap() {
         <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
       )}
 
-      <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[1fr_300px]">
+      <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[1fr_320px]">
         {loading ? (
           <Loader text="Cargando mapa…" />
         ) : (
-          <LiveMap
-            className="h-full min-h-[420px]"
-            center={center}
-            markers={markers}
-            routes={routes}
-            store={store}
-            styleId={styleId}
-            onStyleChange={setStyleId}
-            followId={followId}
-            showLegend
-          />
+          <div className="relative z-0 min-h-0">
+            <LiveMap
+              className="h-full min-h-[420px]"
+              center={center}
+              markers={markers}
+              routes={routes}
+              store={store}
+              styleId={styleId}
+              onStyleChange={setStyleId}
+              followId={followId}
+              showLegend
+            />
+          </div>
         )}
 
         <LiveDriverSidebar
           pickupDrivers={sidebarPickup}
           deliveryDrivers={sidebarDelivery}
           selectedDriverId={viewDriverId}
+          openDriverId={viewDriverId}
+          detail={detail}
+          detailLoading={detailLoading}
           onSelect={(id) => setFollowId(`drv-${id}`)}
           onView={openDetail}
+          onCloseDetail={closeDetail}
+          canMarkPickup
+          onPickupDone={() => {
+            load();
+            if (viewDriverId) loadDetail(viewDriverId);
+          }}
         />
       </div>
-
-      <DriverOrdersModal
-        open={!!viewDriverId}
-        onClose={() => { setViewDriverId(null); setDetail(null); }}
-        detail={detail}
-        loading={detailLoading}
-        color={viewedGroup?.color}
-        driverName={viewedGroup?.name}
-        canMarkPickup
-        onPickupDone={() => {
-          load();
-          if (viewDriverId) openDetail({ driverId: viewDriverId });
-        }}
-      />
     </div>
   );
 }
