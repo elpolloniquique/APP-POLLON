@@ -17,7 +17,7 @@ export function DriverEarnings() {
         <p className="mt-1 text-4xl font-bold">{money(summary?.todayFees ?? 0)}</p>
         <p className="mt-2 text-sm opacity-80">{summary?.todayDeliveries ?? 0} entregas</p>
       </div>
-      <p className="text-sm text-white/50">
+      <p className="text-sm text-gray-500">
         Los fees corresponden al delivery cotizado al aceptar cada pedido. La liquidación semanal/mensual se consolida desde el panel admin → Reporte de repartidores.
       </p>
     </div>

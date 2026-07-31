@@ -35,20 +35,20 @@ export function DriverHistory() {
   return (
     <div className="mx-auto max-w-lg space-y-3 p-4">
       <h2 className="text-xl font-bold">Historial</h2>
-      {loading && <p className="text-white/50">Cargando…</p>}
+      {loading && <p className="text-gray-400">Cargando…</p>}
       {rows.map((r) => (
-        <div key={r.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+        <div key={r.id} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
           <div className="flex justify-between">
             <p className="font-semibold">#{r.ep_delivery_jobs?.ticket_code} · {r.ep_delivery_jobs?.customer_name}</p>
-            <p className="font-bold text-green-400">{money(r.driver_fee)}</p>
+            <p className="font-bold text-emerald-600">{money(r.driver_fee)}</p>
           </div>
-          <p className="text-xs text-white/50">{r.ep_delivery_jobs?.customer_address}</p>
-          <p className="mt-1 text-[10px] text-white/40">
+          <p className="text-xs text-gray-500">{r.ep_delivery_jobs?.customer_address}</p>
+          <p className="mt-1 text-[10px] text-gray-400">
             {r.delivered_at ? new Date(r.delivered_at).toLocaleString('es-CL') : ''}
           </p>
         </div>
       ))}
-      {!loading && rows.length === 0 && <p className="text-white/50">Aún no hay entregas completadas.</p>}
+      {!loading && rows.length === 0 && <p className="text-gray-500">Aún no hay entregas completadas.</p>}
     </div>
   );
 }

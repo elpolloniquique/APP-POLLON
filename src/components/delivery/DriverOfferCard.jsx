@@ -133,9 +133,9 @@ export function DriverOfferCard({ offer, onAccept, onReject, loading }) {
 
   return (
     <>
-      <div className="overflow-hidden rounded-2xl border border-red-200 bg-white shadow-[0_12px_40px_rgba(0,0,0,.18)]">
-        <div className="flex items-center justify-between gap-2 px-3 pt-3">
-          <span className="rounded-lg bg-pollon-red px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
+      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+        <div className="flex items-center justify-between gap-2 px-3.5 pt-3.5">
+          <span className="rounded-full bg-pollon-red px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
             Nuevo pedido
           </span>
           <div className="flex items-center gap-2">
@@ -145,7 +145,7 @@ export function DriverOfferCard({ offer, onAccept, onReject, loading }) {
             <button
               type="button"
               onClick={openDetail}
-              className="inline-flex items-center gap-1 rounded-lg border border-pollon-red/40 bg-red-50 px-2 py-1 text-[11px] font-bold text-pollon-red"
+              className="inline-flex items-center gap-1 rounded-lg border border-pollon-red bg-white px-2.5 py-1 text-[11px] font-bold text-pollon-red"
             >
               Ver
               <ChevronDown className="h-3.5 w-3.5" />
@@ -153,65 +153,69 @@ export function DriverOfferCard({ offer, onAccept, onReject, loading }) {
           </div>
         </div>
 
-        <div className="flex items-start gap-2.5 px-3 py-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-pollon-red text-white">
+        <div className="flex items-start gap-2.5 px-3.5 py-3">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-pollon-red text-white">
             <User className="h-5 w-5" />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-base font-bold text-gray-900">{job.customer_name || 'Cliente'}</p>
-            <p className="mt-0.5 line-clamp-2 text-xs font-medium text-pollon-red">
+            <p className="truncate text-[15px] font-bold text-gray-900">{job.customer_name || 'Cliente'}</p>
+            <p className="mt-0.5 line-clamp-2 text-xs font-medium leading-snug text-pollon-red">
               {job.customer_address || 'Sin dirección'}
             </p>
           </div>
         </div>
 
         {phone && (
-          <div className="flex flex-wrap items-center gap-2 px-3 pb-2">
+          <div className="flex flex-wrap items-center gap-3 px-3.5 pb-2">
             {wa && (
               <a
                 href={`https://wa.me/${wa}`}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-full bg-pollon-red px-2.5 py-1.5 text-xs font-semibold text-white"
+                className="inline-flex items-center gap-2 text-sm font-semibold text-gray-800"
               >
-                <WhatsAppIcon className="h-3.5 w-3.5" />
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-pollon-red text-white">
+                  <WhatsAppIcon className="h-4 w-4" />
+                </span>
                 {phone}
               </a>
             )}
             <a
               href={`tel:${phone}`}
-              className="inline-flex items-center gap-1.5 rounded-full bg-pollon-red px-2.5 py-1.5 text-xs font-semibold text-white"
+              className="inline-flex items-center gap-2 text-sm font-semibold text-gray-800"
             >
-              <Phone className="h-3.5 w-3.5" />
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-pollon-red text-white">
+                <Phone className="h-4 w-4" />
+              </span>
               {phone}
             </a>
           </div>
         )}
 
-        <div className="mx-3 mb-3 grid grid-cols-3 gap-0 overflow-hidden rounded-xl border border-gray-200">
-          <div className="border-r border-gray-200 px-2 py-2 text-center">
+        <div className="mx-3.5 mb-3 grid grid-cols-3 gap-0 overflow-hidden rounded-xl border border-gray-200">
+          <div className="border-r border-gray-200 px-2 py-2.5 text-center">
             <ShoppingBag className="mx-auto h-4 w-4 text-pollon-red" />
-            <p className="mt-1 text-[9px] uppercase text-gray-400">Monto pedido</p>
+            <p className="mt-1 text-[9px] font-medium uppercase text-gray-400">Monto pedido</p>
             <p className="text-xs font-bold text-gray-900">{money(orderTotal)}</p>
           </div>
-          <div className="border-r border-gray-200 px-2 py-2 text-center">
+          <div className="border-r border-gray-200 px-2 py-2.5 text-center">
             <Bike className="mx-auto h-4 w-4 text-pollon-red" />
-            <p className="mt-1 text-[9px] uppercase text-gray-400">Delivery</p>
+            <p className="mt-1 text-[9px] font-medium uppercase text-gray-400">Delivery</p>
             <p className="text-xs font-bold text-gray-900">{money(fee)}</p>
           </div>
-          <div className="px-2 py-2 text-center">
+          <div className="px-2 py-2.5 text-center">
             <Banknote className="mx-auto h-4 w-4 text-pollon-red" />
-            <p className="mt-1 text-[9px] uppercase text-gray-400">Total a cobrar</p>
+            <p className="mt-1 text-[9px] font-medium uppercase text-gray-400">Total a cobrar</p>
             <p className="text-xs font-bold text-pollon-red">{money(charge)}</p>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 px-3 pb-3">
+        <div className="grid grid-cols-2 gap-2.5 px-3.5 pb-3.5">
           <button
             type="button"
             disabled={loading}
             onClick={() => onReject?.(offer)}
-            className="inline-flex items-center justify-center gap-1.5 rounded-xl border-2 border-pollon-red py-3 text-sm font-bold text-pollon-red disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-1.5 rounded-xl border-2 border-pollon-red bg-white py-3 text-sm font-bold text-pollon-red disabled:opacity-50"
           >
             <X className="h-4 w-4" />
             Rechazar

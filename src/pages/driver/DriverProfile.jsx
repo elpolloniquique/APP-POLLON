@@ -47,19 +47,19 @@ export function DriverProfile() {
   return (
     <div className="mx-auto max-w-lg space-y-4 p-4">
       <h2 className="text-xl font-bold">Perfil</h2>
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-        <p className="font-semibold">{profile?.fullName || profile?.nombre}</p>
-        <p className="text-sm text-white/50">{profile?.email}</p>
+      <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+        <p className="font-semibold text-gray-900">{profile?.fullName || profile?.nombre}</p>
+        <p className="text-sm text-gray-500">{profile?.email}</p>
         <p className="mt-1 text-xs text-pollon-orange capitalize">Rol: {profile?.role || profile?.rol}</p>
         {driver && (
-          <p className="mt-1 text-xs text-white/40">Estado admin: {driver.admin_status}</p>
+          <p className="mt-1 text-xs text-gray-400">Estado admin: {driver.admin_status}</p>
         )}
       </div>
 
-      {error && <div className="rounded-xl bg-red-500/20 px-3 py-2 text-sm text-red-200">{error}</div>}
-      {msg && <div className="rounded-xl bg-green-500/20 px-3 py-2 text-sm text-green-200">{msg}</div>}
+      {error && <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+      {msg && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{msg}</div>}
 
-      <div className="space-y-3 rounded-2xl border border-white/10 bg-white p-4 text-pollon-black">
+      <div className="space-y-3 rounded-2xl border border-gray-200 bg-white p-4 text-gray-900 shadow-sm">
         <label className="block text-sm">
           Tipo de vehículo
           <select value={form.vehicle_type} onChange={(e) => setForm({ ...form, vehicle_type: e.target.value })} className="mt-1 w-full rounded-xl border px-3 py-2">

@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { Bike, Map, History, Wallet, User, LogOut } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -13,8 +13,6 @@ const TABS = [
 export function DriverLayout() {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
-  const mapFirst = location.pathname === '/repartidor' || location.pathname === '/repartidor/mapa';
 
   const handleLogout = async () => {
     await signOut();
@@ -22,43 +20,44 @@ export function DriverLayout() {
   };
 
   return (
-    <div className="flex min-h-[100dvh] flex-col bg-[#0B0F14] text-white">
-      <header className="sticky top-0 z-40 flex items-center justify-between border-b border-white/10 bg-[#0B0F14]/95 px-4 py-3 backdrop-blur">
-        <div className="flex items-center gap-2">
-          <img src="/img/logo pollon.png" alt="" className="h-9 w-9 rounded-full bg-white object-contain" />
+    <div className="flex min-h-[100dvh] flex-col bg-[#f5f5f5] text-gray-900">
+      <header className="sticky top-0 z-40 flex items-center justify-between border-b border-gray-200 bg-white px-4 py-3 shadow-sm">
+        <div className="flex items-center gap-2.5">
+          <img src="/img/logo pollon.png" alt="" className="h-10 w-10 rounded-full border border-gray-100 bg-white object-contain" />
           <div>
             <p className="font-display text-lg leading-none text-pollon-orange">EL POLLÓN</p>
-            <p className="text-[10px] text-white/50">Panel repartidor</p>
+            <p className="mt-0.5 text-[11px] font-medium text-gray-600">Panel repartidor</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="hidden max-w-[140px] truncate text-xs text-white/70 sm:inline">
-            {profile?.fullName || profile?.nombre || profile?.email}
-          </span>
-          <button type="button" onClick={handleLogout} className="rounded-lg p-2 hover:bg-white/10" aria-label="Salir">
-            <LogOut className="h-4 w-4" />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="rounded-lg p-2 text-gray-700 hover:bg-gray-100"
+          aria-label="Salir"
+          title={profile?.fullName || profile?.email || 'Salir'}
+        >
+          <LogOut className="h-5 w-5" />
+        </button>
       </header>
 
-      <main className={`relative flex-1 ${mapFirst ? 'overflow-hidden pb-[4.25rem]' : 'overflow-y-auto pb-24'}`}>
+      <main className="relative flex-1 overflow-y-auto pb-24">
         <Outlet />
       </main>
 
-      <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-white/10 bg-[#0B0F14]/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
-        <div className="mx-auto flex max-w-lg items-stretch justify-around px-1 py-1">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-gray-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_20px_rgba(0,0,0,.06)]">
+        <div className="mx-auto flex max-w-lg items-stretch justify-around px-1 py-1.5">
           {TABS.map(({ to, end, icon: Icon, label }) => (
             <NavLink
               key={to}
               to={to}
               end={end}
               className={({ isActive }) =>
-                `flex flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-[10px] font-medium ${
-                  isActive ? 'text-pollon-orange' : 'text-white/50'
+                `flex flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-[10px] font-semibold ${
+                  isActive ? 'text-pollon-orange' : 'text-gray-500'
                 }`
               }
             >
-              <Icon className="h-5 w-5" />
+              <Icon className="h-5 w-5" strokeWidth={1.8} />
               {label}
             </NavLink>
           ))}
