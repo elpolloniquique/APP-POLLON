@@ -3,6 +3,7 @@ import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { AdminBranchFilter } from '../../components/admin/AdminBranchFilter';
 import { useAdminBranchFilter } from '../../hooks/useAdminBranchFilter';
 import { listDeliveryJobs, startDriverSearch, upsertJobFromOrder, subscribeDispatch } from '../../services/dispatchService';
+import { retryStaleDriverSearches } from '../../services/orderDeliveryService';
 import { fetchOrdersAdmin } from '../../services/orderService';
 import { money } from '../../utils/format';
 import { Button } from '../../components/ui/Button';
@@ -53,7 +54,10 @@ export function AdminDispatch() {
   useEffect(() => {
     load();
     const unsub = subscribeDispatch(() => load());
-    const t = setInterval(load, 20000);
+    const t = setInterval(() => {
+      load();
+      retryStaleDriverSearches().catch(() => {});
+    }, 20000);
     return () => { unsub(); clearInterval(t); };
   }, [load]);
 

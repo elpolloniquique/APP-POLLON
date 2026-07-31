@@ -19,6 +19,7 @@ import {
   manualSearchDrivers,
   fetchDriverNamesForFilter,
   clearCache as clearDeliveryCache,
+  retryStaleDriverSearches,
 } from '../../services/orderDeliveryService';
 
 export function AdminOrders() {
@@ -96,6 +97,21 @@ export function AdminOrders() {
       });
     }
   }, [ordersScoped, ready, refreshDelivery]);
+
+  // Re-ofertar cada ~20s si nadie aceptó tras 3 min (TTL oferta 1 min)
+  useEffect(() => {
+    if (!ready) return undefined;
+    const tick = () => {
+      retryStaleDriverSearches()
+        .then((r) => {
+          if (r?.retried > 0) setTimeout(refreshDelivery, 800);
+        })
+        .catch(() => {});
+    };
+    tick();
+    const t = setInterval(tick, 20000);
+    return () => clearInterval(t);
+  }, [ready, refreshDelivery]);
 
   // When delivery job shows accepted, update pedido estado to "aceptado"
   useEffect(() => {

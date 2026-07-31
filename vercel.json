@@ -1,4 +1,10 @@
 {
+  "crons": [
+    {
+      "path": "/api/cron-retry-driver-offers",
+      "schedule": "* * * * *"
+    }
+  ],
   "rewrites": [{ "source": "/((?!api/|robots\\.txt|sitemap\\.xml|sitemap-vercel\\.xml|manifest\\.json|sw\\.js|workbox-.*\\.js|.*\\..*).*)", "destination": "/index.html" }],
   "headers": [
     {

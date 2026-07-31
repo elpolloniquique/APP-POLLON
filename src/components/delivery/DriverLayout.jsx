@@ -1,6 +1,8 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
 import { Bike, Map, History, Wallet, User, LogOut } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { unlockDriverAudio } from '../../utils/orderAlertSound';
 
 const TABS = [
   { to: '/repartidor', end: true, icon: Bike, label: 'Pedidos' },
@@ -13,6 +15,26 @@ const TABS = [
 export function DriverLayout() {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
+
+  // Desbloquear audio WebAudio en PWA instalada (gesto del usuario)
+  useEffect(() => {
+    const unlock = () => { unlockDriverAudio(); };
+    unlock();
+    const opts = { capture: true, passive: true };
+    window.addEventListener('pointerdown', unlock, opts);
+    window.addEventListener('touchstart', unlock, opts);
+    window.addEventListener('click', unlock, opts);
+    const onVis = () => {
+      if (document.visibilityState === 'visible') unlockDriverAudio();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      window.removeEventListener('pointerdown', unlock, opts);
+      window.removeEventListener('touchstart', unlock, opts);
+      window.removeEventListener('click', unlock, opts);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, []);
 
   const handleLogout = async () => {
     await signOut();

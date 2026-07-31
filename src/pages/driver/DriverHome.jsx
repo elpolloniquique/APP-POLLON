@@ -20,7 +20,7 @@ import {
   getNotificationPermission,
   requestGpsFix,
 } from '../../services/pushService';
-import { playDriverOrderAlarm } from '../../utils/orderAlertSound';
+import { playDriverOrderAlarm, unlockDriverAudio } from '../../utils/orderAlertSound';
 import { getSupabase, isSupabaseConfigured } from '../../services/supabaseClient';
 
 export function DriverHome() {
@@ -81,8 +81,40 @@ export function DriverHome() {
   useEffect(() => {
     load();
     const unsub = subscribeDispatch(() => load());
-    const t = setInterval(load, 8000);
-    return () => { unsub(); clearInterval(t); };
+    // Polling más frecuente en PWA abierta (menos demora vs solo browser)
+    const pollMs = () => (document.visibilityState === 'visible' ? 3000 : 10000);
+    let t = setInterval(load, pollMs());
+    const onVis = () => {
+      clearInterval(t);
+      if (document.visibilityState === 'visible') {
+        unlockDriverAudio();
+        load();
+      }
+      t = setInterval(load, pollMs());
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      unsub();
+      clearInterval(t);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, [load]);
+
+  // Push → Service Worker avisa a la app abierta: sonar alarma ya
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return undefined;
+    const onMsg = (event) => {
+      const data = event.data;
+      if (!data || data.type !== 'DRIVER_NEW_OFFER') return;
+      unlockDriverAudio().then(() => {
+        stopAlarmRef.current?.();
+        stopAlarmRef.current = playDriverOrderAlarm({ loops: 2 });
+        try { navigator.vibrate?.([200, 100, 200, 100, 400]); } catch { /* ignore */ }
+      });
+      load();
+    };
+    navigator.serviceWorker.addEventListener('message', onMsg);
+    return () => navigator.serviceWorker.removeEventListener('message', onMsg);
   }, [load]);
 
   useEffect(() => () => {
@@ -119,7 +151,10 @@ export function DriverHome() {
 
     if (hasNew && offers.length) {
       stopAlarmRef.current?.();
-      stopAlarmRef.current = playDriverOrderAlarm({ loops: 4 });
+      unlockDriverAudio().then(() => {
+        stopAlarmRef.current?.();
+        stopAlarmRef.current = playDriverOrderAlarm({ loops: 2 });
+      });
       try { navigator.vibrate?.([200, 100, 200, 100, 400]); } catch { /* ignore */ }
     }
 
@@ -200,6 +235,7 @@ export function DriverHome() {
     setBusy(true);
     setError('');
     try {
+      await unlockDriverAudio();
       if (next === 'available') {
         if (!permsReady) {
           throw new Error('Primero completa: instalar app, notificaciones y GPS.');

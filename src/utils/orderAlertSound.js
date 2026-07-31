@@ -1,8 +1,50 @@
 /**
  * Alertas sonoras — Web Audio (sin archivos).
  * Cocina/admin: playNewOrderAlert
- * Repartidor: playDriverOrderAlarm (máximo volumen, se repite)
+ * Repartidor: playDriverOrderAlarm (máximo volumen)
+ *
+ * En PWA instalada el AudioContext nace "suspended" hasta un gesto del usuario.
+ * unlockDriverAudio() debe llamarse al tocar la app (Conectarme, permisos, etc.).
  */
+
+let sharedCtx = null;
+let unlockBound = false;
+
+function getAudioContext() {
+  const AudioCtx = typeof window !== 'undefined'
+    ? (window.AudioContext || window.webkitAudioContext)
+    : null;
+  if (!AudioCtx) return null;
+  if (!sharedCtx || sharedCtx.state === 'closed') {
+    sharedCtx = new AudioCtx();
+  }
+  return sharedCtx;
+}
+
+/** Desbloquea audio en iOS/Android PWA (llamar en el primer toque). */
+export async function unlockDriverAudio() {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return false;
+    if (ctx.state === 'suspended') {
+      await ctx.resume();
+    }
+    // Buffer silencioso — desbloquea política de autoplay
+    const buffer = ctx.createBuffer(1, 1, 22050);
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    src.connect(ctx.destination);
+    src.start(0);
+    unlockBound = true;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function isDriverAudioUnlocked() {
+  return unlockBound && sharedCtx && sharedCtx.state === 'running';
+}
 
 function scheduleTone(ctx, master, { freq, start, duration, type = 'sine', peak = 0.92 }) {
   const osc = ctx.createOscillator();
@@ -42,13 +84,9 @@ function playPattern(ctx, volume = 0.85) {
 /** Alarma cocina / admin */
 export function playNewOrderAlert() {
   try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
-    if (!AudioCtx) return;
-    const ctx = new AudioCtx();
-    const run = () => {
-      playPattern(ctx, 0.9);
-      window.setTimeout(() => { ctx.close().catch(() => {}); }, 1600);
-    };
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    const run = () => playPattern(ctx, 0.9);
     if (ctx.state === 'suspended') ctx.resume().then(run).catch(() => {});
     else run();
   } catch {
@@ -58,52 +96,47 @@ export function playNewOrderAlert() {
 
 /**
  * Alarma repartidor a máximo volumen.
- * Se repite varias veces hasta que el conductor acepte/rechace (o se llame al stop).
+ * Por defecto suena 2 veces (una por loop).
  * @returns {() => void} stop
  */
-export function playDriverOrderAlarm({ loops = 5 } = {}) {
+export function playDriverOrderAlarm({ loops = 2 } = {}) {
   let stopped = false;
-  let ctx = null;
   let timer = null;
   let count = 0;
 
   const stop = () => {
     stopped = true;
     if (timer) clearTimeout(timer);
-    try { ctx?.close?.(); } catch { /* ignore */ }
-    ctx = null;
+    timer = null;
   };
 
-  const beat = () => {
+  const beat = async () => {
     if (stopped || count >= loops) {
       stop();
       return;
     }
     count += 1;
     try {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (!AudioCtx) return;
-      ctx = new AudioCtx();
-      const run = () => {
-        // Volumen al máximo + doble campanada agresiva
-        playPattern(ctx, 1);
-        window.setTimeout(() => {
-          if (!stopped) playPattern(ctx, 1);
-        }, 700);
-        timer = window.setTimeout(() => {
-          try { ctx?.close?.(); } catch { /* ignore */ }
-          ctx = null;
-          if (!stopped) beat();
-        }, 2200);
-      };
-      if (ctx.state === 'suspended') ctx.resume().then(run).catch(() => {});
-      else run();
+      const ctx = getAudioContext();
+      if (!ctx) return;
+      if (ctx.state === 'suspended') {
+        try { await ctx.resume(); } catch { /* ignore */ }
+      }
+      // Una campanada clara por loop (no doble)
+      playPattern(ctx, 1);
+      timer = window.setTimeout(() => {
+        if (!stopped) beat();
+      }, 1600);
     } catch {
       /* ignore */
     }
   };
 
-  beat();
+  // Intentar unlock + tocar de inmediato
+  unlockDriverAudio().finally(() => {
+    if (!stopped) beat();
+  });
+
   return stop;
 }
 

@@ -1,6 +1,7 @@
 /**
  * Handlers Web Push para el Service Worker (importScripts desde Workbox).
  * Muestra notificación en la bandeja del sistema aunque la app esté cerrada.
+ * Si la PWA está abierta, avisa a la página para sonar la alarma in-app.
  */
 /* eslint-disable no-undef */
 
@@ -26,8 +27,23 @@ self.addEventListener('push', (event) => {
     }
   }
 
-  event.waitUntil(
-    self.registration.showNotification(payload.title || 'El Pollón', {
+  event.waitUntil((async () => {
+    const clientsList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const client of clientsList) {
+      try {
+        client.postMessage({
+          type: 'DRIVER_NEW_OFFER',
+          offerId: payload.offerId || null,
+          jobId: payload.jobId || null,
+          title: payload.title,
+          body: payload.body,
+        });
+      } catch {
+        /* ignore */
+      }
+    }
+
+    await self.registration.showNotification(payload.title || 'El Pollón', {
       body: payload.body || 'Nuevo pedido',
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-192.png',
@@ -40,8 +56,8 @@ self.addEventListener('push', (event) => {
         offerId: payload.offerId || null,
         jobId: payload.jobId || null,
       },
-    })
-  );
+    });
+  })());
 });
 
 self.addEventListener('notificationclick', (event) => {
@@ -55,6 +71,11 @@ self.addEventListener('notificationclick', (event) => {
       for (const client of list) {
         if (client.url.startsWith(self.location.origin) && 'focus' in client) {
           await client.focus();
+          try {
+            client.postMessage({ type: 'DRIVER_NEW_OFFER', fromClick: true });
+          } catch {
+            /* ignore */
+          }
           if ('navigate' in client) {
             try {
               await client.navigate(absolute);

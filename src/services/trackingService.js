@@ -214,6 +214,7 @@ export async function getDispatchSettings(branchId) {
       enabled: true,
       auto_offer: false,
       offer_ttl_seconds: 60,
+      retry_after_seconds: 180,
       max_search_radius_km: 8,
       arrival_radius_m: 80,
       customer_arrival_radius_m: 60,

@@ -11,6 +11,7 @@ import {
   isPushConfigured,
   requestGpsFix,
 } from '../../services/pushService';
+import { unlockDriverAudio } from '../../utils/orderAlertSound';
 
 /**
  * Onboarding obligatorio: instalar PWA + notificaciones + GPS.
@@ -50,6 +51,7 @@ export function DriverPermissionsGate({ onReadyChange }) {
     setBusy(true);
     setMsg('');
     try {
+      await unlockDriverAudio();
       if (!isPushConfigured()) {
         if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
           await Notification.requestPermission();
@@ -70,6 +72,7 @@ export function DriverPermissionsGate({ onReadyChange }) {
     setBusy(true);
     setMsg('');
     try {
+      await unlockDriverAudio();
       const res = await requestGpsFix();
       if (!res.ok) throw new Error(res.error || 'GPS denegado');
       setGpsOk(true);

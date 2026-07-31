@@ -109,6 +109,31 @@ export async function manualSearchDrivers(orderId) {
   return data;
 }
 
+/**
+ * Re-oferta jobs sin aceptación tras ~3 min (TTL oferta ya expiró).
+ * Dispara push a los repartidores de nuevo.
+ */
+export async function retryStaleDriverSearches() {
+  if (!isSupabaseConfigured()) return { ok: true, retried: 0 };
+  const sb = getSupabase();
+  try {
+    const { data, error } = await sb.rpc('ep_retry_stale_driver_searches');
+    if (error) {
+      console.warn('[Pollón] retryStaleDriverSearches:', error.message);
+      return { ok: false, error: error.message };
+    }
+    const jobIds = data?.job_ids || [];
+    for (const jobId of jobIds) {
+      notifyDriversForJob(jobId).catch(() => {});
+    }
+    if (jobIds.length) lastFetch = 0;
+    return data || { ok: true, retried: 0 };
+  } catch (e) {
+    console.warn('[Pollón] retryStaleDriverSearches:', e.message);
+    return { ok: false, error: e.message };
+  }
+}
+
 /** Fetch list of unique driver names for filter dropdown */
 export async function fetchDriverNamesForFilter() {
   if (!isSupabaseConfigured()) return [];
