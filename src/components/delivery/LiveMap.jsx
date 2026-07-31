@@ -52,6 +52,14 @@ function FollowMarker({ followId, markers }) {
     return () => clearTimeout(t);
   }, [map]);
 
+  useEffect(() => {
+    const onDrawer = () => {
+      setTimeout(() => map.invalidateSize({ animate: false }), 280);
+    };
+    window.addEventListener('ep-admin-drawer', onDrawer);
+    return () => window.removeEventListener('ep-admin-drawer', onDrawer);
+  }, [map]);
+
   return null;
 }
 
@@ -129,12 +137,12 @@ export function LiveMap({
   );
 
   return (
-    <div className={`relative overflow-hidden rounded-2xl border border-gray-200 bg-gray-100 ${className}`}>
+    <div className={`relative z-0 isolate overflow-hidden rounded-2xl border border-gray-200 bg-gray-100 ${className}`}>
       <MapContainer
         center={[center.lat, center.lng]}
         zoom={zoom}
         scrollWheelZoom
-        className="h-full min-h-[420px] w-full"
+        className="relative z-0 h-full min-h-[420px] w-full"
       >
         <TileLayer
           key={`${styleId}-${tileUrl}`}

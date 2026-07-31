@@ -43,9 +43,10 @@ export function AdminLayout() {
   // Always close drawer on navigate
   useEffect(() => { setOpen(false); }, [location.pathname]);
 
-  // Lock scroll when open
+  // Lock scroll when open + avisar a mapas (invalidateSize)
   useEffect(() => {
     document.body.style.overflow = open ? 'hidden' : '';
+    window.dispatchEvent(new CustomEvent('ep-admin-drawer', { detail: { open } }));
     return () => { document.body.style.overflow = ''; };
   }, [open]);
 
@@ -93,15 +94,17 @@ export function AdminLayout() {
       </header>
 
       {/* ─── DRAWER BACKDROP ─────────────────────────────────── */}
+      {/* z-[1200]: por encima de paneles Leaflet (~400–700) */}
       <div
-        className={`fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px] transition-opacity duration-250 ${open ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+        className={`fixed inset-0 z-[1200] bg-black/40 backdrop-blur-[2px] transition-opacity duration-250 ${open ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
         onClick={() => setOpen(false)}
         aria-hidden
       />
 
       {/* ─── DRAWER ──────────────────────────────────────────── */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col bg-[#1a1a1a] text-white shadow-2xl transition-transform duration-250 ease-out ${open ? 'translate-x-0' : '-translate-x-full'}`}
+        className={`fixed inset-y-0 left-0 z-[1210] flex w-72 flex-col bg-[#1a1a1a] text-white shadow-2xl transition-transform duration-250 ease-out ${open ? 'translate-x-0' : '-translate-x-full'}`}
+        aria-hidden={!open}
       >
         {/* Brand */}
         <div className="flex items-center justify-between gap-3 px-5 py-4">

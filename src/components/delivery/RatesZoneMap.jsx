@@ -33,6 +33,16 @@ function FitZones({ center, maxKm }) {
     }, 80);
     return () => clearTimeout(t);
   }, [map, center?.lat, center?.lng, maxKm]);
+
+  // Al abrir/cerrar menú hamburguesa, reajusta el lienzo del mapa
+  useEffect(() => {
+    const onDrawer = () => {
+      setTimeout(() => map.invalidateSize({ animate: false }), 280);
+    };
+    window.addEventListener('ep-admin-drawer', onDrawer);
+    return () => window.removeEventListener('ep-admin-drawer', onDrawer);
+  }, [map]);
+
   return null;
 }
 
@@ -72,11 +82,11 @@ export function RatesZoneMap({
       };
 
   return (
-    <div className={`relative overflow-hidden rounded-2xl border border-gray-200 bg-gray-100 ${className}`}>
+    <div className={`relative z-0 isolate overflow-hidden rounded-2xl border border-gray-200 bg-gray-100 ${className}`}>
       <MapContainer
         center={[mapCenter.lat, mapCenter.lng]}
         zoom={13}
-        className="h-full min-h-[360px] w-full"
+        className="relative z-0 h-full min-h-[360px] w-full"
         scrollWheelZoom
       >
         <TileLayer url={tiles.url} attribution={tiles.attribution} />
@@ -118,7 +128,7 @@ export function RatesZoneMap({
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-white/40 to-transparent" />
 
       {typeof onStyleChange === 'function' && (
-        <div className="absolute right-3 top-3 z-[500] flex overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+        <div className="absolute right-3 top-3 z-[5] flex overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
           <button
             type="button"
             className={`pointer-events-auto px-3 py-1.5 text-xs font-semibold ${styleId === 'streets' ? 'bg-pollon-red text-white' : 'text-gray-600 hover:bg-gray-50'}`}
