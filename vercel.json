@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron-retry-driver-offers",
-      "schedule": "* * * * *"
+      "schedule": "0 12 * * *"
     }
   ],
   "rewrites": [{ "source": "/((?!api/|robots\\.txt|sitemap\\.xml|sitemap-vercel\\.xml|manifest\\.json|sw\\.js|workbox-.*\\.js|.*\\..*).*)", "destination": "/index.html" }],

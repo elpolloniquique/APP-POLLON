@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { Bike, Map, History, Wallet, User, LogOut } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { unlockDriverAudio } from '../../utils/orderAlertSound';
+import { APP_BUILD_ID } from '../../utils/buildStamp';
 
 const TABS = [
   { to: '/repartidor', end: true, icon: Bike, label: 'Pedidos' },
@@ -42,7 +43,7 @@ export function DriverLayout() {
   };
 
   return (
-    <div className="flex min-h-[100dvh] flex-col bg-[#f5f5f5] text-gray-900">
+    <div className="flex min-h-[100dvh] flex-col bg-[#f5f5f5] text-gray-900" data-build={APP_BUILD_ID}>
       <header className="sticky top-0 z-40 flex items-center justify-between border-b border-gray-200 bg-white px-4 py-3 shadow-sm">
         <div className="flex items-center gap-2.5">
           <img src="/img/logo pollon.png" alt="" className="h-10 w-10 rounded-full border border-gray-100 bg-white object-contain" />
