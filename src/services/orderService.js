@@ -418,6 +418,22 @@ export async function updateOrder(order) {
   const row = orderToRow(order);
   const { error } = await sb.from('pedidos').upsert(row, { onConflict: 'id' });
   if (error) throw error;
+
+  // Si sale de "pendiente" (Nuevo), cancelar ofertas abiertas al repartidor
+  if (
+    order.orderType === 'delivery'
+    && order.estado
+    && order.estado !== 'pendiente'
+  ) {
+    try {
+      await sb.rpc('ep_cancel_open_driver_offers_for_order', {
+        p_order_id: String(order.id),
+      });
+    } catch (e) {
+      console.warn('[Pollón] cancel offers:', e?.message || e);
+    }
+  }
+
   saveLocal();
   return order;
 }

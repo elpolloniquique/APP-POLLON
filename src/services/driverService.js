@@ -148,7 +148,8 @@ export async function getMyDriverSummary() {
       .eq('driver_id', driver.id)
       .eq('status', 'pending')
       .gt('expires_at', new Date().toISOString())
-      .order('created_at', { ascending: false }),
+      .order('created_at', { ascending: false })
+      .limit(10),
     sb
       .from('ep_delivery_assignments')
       .select('*, ep_delivery_jobs(*)')
@@ -165,10 +166,14 @@ export async function getMyDriverSummary() {
   if (offersRes.error) throw new Error(rpcError(offersRes.error, 'Error ofertas'));
   if (assignRes.error) throw new Error(rpcError(assignRes.error, 'Error asignaciones'));
 
+  // Cap para no saturar el panel (máx. cupo del repartidor)
+  const maxOrders = driver.max_orders || 3;
+  const pendingOffers = (offersRes.data || []).slice(0, maxOrders);
+
   const done = doneRes.data || [];
   return {
     driver,
-    pendingOffers: offersRes.data || [],
+    pendingOffers,
     activeAssignments: assignRes.data || [],
     todayDeliveries: done.length,
     todayFees: done.reduce((s, x) => s + (x.driver_fee || 0), 0),

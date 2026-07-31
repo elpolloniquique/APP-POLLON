@@ -23,6 +23,10 @@ import {
 import { playDriverOrderAlarm, unlockDriverAudio } from '../../utils/orderAlertSound';
 import { getSupabase, isSupabaseConfigured } from '../../services/supabaseClient';
 
+function offerAlarmKey(o) {
+  return `${o.id}|${o.expires_at || ''}`;
+}
+
 export function DriverHome() {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -35,11 +39,31 @@ export function DriverHome() {
   const [permsReady, setPermsReady] = useState(false);
 
   const publishRef = useRef(false);
-  const seenOffersRef = useRef(new Set());
+  const alarmedKeysRef = useRef(new Set());
   const alertReadyRef = useRef(false);
   const stopAlarmRef = useRef(null);
+  const loadTimerRef = useRef(null);
+  const loadingRef = useRef(false);
+
+  const playOfferAlarmOnce = useCallback((keys) => {
+    const fresh = keys.filter((k) => k && !alarmedKeysRef.current.has(k));
+    if (!fresh.length) return;
+    fresh.forEach((k) => alarmedKeysRef.current.add(k));
+    if (alarmedKeysRef.current.size > 80) {
+      alarmedKeysRef.current = new Set([...alarmedKeysRef.current].slice(-40));
+    }
+    stopAlarmRef.current?.();
+    unlockDriverAudio().then(() => {
+      stopAlarmRef.current?.();
+      // Una sola campanada por ronda (aunque lleguen varios a la vez)
+      stopAlarmRef.current = playDriverOrderAlarm({ loops: 1 });
+    });
+    try { navigator.vibrate?.([200, 100, 400]); } catch { /* ignore */ }
+  }, []);
 
   const load = useCallback(async () => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     try {
       await ensureMyDriverProfile();
       const s = await getMyDriverSummary();
@@ -75,54 +99,54 @@ export function DriverHome() {
       setError(err.message || 'Error al cargar. ¿Ejecutaste la migración SQL?');
     } finally {
       setLoading(false);
+      loadingRef.current = false;
     }
   }, []);
 
+  const scheduleLoad = useCallback(() => {
+    if (loadTimerRef.current) clearTimeout(loadTimerRef.current);
+    loadTimerRef.current = setTimeout(() => { load(); }, 450);
+  }, [load]);
+
   useEffect(() => {
     load();
-    const unsub = subscribeDispatch(() => load());
-    // Polling más frecuente en PWA abierta (menos demora vs solo browser)
-    const pollMs = () => (document.visibilityState === 'visible' ? 3000 : 10000);
-    let t = setInterval(load, pollMs());
+    const unsub = subscribeDispatch(() => scheduleLoad());
+    const pollMs = () => (document.visibilityState === 'visible' ? 4000 : 12000);
+    let t = setInterval(scheduleLoad, pollMs());
     const onVis = () => {
       clearInterval(t);
       if (document.visibilityState === 'visible') {
         unlockDriverAudio();
-        load();
+        scheduleLoad();
       }
-      t = setInterval(load, pollMs());
+      t = setInterval(scheduleLoad, pollMs());
     };
     document.addEventListener('visibilitychange', onVis);
     return () => {
       unsub();
       clearInterval(t);
+      if (loadTimerRef.current) clearTimeout(loadTimerRef.current);
       document.removeEventListener('visibilitychange', onVis);
     };
-  }, [load]);
+  }, [load, scheduleLoad]);
 
-  // Push → Service Worker avisa a la app abierta: sonar alarma ya
+  // Push: solo refrescar lista; la alarma in-app la dispara el efecto de ofertas (1 vez)
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return undefined;
     const onMsg = (event) => {
       const data = event.data;
       if (!data || data.type !== 'DRIVER_NEW_OFFER') return;
-      unlockDriverAudio().then(() => {
-        stopAlarmRef.current?.();
-        stopAlarmRef.current = playDriverOrderAlarm({ loops: 2 });
-        try { navigator.vibrate?.([200, 100, 200, 100, 400]); } catch { /* ignore */ }
-      });
-      load();
+      scheduleLoad();
     };
     navigator.serviceWorker.addEventListener('message', onMsg);
     return () => navigator.serviceWorker.removeEventListener('message', onMsg);
-  }, [load]);
+  }, [scheduleLoad]);
 
   useEffect(() => () => {
     stopGps?.();
     stopAlarmRef.current?.();
   }, [stopGps]);
 
-  // Refrescar suscripción push si ya hay permiso (tras actualizar SW)
   useEffect(() => {
     if (getNotificationPermission() === 'granted') {
       ensureDriverPushSubscription().catch(() => {});
@@ -132,30 +156,19 @@ export function DriverHome() {
   useEffect(() => {
     const offers = summary?.pendingOffers || [];
     if (!alertReadyRef.current) {
-      offers.forEach((o) => seenOffersRef.current.add(o.id));
+      offers.forEach((o) => alarmedKeysRef.current.add(offerAlarmKey(o)));
       alertReadyRef.current = true;
       return undefined;
     }
 
-    let hasNew = false;
+    const newKeys = [];
     for (const o of offers) {
-      if (!seenOffersRef.current.has(o.id)) {
-        seenOffersRef.current.add(o.id);
-        hasNew = true;
-      }
-    }
-    const live = new Set(offers.map((o) => o.id));
-    for (const id of [...seenOffersRef.current]) {
-      if (!live.has(id)) seenOffersRef.current.delete(id);
+      const key = offerAlarmKey(o);
+      if (!alarmedKeysRef.current.has(key)) newKeys.push(key);
     }
 
-    if (hasNew && offers.length) {
-      stopAlarmRef.current?.();
-      unlockDriverAudio().then(() => {
-        stopAlarmRef.current?.();
-        stopAlarmRef.current = playDriverOrderAlarm({ loops: 2 });
-      });
-      try { navigator.vibrate?.([200, 100, 200, 100, 400]); } catch { /* ignore */ }
+    if (newKeys.length) {
+      playOfferAlarmOnce(newKeys);
     }
 
     if (!offers.length) {
@@ -164,7 +177,7 @@ export function DriverHome() {
     }
 
     return undefined;
-  }, [summary?.pendingOffers]);
+  }, [summary?.pendingOffers, playOfferAlarmOnce]);
 
   const goOffline = useCallback(async (reason) => {
     try {
@@ -181,7 +194,6 @@ export function DriverHome() {
     await load();
   }, [load, stopGps]);
 
-  // Si revoca notificaciones o GPS mientras está en línea → offline
   useEffect(() => {
     const onlineStatuses = ['available', 'heading_to_branch', 'delivering', 'carrying_orders', 'offered'];
     const isOnlineNow = onlineStatuses.includes(summary?.driver?.operational_status);
@@ -368,7 +380,7 @@ export function DriverHome() {
       <div className="space-y-3">
         {offers.map((offer) => (
           <DriverOfferCard
-            key={offer.id}
+            key={`${offer.id}-${offer.expires_at || ''}`}
             offer={offer}
             onAccept={onAccept}
             onReject={onReject}
@@ -397,7 +409,7 @@ export function DriverHome() {
       {!loading && offers.length === 0 && actives.length === 0 && (
         <div className="rounded-2xl border border-dashed border-gray-300 bg-white px-4 py-10 text-center text-sm text-gray-500">
           {isOnline
-            ? 'Esperando pedidos… Llegarán a la bandeja de notificaciones aunque la pantalla esté apagada.'
+            ? 'Esperando pedidos… Oferta 1 min; si nadie acepta, reaparece a los 3 min (solo si sigue en Nuevo).'
             : permsReady
               ? 'Pulsa Conectarme para recibir pedidos.'
               : 'Completa los permisos de arriba (app, notificaciones y GPS).'}

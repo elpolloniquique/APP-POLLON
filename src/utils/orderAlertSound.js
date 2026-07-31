@@ -1,10 +1,6 @@
 /**
  * Alertas sonoras — Web Audio (sin archivos).
- * Cocina/admin: playNewOrderAlert
- * Repartidor: playDriverOrderAlarm (máximo volumen)
- *
- * En PWA instalada el AudioContext nace "suspended" hasta un gesto del usuario.
- * unlockDriverAudio() debe llamarse al tocar la app (Conectarme, permisos, etc.).
+ * Repartidor: 1 campanada por pedido/ronda (loops=1).
  */
 
 let sharedCtx = null;
@@ -29,7 +25,6 @@ export async function unlockDriverAudio() {
     if (ctx.state === 'suspended') {
       await ctx.resume();
     }
-    // Buffer silencioso — desbloquea política de autoplay
     const buffer = ctx.createBuffer(1, 1, 22050);
     const src = ctx.createBufferSource();
     src.buffer = buffer;
@@ -95,11 +90,10 @@ export function playNewOrderAlert() {
 }
 
 /**
- * Alarma repartidor a máximo volumen.
- * Por defecto suena 2 veces (una por loop).
+ * Alarma repartidor — por defecto 1 sola vez.
  * @returns {() => void} stop
  */
-export function playDriverOrderAlarm({ loops = 2 } = {}) {
+export function playDriverOrderAlarm({ loops = 1 } = {}) {
   let stopped = false;
   let timer = null;
   let count = 0;
@@ -122,17 +116,19 @@ export function playDriverOrderAlarm({ loops = 2 } = {}) {
       if (ctx.state === 'suspended') {
         try { await ctx.resume(); } catch { /* ignore */ }
       }
-      // Una campanada clara por loop (no doble)
       playPattern(ctx, 1);
-      timer = window.setTimeout(() => {
-        if (!stopped) beat();
-      }, 1600);
+      if (count < loops) {
+        timer = window.setTimeout(() => {
+          if (!stopped) beat();
+        }, 1600);
+      } else {
+        stop();
+      }
     } catch {
       /* ignore */
     }
   };
 
-  // Intentar unlock + tocar de inmediato
   unlockDriverAudio().finally(() => {
     if (!stopped) beat();
   });
