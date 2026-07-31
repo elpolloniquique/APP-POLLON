@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { X, CheckCircle, Bike } from 'lucide-react';
+import { X, CheckCircle, Bike, Loader2 } from 'lucide-react';
 import { AddressAutocomplete } from './AddressAutocomplete';
 import { WhatsAppIcon } from '../ui/WhatsAppIcon';
 import { useCart } from '../../context/CartContext';
 import { useBranch } from '../../context/BranchContext';
 import { useAuth } from '../../context/AuthContext';
-import { money, buildWhatsappMessage, formatDateTime, formatDeliveryCost, deliveryCostIsNumeric, deliveryCostAsNumber } from '../../utils/format';
-import { PAYMENT_METHODS, ORDER_TYPE_LABELS, DELIVERY_COST_RANGE } from '../../utils/constants';
+import { money, buildWhatsappMessage, formatDateTime } from '../../utils/format';
+import { PAYMENT_METHODS, ORDER_TYPE_LABELS } from '../../utils/constants';
 import {
   getAvailableOrderTypes,
   getDefaultOrderType,
@@ -15,6 +15,8 @@ import {
   getOrderTypeHint,
 } from '../../utils/orderTypeConfig';
 import * as orderService from '../../services/orderService';
+import { quoteDelivery } from '../../services/pricingService';
+import { haversineKm, formatDistance } from '../../utils/geo';
 import { useToast } from '../../hooks/useToast';
 
 const ORDER_TYPES = ['delivery', 'retiro', 'reserva'];
@@ -81,6 +83,7 @@ export function CheckoutModal() {
     payment: 'efectivo',
     comments: '',
   });
+  const [deliveryQuote, setDeliveryQuote] = useState(null); // { fee, distanceKm, zone, outOfRange, loading }
   const [submitting, setSubmitting] = useState(false);
   const [step, setStep] = useState('form');
   const [confirmedOrder, setConfirmedOrder] = useState(null);
@@ -89,10 +92,10 @@ export function CheckoutModal() {
   const isDelivery = form.orderType === 'delivery';
   const availableOrderTypes = getAvailableOrderTypes(branch);
   const orderTypeHint = getOrderTypeHint(branch, form.orderType, subtotal);
-  const branchDeliveryLabel = formatDeliveryCost(branch?.deliveryCost, { emptyLabel: '' });
-  const branchDeliveryFixed = deliveryCostIsNumeric(branch?.deliveryCost);
-  const branchDeliveryAmount = deliveryCostAsNumber(branch?.deliveryCost);
-  const orderTotal = subtotal;
+  const deliveryFee = isDelivery && deliveryQuote && !deliveryQuote.outOfRange && !deliveryQuote.loading
+    ? (deliveryQuote.fee || 0)
+    : 0;
+  const orderTotal = subtotal + (isDelivery ? deliveryFee : 0);
 
   useEffect(() => {
     if (!checkoutOpen) return undefined;
@@ -127,6 +130,47 @@ export function CheckoutModal() {
     setForm((f) => (types.includes(f.orderType) ? f : { ...f, orderType: getDefaultOrderType(branch) }));
   }, [checkoutOpen, branch]);
 
+  // Cotiza delivery automático al confirmar dirección (coords)
+  useEffect(() => {
+    if (!checkoutOpen || form.orderType !== 'delivery') {
+      setDeliveryQuote(null);
+      return undefined;
+    }
+    const lat = form.addressLat;
+    const lng = form.addressLng;
+    if (lat == null || lng == null || branch?.lat == null || branch?.lng == null) {
+      setDeliveryQuote(null);
+      return undefined;
+    }
+
+    let cancelled = false;
+    setDeliveryQuote((q) => ({ ...(q || {}), loading: true, fee: q?.fee ?? 0 }));
+
+    (async () => {
+      try {
+        const km = haversineKm(branch.lat, branch.lng, lat, lng);
+        if (km == null) {
+          if (!cancelled) setDeliveryQuote({ fee: 0, distanceKm: null, outOfRange: true, loading: false });
+          return;
+        }
+        const quote = await quoteDelivery(branch.id, km);
+        if (cancelled) return;
+        setDeliveryQuote({
+          fee: Number(quote.fee) || 0,
+          distanceKm: Number(quote.distance_km) || km,
+          zone: quote.zone || null,
+          outOfRange: !!quote.out_of_range,
+          maxKm: quote.max_km,
+          loading: false,
+        });
+      } catch {
+        if (!cancelled) setDeliveryQuote({ fee: 0, distanceKm: null, outOfRange: true, loading: false, error: true });
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [checkoutOpen, form.orderType, form.addressLat, form.addressLng, branch?.id, branch?.lat, branch?.lng]);
+
   if (!checkoutOpen) {
     return Toast;
   }
@@ -139,6 +183,7 @@ export function CheckoutModal() {
     setCheckoutOpen(false);
     setStep('form');
     setConfirmedOrder(null);
+    setDeliveryQuote(null);
     submitLock.current = false;
   };
 
@@ -153,7 +198,14 @@ export function CheckoutModal() {
     if (!form.phone.trim() || form.phone.length < 8) return 'Ingresa un teléfono válido';
     if (form.orderType === 'delivery') {
       if (!form.address.trim()) return 'Ingresa tu dirección de entrega';
-      if (!form.addressLat || !form.addressLng) return 'Selecciona una dirección de la lista para que el repartidor pueda ubicarte';
+      if (!form.addressLat || !form.addressLng) return 'Selecciona una dirección de la lista para calcular el delivery';
+      if (branch?.lat == null || branch?.lng == null) return 'La sucursal no tiene ubicación GPS configurada';
+      if (deliveryQuote?.loading) return 'Calculando costo de delivery…';
+      if (deliveryQuote?.outOfRange) {
+        const max = deliveryQuote.maxKm ? ` (máx. ${deliveryQuote.maxKm} km)` : '';
+        return `Tu dirección está fuera de la zona de cobertura${max}`;
+      }
+      if (!deliveryQuote || !(deliveryQuote.fee > 0)) return 'No se pudo calcular el delivery. Revisa tu dirección';
     }
     if (!items.length) return 'Tu carrito está vacío';
     if (!branch) return 'Selecciona una sucursal';
@@ -186,7 +238,8 @@ export function CheckoutModal() {
         },
         items: [...items],
         subtotal,
-        deliveryFee: 0,
+        deliveryFee: form.orderType === 'delivery' ? deliveryFee : 0,
+        deliveryDistanceKm: form.orderType === 'delivery' ? (deliveryQuote?.distanceKm ?? null) : null,
         total: orderTotal,
         orderType: form.orderType,
         metodo_pago: form.payment,
@@ -487,49 +540,54 @@ export function CheckoutModal() {
                   <div className="checkout-delivery-notice">
                     <div className="checkout-delivery-notice__head">
                       <Bike className="checkout-delivery-notice__icon" aria-hidden />
-                      <p className="checkout-delivery-notice__title">Costo de delivery adicional</p>
+                      <p className="checkout-delivery-notice__title">Costo de delivery</p>
                     </div>
-                    {branchDeliveryFixed && branchDeliveryAmount > 0 ? (
+                    {!form.addressLat && (
+                      <p className="checkout-delivery-notice__body">
+                        Selecciona tu dirección exacta de la lista para calcular el delivery automáticamente.
+                      </p>
+                    )}
+                    {form.addressLat && deliveryQuote?.loading && (
+                      <p className="flex items-center gap-2 text-sm text-gray-600">
+                        <Loader2 className="h-4 w-4 animate-spin" /> Calculando distancia…
+                      </p>
+                    )}
+                    {form.addressLat && deliveryQuote && !deliveryQuote.loading && deliveryQuote.outOfRange && (
+                      <p className="text-sm font-semibold text-red-600">
+                        Fuera de cobertura{deliveryQuote.maxKm ? ` (máx. ${deliveryQuote.maxKm} km)` : ''}.
+                        {deliveryQuote.distanceKm != null && ` Estás a ${formatDistance(deliveryQuote.distanceKm)}.`}
+                      </p>
+                    )}
+                    {form.addressLat && deliveryQuote && !deliveryQuote.loading && !deliveryQuote.outOfRange && deliveryFee > 0 && (
                       <>
-                        <p className="checkout-delivery-notice__range">
-                          {money(branchDeliveryAmount)}
+                        <p className="checkout-delivery-notice__range" style={deliveryQuote.zone?.color ? { color: deliveryQuote.zone.color } : undefined}>
+                          {money(deliveryFee)}
                         </p>
                         <p className="checkout-delivery-notice__body">
-                          Costo referencial de esta sucursal. Puede ajustarse según tu dirección al confirmar el pedido.
-                        </p>
-                      </>
-                    ) : branchDeliveryLabel ? (
-                      <>
-                        <p className="checkout-delivery-notice__range">{branchDeliveryLabel}</p>
-                        <p className="checkout-delivery-notice__body">
-                          El valor se confirma al procesar su pedido según su dirección de entrega.
-                        </p>
-                      </>
-                    ) : (
-                      <>
-                        <p className="checkout-delivery-notice__range">
-                          {money(DELIVERY_COST_RANGE.min)} – {money(DELIVERY_COST_RANGE.max)}
-                        </p>
-                        <p className="checkout-delivery-notice__body">
-                          El valor varía según la distancia o su dirección de entrega. Se confirma al procesar su pedido.
+                          {deliveryQuote.zone?.name || 'Zona'}
+                          {deliveryQuote.distanceKm != null ? ` · ${formatDistance(deliveryQuote.distanceKm)} desde la sucursal` : ''}
                         </p>
                       </>
                     )}
                   </div>
                 )}
                 <div className="flex justify-between border-t border-black/5 pt-2 text-lg font-bold">
-                  <span>{isDelivery ? 'Total productos' : 'Total'}</span>
+                  <span>Total{isDelivery && deliveryFee > 0 ? ' a pagar' : ''}</span>
                   <span className="text-pollon-red">{money(orderTotal)}</span>
                 </div>
-                {isDelivery && (
+                {isDelivery && deliveryFee > 0 && (
                   <p className="text-[11px] leading-snug text-gray-500">
-                    El delivery no está incluido en este total.
+                    Incluye productos ({money(subtotal)}) + delivery ({money(deliveryFee)}).
                   </p>
                 )}
               </div>
               <button
                 type="submit"
-                disabled={submitting || !availableOrderTypes.length}
+                disabled={
+                  submitting
+                  || !availableOrderTypes.length
+                  || (isDelivery && (!!deliveryQuote?.loading || !!deliveryQuote?.outOfRange || !(deliveryFee > 0) || !form.addressLat))
+                }
                 className="w-full rounded-xl bg-pollon-red py-4 text-sm font-bold uppercase tracking-wide text-white shadow-md transition hover:bg-pollon-red-dark disabled:opacity-50"
               >
                 {submitting ? 'Registrando pedido…' : 'Confirmar pedido'}

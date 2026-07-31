@@ -33,7 +33,11 @@ export function getOrderReceiptMeta(order, branch) {
   const fechaBase = order.createdAt ? new Date(order.createdAt) : new Date();
   const ticket = String(order.ticketNumber || order.codigo_pedido || '001').padStart(6, '0');
   const subtotal = Number(order.subtotal) || items.reduce((s, it) => s + (Number(it.total) || 0), 0);
-  const total = Number(order.total) || subtotal;
+  const deliveryFee = Number(order.deliveryFee) || 0;
+  const storedTotal = Number(order.total) || 0;
+  const total = deliveryFee > 0
+    ? Math.max(storedTotal, subtotal + deliveryFee)
+    : (storedTotal || subtotal);
 
   return {
     ticket,
@@ -48,7 +52,8 @@ export function getOrderReceiptMeta(order, branch) {
     customer,
     items,
     subtotal,
-    deliveryFee: Number(order.deliveryFee) || 0,
+    deliveryFee,
+    deliveryDistanceKm: order.deliveryDistanceKm != null ? Number(order.deliveryDistanceKm) : null,
     total,
     payment: paymentLabel(order.metodo_pago),
     estado: order.estado || 'pendiente',
@@ -86,10 +91,20 @@ function buildDeliveryFooterLines(m, bullet = RECEIPT_BULLET) {
   if (m.orderType === 'delivery' && m.deliveryFee <= 0) {
     return [`${bullet} El delivery no está incluido en este total.`];
   }
-  if (m.deliveryFee > 0) {
-    return [`Delivery: ${formatMoneyPlain(m.deliveryFee)}`];
-  }
   return [];
+}
+
+function buildTotalsPlain(m) {
+  const lines = [RECEIPT_RULE];
+  if (m.deliveryFee > 0) {
+    lines.push(`Subtotal: ${formatMoneyPlain(m.subtotal)}`);
+    const dist = m.deliveryDistanceKm != null ? ` (${m.deliveryDistanceKm.toFixed(1)} km)` : '';
+    lines.push(`Delivery${dist}: ${formatMoneyPlain(m.deliveryFee)}`);
+  }
+  lines.push(`TOTAL: ${formatMoneyPlain(m.total)}`);
+  lines.push(`Pago: ${m.payment}`);
+  lines.push(...buildDeliveryFooterLines(m));
+  return lines.join('\n');
 }
 
 function buildCustomerPlain(customer, bullet = RECEIPT_BULLET) {
@@ -127,11 +142,9 @@ function buildItemsPlain(items, bullet = RECEIPT_BULLET) {
 
 function buildReceiptCore(m, { customerBlock, itemsBlock, footerExtra = [], compact = false }) {
   const footer = [
-    RECEIPT_RULE,
-    `TOTAL: ${formatMoneyPlain(m.total)}`,
-    `Pago: ${m.payment}`,
+    buildTotalsPlain(m),
     ...footerExtra,
-  ].join('\n');
+  ].filter(Boolean).join('\n');
 
   const header = [
     `${m.orderTypeLabel.toUpperCase()} - POLLERÍA EL POLLÓN`,
@@ -262,8 +275,14 @@ function buildFooterHtml(m) {
     .map((line) => `<div class="note-line">${esc(line)}</div>`)
     .join('');
 
+  const deliveryBlock = m.deliveryFee > 0
+    ? `<div class="pay-line">Subtotal: ${formatMoneyPlain(m.subtotal)}</div>
+  <div class="pay-line">Delivery${m.deliveryDistanceKm != null ? ` (${m.deliveryDistanceKm.toFixed(1)} km)` : ''}: ${formatMoneyPlain(m.deliveryFee)}</div>`
+    : '';
+
   return `
   ${ruleHtml()}
+  ${deliveryBlock}
   <div class="total-line">TOTAL: ${formatMoneyPlain(m.total)}</div>
   <div class="pay-line">Pago: ${esc(m.payment)}</div>
   ${deliveryNote}`;
