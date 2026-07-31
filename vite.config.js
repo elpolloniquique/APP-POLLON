@@ -18,6 +18,8 @@ export default defineConfig({
       ],
       manifest: false,
       workbox: {
+        // Handlers push / notificationclick (bandeja del sistema)
+        importScripts: ['sw-push.js'],
         globPatterns: ['**/*.{js,css,html,ico,svg,woff2,json}', 'icons/*.png'],
         globIgnores: ['**/img/**', '**/sounds/**'],
         navigateFallback: '/index.html',

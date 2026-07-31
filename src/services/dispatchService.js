@@ -1,4 +1,5 @@
 import { getSupabase, isSupabaseConfigured } from './supabaseClient';
+import { notifyDriversForJob } from './pushService';
 
 const DEMO_JOBS = [
   {
@@ -102,6 +103,10 @@ export async function startDriverSearch(jobId) {
   const sb = getSupabase();
   const { data, error } = await sb.rpc('ep_start_driver_search', { p_job_id: jobId });
   if (error) throw error;
+  // Push a bandeja del sistema (pantalla apagada) para cada oferta creada
+  if (data?.offered > 0 || data?.ok) {
+    notifyDriversForJob(jobId).catch(() => {});
+  }
   return data;
 }
 

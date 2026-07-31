@@ -1,4 +1,5 @@
 import { getSupabase, isSupabaseConfigured } from './supabaseClient';
+import { notifyDriversForJob } from './pushService';
 
 /**
  * Links pedidos ↔ delivery jobs ↔ driver assignments.
@@ -78,6 +79,9 @@ export async function autoDispatchNewOrder(orderId) {
 
     const { data: searchResult, error: sErr } = await sb.rpc('ep_start_driver_search', { p_job_id: jobId });
     if (sErr) { console.warn('[Pollón] autoDispatch search:', sErr.message); }
+    else {
+      notifyDriversForJob(jobId).catch(() => {});
+    }
 
     lastFetch = 0;
     return { jobId, searchResult };
@@ -98,6 +102,8 @@ export async function manualSearchDrivers(orderId) {
 
   const { data, error: sErr } = await sb.rpc('ep_start_driver_search', { p_job_id: jobId });
   if (sErr) throw new Error(sErr.message || 'Error buscando repartidores');
+
+  notifyDriversForJob(jobId).catch(() => {});
 
   lastFetch = 0;
   return data;
