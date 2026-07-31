@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Pencil, Plus, Trash2, X, RefreshCw } from 'lucide-react';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { useAdminBranchFilter } from '../../hooks/useAdminBranchFilter';
@@ -57,13 +58,18 @@ function ZoneEditorModal({ open, initial, onClose, onSave }) {
     });
   };
 
-  return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/45 p-4" onClick={onClose} role="presentation">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 p-4 backdrop-blur-[1px]"
+      onClick={onClose}
+      role="presentation"
+    >
       <form
         onClick={(e) => e.stopPropagation()}
         onSubmit={submit}
-        className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl"
+        className="relative z-[10001] w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl"
         role="dialog"
+        aria-modal="true"
         aria-label="Editar zona"
       >
         <div className="mb-4 flex items-center justify-between">
@@ -81,6 +87,7 @@ function ZoneEditorModal({ open, initial, onClose, onSave }) {
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               className="mt-1 w-full rounded-xl border px-3 py-2.5 text-sm"
               placeholder="Zona 01"
+              autoFocus
             />
           </label>
 
@@ -144,7 +151,8 @@ function ZoneEditorModal({ open, initial, onClose, onSave }) {
           </button>
         </div>
       </form>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
