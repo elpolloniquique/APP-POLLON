@@ -4,6 +4,7 @@ import { AdminBranchFilter } from '../../components/admin/AdminBranchFilter';
 import { useAdminBranchFilter } from '../../hooks/useAdminBranchFilter';
 import { LiveMap } from '../../components/delivery/LiveMap';
 import { LiveDriverSidebar } from '../../components/delivery/LiveDriverSidebar';
+import { LiveVoiceAlertToggle } from '../../components/delivery/LiveVoiceAlertToggle';
 import {
   listLiveLocations,
   listLiveAssignments,
@@ -20,6 +21,13 @@ import {
 } from '../../utils/liveMapColors';
 import { Loader } from '../../components/ui/Loader';
 import { adminListAllBranches } from '../../services/branchService';
+import { useLiveVoiceAlerts } from '../../hooks/useLiveVoiceAlerts';
+import {
+  loadVoiceAlertEnabled,
+  saveVoiceAlertEnabled,
+  unlockSpeech,
+  stopVoiceAlerts,
+} from '../../utils/liveVoiceAlert';
 
 function formatTime(iso) {
   if (!iso) return '—';
@@ -52,6 +60,23 @@ export function AdminLiveMap() {
   const [viewDriverId, setViewDriverId] = useState(null);
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [voiceAlertOn, setVoiceAlertOn] = useState(() => loadVoiceAlertEnabled());
+
+  const setVoiceEnabled = (on) => {
+    if (on) unlockSpeech();
+    else stopVoiceAlerts();
+    setVoiceAlertOn(on);
+    saveVoiceAlertEnabled(on);
+  };
+
+  // Chrome/Safari: la voz requiere un gesto del usuario al menos una vez
+  useEffect(() => {
+    if (!voiceAlertOn) return undefined;
+    const unlock = () => unlockSpeech();
+    window.addEventListener('pointerdown', unlock, { once: true });
+    window.speechSynthesis?.getVoices?.();
+    return () => window.removeEventListener('pointerdown', unlock);
+  }, [voiceAlertOn]);
 
   useEffect(() => {
     adminListAllBranches()
@@ -160,6 +185,13 @@ export function AdminLiveMap() {
     () => driverGroups.filter((d) => isDeliveryPhase(d.phase)),
     [driverGroups]
   );
+
+  useLiveVoiceAlerts({
+    enabled: voiceAlertOn,
+    pickupDrivers,
+    etas,
+    store,
+  });
 
   // ETA via OSRM (async, cached in state)
   useEffect(() => {
@@ -283,13 +315,18 @@ export function AdminLiveMap() {
       <AdminPageHeader
         title="En vivo"
         subtitle="GPS repartidores · seguimiento hacia sucursal y hacia cliente"
-        actions={showBranchFilter ? (
-          <AdminBranchFilter
-            value={selectedBranchId || activeBranch?.id || ''}
-            onChange={setSelectedBranchId}
-            branches={branches}
-          />
-        ) : null}
+        actions={(
+          <div className="flex flex-wrap items-center gap-2">
+            <LiveVoiceAlertToggle enabled={voiceAlertOn} onChange={setVoiceEnabled} />
+            {showBranchFilter ? (
+              <AdminBranchFilter
+                value={selectedBranchId || activeBranch?.id || ''}
+                onChange={setSelectedBranchId}
+                branches={branches}
+              />
+            ) : null}
+          </div>
+        )}
       />
 
       {error && (
