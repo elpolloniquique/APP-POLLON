@@ -187,6 +187,7 @@ export function LiveMap({
         </div>
       )}
 
+      {typeof onStyleChange === 'function' && (
       <div className="absolute left-3 top-3 z-10 flex gap-1 rounded-xl bg-white/95 p-1 shadow">
         {['streets', 'satellite'].map((id) => (
           <button
@@ -201,6 +202,7 @@ export function LiveMap({
           </button>
         ))}
       </div>
+      )}
 
       {showLegend && (
         <div className="absolute bottom-3 left-3 z-10 flex flex-col gap-2 sm:flex-row">

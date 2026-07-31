@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Bike, Map, History, Wallet, User, LogOut } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -13,6 +13,8 @@ const TABS = [
 export function DriverLayout() {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const mapFirst = location.pathname === '/repartidor' || location.pathname === '/repartidor/mapa';
 
   const handleLogout = async () => {
     await signOut();
@@ -39,7 +41,7 @@ export function DriverLayout() {
         </div>
       </header>
 
-      <main className="relative flex-1 overflow-y-auto pb-24">
+      <main className={`relative flex-1 ${mapFirst ? 'overflow-hidden pb-[4.25rem]' : 'overflow-y-auto pb-24'}`}>
         <Outlet />
       </main>
 

@@ -249,8 +249,8 @@ export async function saveDispatchSettings(branchId, settings) {
   return data;
 }
 
-/** Watch GPS del dispositivo y publicar a Supabase cada ~8s */
-export function startGpsWatch(onUpdate, { intervalMs = 8000 } = {}) {
+/** Watch GPS. Si publishRef.current === false, solo actualiza UI local (no visible en admin). */
+export function startGpsWatch(onUpdate, { intervalMs = 8000, publishRef = null } = {}) {
   if (!navigator.geolocation) {
     onUpdate?.(null, new Error('Este dispositivo no tiene GPS / geolocalización'));
     return () => {};
@@ -258,61 +258,42 @@ export function startGpsWatch(onUpdate, { intervalMs = 8000 } = {}) {
 
   let lastSent = 0;
   let stopped = false;
+  const shouldPublish = () => publishRef == null || publishRef.current !== false;
+
+  const handlePos = async (pos, forceSend = false) => {
+    if (stopped) return;
+    const payload = {
+      lat: pos.coords.latitude,
+      lng: pos.coords.longitude,
+      heading: pos.coords.heading,
+      speed: pos.coords.speed,
+      accuracy: pos.coords.accuracy,
+    };
+    const now = Date.now();
+    const due = forceSend || now - lastSent >= intervalMs;
+
+    if (!shouldPublish() || !due) {
+      onUpdate?.(payload, null);
+      return;
+    }
+
+    lastSent = now;
+    try {
+      await upsertMyLocation(payload);
+      onUpdate?.(payload, null);
+    } catch (err) {
+      onUpdate?.(payload, err);
+    }
+  };
 
   navigator.geolocation.getCurrentPosition(
-    async (pos) => {
-      if (stopped) return;
-      const payload = {
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude,
-        heading: pos.coords.heading,
-        speed: pos.coords.speed,
-        accuracy: pos.coords.accuracy,
-      };
-      try {
-        await upsertMyLocation(payload);
-        lastSent = Date.now();
-        onUpdate?.(payload, null);
-      } catch (err) {
-        onUpdate?.(payload, err);
-      }
-    },
+    (pos) => { void handlePos(pos, true); },
     (err) => onUpdate?.(null, new Error(err.message || 'Permiso de ubicación denegado')),
     { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
   );
 
   const watchId = navigator.geolocation.watchPosition(
-    async (pos) => {
-      if (stopped) return;
-      const now = Date.now();
-      if (now - lastSent < intervalMs) {
-        onUpdate?.(
-          {
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-            heading: pos.coords.heading,
-            speed: pos.coords.speed,
-            accuracy: pos.coords.accuracy,
-          },
-          null
-        );
-        return;
-      }
-      lastSent = now;
-      const payload = {
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude,
-        heading: pos.coords.heading,
-        speed: pos.coords.speed,
-        accuracy: pos.coords.accuracy,
-      };
-      try {
-        await upsertMyLocation(payload);
-        onUpdate?.(payload, null);
-      } catch (err) {
-        onUpdate?.(payload, err);
-      }
-    },
+    (pos) => { void handlePos(pos, false); },
     (err) => onUpdate?.(null, new Error(err.message || 'Error GPS')),
     { enableHighAccuracy: true, maximumAge: 3000, timeout: 20000 }
   );
