@@ -56,14 +56,16 @@ export function DriverPermissionsGate({ onReadyChange }) {
     setMsg('');
     try {
       await unlockDriverAudio();
-      if (!isPushConfigured()) {
-        if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
-          await Notification.requestPermission();
-        }
-        throw new Error('Falta configurar VITE_VAPID_PUBLIC_KEY en Vercel. Avisa al administrador.');
+      const res = await ensureDriverPushSubscription();
+      if (res?.localOnly || res?.nativeLocal) {
+        setMsg(
+          native
+            ? 'Listo. En la app Android recibirás los pedidos aquí (alarma + tarjeta). Mantén la sesión iniciada.'
+            : 'Notificaciones locales activadas.'
+        );
+      } else {
+        setMsg('Notificaciones activadas.');
       }
-      await ensureDriverPushSubscription();
-      setMsg('Notificaciones activadas.');
       await refresh();
     } catch (err) {
       setMsg(err.message || 'No se pudieron activar las notificaciones');
@@ -103,7 +105,10 @@ export function DriverPermissionsGate({ onReadyChange }) {
     }
   };
 
-  const notifOk = status?.notificationsGranted && (status?.hasPushSubscription || !status?.pushConfigured);
+  const notifOk = Boolean(
+    status?.notificationsGranted
+    && (status?.hasPushSubscription || !status?.pushConfigured || native)
+  );
   const installOk = installed || (!ios && !android) || native;
   const mustInstall = !native && (ios || android) && !installed;
   const allReady = Boolean(notifOk && gpsOk && !mustInstall);
