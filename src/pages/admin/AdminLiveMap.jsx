@@ -12,13 +12,17 @@ import {
 } from '../../services/trackingService';
 import { subscribeDispatch } from '../../services/dispatchService';
 import { fetchOsrmRoute } from '../../utils/osrm';
-import { DEFAULT_MAP_CENTER } from '../../utils/geo';
 import {
   colorForDriver,
   isPickupPhase,
   isDeliveryPhase,
   shortBranchLabel,
 } from '../../utils/liveMapColors';
+import {
+  isValidLatLng,
+  toLatLng,
+  resolveCustomerDestination,
+} from '../../utils/liveRouteHelpers';
 import { Loader } from '../../components/ui/Loader';
 import { adminListAllBranches } from '../../services/branchService';
 import { useLiveVoiceAlerts } from '../../hooks/useLiveVoiceAlerts';
@@ -36,6 +40,12 @@ function formatTime(iso) {
   } catch {
     return '—';
   }
+}
+
+function deliveryJobOf(group) {
+  return group.assignments.find((a) => a.phase === 'to_customer')?.ep_delivery_jobs
+    || group.assignments[0]?.ep_delivery_jobs
+    || null;
 }
 
 export function AdminLiveMap() {
@@ -61,6 +71,8 @@ export function AdminLiveMap() {
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [voiceAlertOn, setVoiceAlertOn] = useState(() => loadVoiceAlertEnabled());
+  /** Destinos cliente resueltos (coords job o geocode) por driverId */
+  const [destByDriver, setDestByDriver] = useState({});
 
   const setVoiceEnabled = (on) => {
     if (on) unlockSpeech();
@@ -169,13 +181,57 @@ export function AdminLiveMap() {
         phase,
         color,
         name,
-        lat: loc?.lat,
-        lng: loc?.lng,
+        lat: loc?.lat != null ? Number(loc.lat) : null,
+        lng: loc?.lng != null ? Number(loc.lng) : null,
+        hasGps: isValidLatLng(loc?.lat, loc?.lng),
         updatedAt: loc?.updated_at || acceptedAt,
         acceptedAt,
       };
     });
   }, [assignments, locations]);
+
+  // Resolver destinos cliente (coords o geocode dirección) para rutas en vivo
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const next = { ...destByDriver };
+      let changed = false;
+      for (const d of driverGroups) {
+        if (!isDeliveryPhase(d.phase)) continue;
+        const job = deliveryJobOf(d);
+        if (!job) continue;
+        const key = d.driverId;
+        const existing = next[key];
+        const jobCoords = toLatLng(job.customer_lat, job.customer_lng);
+        if (jobCoords) {
+          const label = job.customer_name || 'Cliente';
+          if (!existing || existing.lat !== jobCoords.lat || existing.lng !== jobCoords.lng) {
+            next[key] = { ...jobCoords, label, source: 'job' };
+            changed = true;
+          }
+          continue;
+        }
+        if (existing?.source === 'geocode') continue;
+        const dest = await resolveCustomerDestination(job);
+        if (cancelled) return;
+        if (dest) {
+          next[key] = dest;
+          changed = true;
+        }
+      }
+      // limpiar drivers que ya no están en delivery
+      const liveIds = new Set(driverGroups.filter((d) => isDeliveryPhase(d.phase)).map((d) => d.driverId));
+      for (const id of Object.keys(next)) {
+        if (!liveIds.has(id)) {
+          delete next[id];
+          changed = true;
+        }
+      }
+      if (!cancelled && changed) setDestByDriver(next);
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [driverGroups]);
 
   const pickupDrivers = useMemo(
     () => driverGroups.filter((d) => isPickupPhase(d.phase)),
@@ -199,16 +255,11 @@ export function AdminLiveMap() {
     (async () => {
       const next = {};
       for (const d of driverGroups) {
-        if (d.lat == null || d.lng == null) continue;
+        if (!d.hasGps) continue;
         const to = isPickupPhase(d.phase)
           ? store
-          : (() => {
-            const job = d.assignments.find((a) => a.phase === 'to_customer')?.ep_delivery_jobs
-              || d.assignments[0]?.ep_delivery_jobs;
-            if (job?.customer_lat == null) return null;
-            return { lat: job.customer_lat, lng: job.customer_lng };
-          })();
-        if (!to?.lat) continue;
+          : (destByDriver[d.driverId] || null);
+        if (!to || !isValidLatLng(to.lat, to.lng)) continue;
         const route = await fetchOsrmRoute({ lat: d.lat, lng: d.lng }, to);
         if (cancelled) return;
         if (route?.durationMin != null) {
@@ -218,7 +269,7 @@ export function AdminLiveMap() {
       if (!cancelled) setEtas(next);
     })();
     return () => { cancelled = true; };
-  }, [driverGroups, store]);
+  }, [driverGroups, store, destByDriver]);
 
   const sidebarPickup = pickupDrivers.map((d) => ({
     driverId: d.driverId,
@@ -227,6 +278,8 @@ export function AdminLiveMap() {
     phaseLabel: 'Hacia sucursal',
     updatedLabel: formatTime(d.updatedAt || d.acceptedAt),
     etaLabel: etas[d.driverId] != null ? `${etas[d.driverId]} min estimado` : null,
+    gpsOk: d.hasGps,
+    routeOk: d.hasGps,
   }));
 
   const sidebarDelivery = deliveryDrivers.map((d) => ({
@@ -236,24 +289,42 @@ export function AdminLiveMap() {
     phaseLabel: 'Hacia cliente',
     updatedLabel: formatTime(d.updatedAt || d.acceptedAt),
     etaLabel: etas[d.driverId] != null ? `${etas[d.driverId]} min estimado` : null,
+    gpsOk: d.hasGps,
+    routeOk: d.hasGps && Boolean(destByDriver[d.driverId]),
   }));
 
   const markers = useMemo(() => {
-    return driverGroups
-      .filter((d) => d.lat != null && d.lng != null)
-      .map((d) => ({
-        id: `drv-${d.driverId}`,
-        lat: d.lat,
-        lng: d.lng,
-        label: (d.name || 'Repartidor').split(' ')[0],
-        color: d.color,
-        kind: 'driver',
-      }));
-  }, [driverGroups]);
+    const list = [];
+    for (const d of driverGroups) {
+      if (d.hasGps) {
+        list.push({
+          id: `drv-${d.driverId}`,
+          lat: d.lat,
+          lng: d.lng,
+          label: (d.name || 'Repartidor').split(' ')[0],
+          color: d.color,
+          kind: 'driver',
+        });
+      }
+      if (isDeliveryPhase(d.phase) && destByDriver[d.driverId]) {
+        const dest = destByDriver[d.driverId];
+        list.push({
+          id: `dst-${d.driverId}`,
+          lat: dest.lat,
+          lng: dest.lng,
+          label: (dest.label || 'Cliente').split(' ')[0],
+          color: d.color,
+          kind: 'destination',
+          subtitle: 'Destino entrega',
+        });
+      }
+    }
+    return list;
+  }, [driverGroups, destByDriver]);
 
   const routes = useMemo(() => {
     return driverGroups
-      .filter((d) => d.lat != null && d.lng != null)
+      .filter((d) => d.hasGps)
       .map((d) => {
         if (isPickupPhase(d.phase)) {
           return {
@@ -263,22 +334,25 @@ export function AdminLiveMap() {
             color: d.color,
           };
         }
-        const job = d.assignments.find((a) => a.phase === 'to_customer')?.ep_delivery_jobs
-          || d.assignments[0]?.ep_delivery_jobs;
-        if (!job?.customer_lat) return null;
+        const dest = destByDriver[d.driverId];
+        if (!dest || !isValidLatLng(dest.lat, dest.lng)) return null;
         return {
           id: `r-${d.driverId}`,
           from: { lat: d.lat, lng: d.lng },
-          to: { lat: job.customer_lat, lng: job.customer_lng },
+          to: { lat: dest.lat, lng: dest.lng },
           color: d.color,
         };
       })
       .filter(Boolean);
-  }, [driverGroups, store]);
+  }, [driverGroups, store, destByDriver]);
 
-  const center = markers[0]
-    ? { lat: markers[0].lat, lng: markers[0].lng }
-    : { lat: store.lat, lng: store.lng };
+  const center = useMemo(() => {
+    const withGps = driverGroups.find((d) => d.hasGps);
+    if (withGps) return { lat: withGps.lat, lng: withGps.lng };
+    const dest = Object.values(destByDriver)[0];
+    if (dest) return { lat: dest.lat, lng: dest.lng };
+    return { lat: store.lat, lng: store.lng };
+  }, [driverGroups, destByDriver, store]);
 
   const loadDetail = async (driverId) => {
     setViewDriverId(driverId);
@@ -348,6 +422,7 @@ export function AdminLiveMap() {
               onStyleChange={setStyleId}
               followId={followId}
               showLegend
+              autoFit
             />
           </div>
         )}

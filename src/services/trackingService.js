@@ -116,6 +116,32 @@ export async function listLiveAssignments(branchId = null) {
   }
 
   const byDriver = await loadDriverCards(rows.map((r) => r.driver_id));
+
+  // Completar customer_lat/lng desde pedidos si el job no las tiene
+  const needCoords = rows.filter(
+    (r) => r.ep_delivery_jobs
+      && (r.ep_delivery_jobs.customer_lat == null || r.ep_delivery_jobs.customer_lng == null)
+      && r.ep_delivery_jobs.source_order_id
+  );
+  if (needCoords.length) {
+    const orderIds = [...new Set(needCoords.map((r) => String(r.ep_delivery_jobs.source_order_id)))];
+    const { data: pedidos } = await sb
+      .from('pedidos')
+      .select('id, cliente_lat, cliente_lng, direccion')
+      .in('id', orderIds);
+    const byOrder = Object.fromEntries((pedidos || []).map((p) => [String(p.id), p]));
+    for (const r of rows) {
+      const j = r.ep_delivery_jobs;
+      if (!j || (j.customer_lat != null && j.customer_lng != null)) continue;
+      const p = byOrder[String(j.source_order_id)];
+      if (!p) continue;
+      if (p.cliente_lat != null && p.cliente_lng != null) {
+        j.customer_lat = Number(p.cliente_lat);
+        j.customer_lng = Number(p.cliente_lng);
+      }
+    }
+  }
+
   return rows.map((r) => ({
     ...r,
     ep_driver_profiles: byDriver[r.driver_id] || null,

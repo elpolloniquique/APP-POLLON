@@ -147,6 +147,12 @@ function DriverRow({
             Actualizado {item.updatedLabel}
             {item.etaLabel ? ` · ${item.etaLabel}` : ''}
           </p>
+          {item.gpsOk === false && (
+            <p className="text-[10px] font-semibold text-amber-600">Sin GPS en vivo — el repartidor debe tener la app abierta</p>
+          )}
+          {item.gpsOk && item.routeOk === false && (
+            <p className="text-[10px] font-semibold text-amber-600">Sin coords del cliente — geocodificando…</p>
+          )}
         </div>
         <button
           type="button"

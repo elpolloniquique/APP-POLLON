@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import L from 'leaflet';
-import { MapContainer, Marker, Popup, Polyline, TileLayer, useMap } from 'react-leaflet';
+import { MapContainer, Marker, Popup, Polyline, TileLayer, useMap, Pane } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM } from '../../utils/geo';
-import { fetchOsrmRoute } from '../../utils/osrm';
+import { resolveRoutePolyline } from '../../utils/liveRouteHelpers';
 import { PICKUP_COLORS, DELIVERY_COLORS } from '../../utils/liveMapColors';
 
 function makeDivIcon(kind, color, label) {
@@ -20,7 +20,19 @@ function makeDivIcon(kind, color, label) {
     });
   }
 
-  const letter = kind === 'driver' ? '🛵' : '📍';
+  if (kind === 'destination') {
+    return L.divIcon({
+      className: '',
+      html: `<div style="display:flex;flex-direction:column;align-items:center;">
+        <div style="width:30px;height:30px;border-radius:9999px;background:${color || '#2563eb'};border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;font-size:14px;">📍</div>
+        <div style="margin-top:2px;padding:2px 7px;border-radius:999px;background:#0f172a;color:#fff;font-size:10px;font-weight:700;white-space:nowrap;max-width:110px;overflow:hidden;text-overflow:ellipsis;">${label || 'Cliente'}</div>
+      </div>`,
+      iconSize: [100, 52],
+      iconAnchor: [50, 22],
+      popupAnchor: [0, -16],
+    });
+  }
+
   const nameHtml = label
     ? `<div style="margin-top:2px;padding:2px 7px;border-radius:999px;background:${color || '#c00000'};color:#fff;font-size:10px;font-weight:700;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.3);">${label}</div>`
     : '';
@@ -28,7 +40,7 @@ function makeDivIcon(kind, color, label) {
   return L.divIcon({
     className: '',
     html: `<div style="display:flex;flex-direction:column;align-items:center;">
-      <div style="width:28px;height:28px;border-radius:9999px;background:${color || '#c00000'};border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;font-size:12px;">${letter}</div>
+      <div style="width:28px;height:28px;border-radius:9999px;background:${color || '#c00000'};border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;font-size:12px;">🛵</div>
       ${nameHtml}
     </div>`,
     iconSize: [90, 48],
@@ -63,20 +75,45 @@ function FollowMarker({ followId, markers }) {
   return null;
 }
 
-function MapCenterSync({ center }) {
+function FitRoutes({ routes, store, markers, enabled }) {
   const map = useMap();
   useEffect(() => {
+    if (!enabled) return;
+    const pts = [];
+    for (const r of routes || []) {
+      for (const p of r.positions || []) {
+        if (Array.isArray(p) && p.length >= 2) pts.push(L.latLng(p[0], p[1]));
+      }
+    }
+    for (const m of markers || []) {
+      if (m.lat != null && m.lng != null) pts.push(L.latLng(m.lat, m.lng));
+    }
+    if (store?.lat != null && store?.lng != null) {
+      pts.push(L.latLng(store.lat, store.lng));
+    }
+    if (pts.length >= 2) {
+      map.fitBounds(L.latLngBounds(pts), { padding: [48, 48], maxZoom: 16, animate: true });
+    } else if (pts.length === 1) {
+      map.setView(pts[0], Math.max(map.getZoom(), 14));
+    }
+  }, [map, routes, store, markers, enabled]);
+  return null;
+}
+
+function MapCenterSync({ center, lock }) {
+  const map = useMap();
+  useEffect(() => {
+    if (lock) return;
     if (center?.lat != null && center?.lng != null) {
       map.setView([center.lat, center.lng], map.getZoom(), { animate: false });
     }
-  }, [map, center?.lat, center?.lng]);
+  }, [map, center?.lat, center?.lng, lock]);
   return null;
 }
 
 /**
- * markers: [{ id, lat, lng, label, color, kind }]
+ * markers: [{ id, lat, lng, label, color, kind: 'driver'|'destination'|'store' }]
  * routes: [{ id, from:{lat,lng}, to:{lat,lng}, color }]
- * store: { lat, lng, label } | null
  */
 export function LiveMap({
   className = '',
@@ -89,9 +126,11 @@ export function LiveMap({
   styleId = 'streets',
   onStyleChange,
   showLegend = true,
+  autoFit = true,
 }) {
   const [mapError, setMapError] = useState('');
   const [resolvedRoutes, setResolvedRoutes] = useState([]);
+  const [fitLock, setFitLock] = useState(false);
 
   const tileUrl = styleId === 'satellite'
     ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
@@ -100,36 +139,37 @@ export function LiveMap({
     ? '&copy; Esri'
     : '&copy; OpenStreetMap contributors';
 
+  const routeKey = useMemo(
+    () => routes.map((r) => `${r.id}:${r.from?.lat},${r.from?.lng}->${r.to?.lat},${r.to?.lng}`).join('|'),
+    [routes]
+  );
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       const next = [];
       for (const route of routes) {
         if (!route?.from || !route?.to) continue;
-        const result = await fetchOsrmRoute(route.from, route.to);
+        const result = await resolveRoutePolyline(route.from, route.to);
         if (cancelled) return;
-        if (result?.coordinates?.length) {
+        if (result?.positions?.length) {
           next.push({
             id: route.id,
             color: route.color || '#c00000',
-            positions: result.coordinates.map(([lng, lat]) => [lat, lng]),
-          });
-        } else {
-          // fallback línea recta
-          next.push({
-            id: route.id,
-            color: route.color || '#c00000',
-            positions: [
-              [route.from.lat, route.from.lng],
-              [route.to.lat, route.to.lng],
-            ],
+            positions: result.positions,
+            dashed: result.mode === 'straight',
           });
         }
       }
-      setResolvedRoutes(next);
-    })().catch(() => setResolvedRoutes([]));
+      if (!cancelled) {
+        setResolvedRoutes(next);
+        setFitLock(false);
+      }
+    })().catch(() => {
+      if (!cancelled) setResolvedRoutes([]);
+    });
     return () => { cancelled = true; };
-  }, [routes]);
+  }, [routeKey, routes]);
 
   const markerNodes = useMemo(
     () => markers.filter((m) => m.lat != null && m.lng != null),
@@ -163,22 +203,37 @@ export function LiveMap({
           </Marker>
         )}
 
+        <Pane name="routesPane" style={{ zIndex: 450 }}>
+          {resolvedRoutes.map((route) => (
+            <Polyline
+              key={route.id}
+              positions={route.positions}
+              pathOptions={{
+                color: route.color,
+                weight: 6,
+                opacity: 0.92,
+                dashArray: route.dashed ? '8 10' : null,
+                lineCap: 'round',
+                lineJoin: 'round',
+              }}
+            />
+          ))}
+        </Pane>
+
         {markerNodes.map((m) => (
           <Marker key={m.id} position={[m.lat, m.lng]} icon={makeDivIcon(m.kind, m.color, m.label)}>
-            {m.label ? <Popup>{m.label}</Popup> : null}
+            {m.label ? <Popup>{m.label}{m.subtitle ? ` — ${m.subtitle}` : ''}</Popup> : null}
           </Marker>
         ))}
 
-        {resolvedRoutes.map((route) => (
-          <Polyline
-            key={route.id}
-            positions={route.positions}
-            pathOptions={{ color: route.color, weight: 5, opacity: 0.9 }}
-          />
-        ))}
-
         <FollowMarker followId={followId} markers={markerNodes} />
-        <MapCenterSync center={center} />
+        <MapCenterSync center={center} lock={fitLock || Boolean(followId) || (autoFit && resolvedRoutes.length > 0)} />
+        <FitRoutes
+          routes={resolvedRoutes}
+          store={store}
+          markers={markerNodes}
+          enabled={autoFit && !followId && resolvedRoutes.length > 0}
+        />
       </MapContainer>
 
       {mapError && (
@@ -188,20 +243,20 @@ export function LiveMap({
       )}
 
       {typeof onStyleChange === 'function' && (
-      <div className="absolute left-3 top-3 z-10 flex gap-1 rounded-xl bg-white/95 p-1 shadow">
-        {['streets', 'satellite'].map((id) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => onStyleChange?.(id)}
-            className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${
-              styleId === id ? 'bg-pollon-red text-white' : 'text-gray-600 hover:bg-gray-100'
-            }`}
-          >
-            {id === 'streets' ? 'Calles' : 'Satelite'}
-          </button>
-        ))}
-      </div>
+        <div className="absolute left-3 top-3 z-10 flex gap-1 rounded-xl bg-white/95 p-1 shadow">
+          {['streets', 'satellite'].map((id) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => onStyleChange?.(id)}
+              className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${
+                styleId === id ? 'bg-pollon-red text-white' : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              {id === 'streets' ? 'Calles' : 'Satelite'}
+            </button>
+          ))}
+        </div>
       )}
 
       {showLegend && (
@@ -221,6 +276,7 @@ export function LiveMap({
                 <span key={c} className="h-3 w-3 rounded-full" style={{ background: c }} />
               ))}
             </div>
+            <p className="mt-1 text-[10px] text-gray-400">🛵 repartidor · 📍 destino</p>
           </div>
         </div>
       )}

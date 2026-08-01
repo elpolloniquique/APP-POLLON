@@ -13,11 +13,15 @@ const OSRM_BASE = (import.meta.env.VITE_OSRM_URL || 'https://router.project-osrm
  * @returns {Promise<{coordinates:number[][], distanceKm:number, durationMin:number}|null>}
  */
 export async function fetchOsrmRoute(from, to) {
-  if (!from?.lng || !from?.lat || !to?.lng || !to?.lat) return null;
+  const flng = Number(from?.lng);
+  const flat = Number(from?.lat);
+  const tlng = Number(to?.lng);
+  const tlat = Number(to?.lat);
+  if (![flng, flat, tlng, tlat].every(Number.isFinite)) return null;
 
   const url =
     `${OSRM_BASE}/route/v1/driving/` +
-    `${from.lng},${from.lat};${to.lng},${to.lat}` +
+    `${flng},${flat};${tlng},${tlat}` +
     `?overview=full&geometries=geojson`;
 
   try {

@@ -233,7 +233,7 @@ export function DriverHome() {
           }
         }
       },
-      { publishRef }
+      { publishRef, intervalMs: 5000 }
     );
     setStopGps(() => stop);
     setGpsOn(true);
