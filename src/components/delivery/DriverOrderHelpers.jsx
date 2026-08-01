@@ -9,18 +9,46 @@ export function paymentLabel(id) {
   return PAYMENT_METHODS.find((p) => p.id === id)?.label || id || '—';
 }
 
+/** Parsea sabores de bebida desde extras (array o string "A · B" / "#1: A"). */
+export function parseDrinkFlavors(extras) {
+  if (!extras || typeof extras !== 'object') return [];
+  if (Array.isArray(extras.drinks) && extras.drinks.length) {
+    return extras.drinks.map((d) => String(d || '').trim()).filter(Boolean);
+  }
+  const raw = String(extras.drink || '').trim();
+  if (!raw) return [];
+  if (raw.includes(' · ')) {
+    return raw.split(' · ').map((s) => s.trim()).filter(Boolean);
+  }
+  if (/#\d+:/.test(raw)) {
+    return raw
+      .split(/\s*(?=#\d+:)/)
+      .map((s) => s.replace(/^#\d+:\s*/, '').trim())
+      .filter(Boolean);
+  }
+  return [raw];
+}
+
 export async function fetchOrderLines(orderId) {
   if (!orderId || !isSupabaseConfigured()) return [];
   const sb = getSupabase();
   const { data } = await sb
     .from('detalle_pedidos')
-    .select('nombre_producto, cantidad, subtotal')
+    .select('nombre_producto, cantidad, subtotal, extras')
     .eq('pedido_id', orderId);
-  return (data || []).map((d) => ({
-    name: d.nombre_producto,
-    qty: d.cantidad,
-    subtotal: d.subtotal,
-  }));
+  return (data || []).map((d) => {
+    const extras = d.extras && typeof d.extras === 'object' ? d.extras : {};
+    const drinks = parseDrinkFlavors(extras);
+    return {
+      name: d.nombre_producto,
+      qty: d.cantidad,
+      subtotal: d.subtotal,
+      drinks,
+      drink: extras.drink || drinks.join(' · ') || '',
+      bagQty: Number(extras.bagQty) || 0,
+      notes: extras.notes || '',
+    };
+  });
 }
 
 export function firstWord(name) {
@@ -32,10 +60,6 @@ export function ticketShort(code) {
   return s || String(code || '—');
 }
 
-/**
- * Mensaje WhatsApp al cliente desde el repartidor.
- * Ej: Hola Carla Fernandez, le hable el repartidor Akiles, del pollon de iquique, sobre su pedido Nº 1119
- */
 export function buildDriverWhatsappMessage({
   customerName,
   driverName,
@@ -64,7 +88,6 @@ export function dialCustomer(phone) {
   return true;
 }
 
-/** Botones circulares WhatsApp + Teléfono */
 export function DriverContactButtons({ phone, message, className = '' }) {
   if (!phone) return null;
   const wa = normalizeWhatsappPhone(phone);
@@ -99,7 +122,31 @@ export function DriverContactButtons({ phone, message, className = '' }) {
   );
 }
 
-/** Modal detalle del pedido (platos, delivery, total, pago) */
+/** Líneas de bebida bajo cada plato (ofertas familiares, etc.) */
+function ItemDrinkLines({ item }) {
+  const drinks = item.drinks?.length
+    ? item.drinks
+    : (item.drink ? parseDrinkFlavors({ drink: item.drink }) : []);
+  if (!drinks.length) return null;
+
+  return (
+    <div className="mt-1 space-y-0.5">
+      {drinks.length === 1 ? (
+        <p className="text-[11px] font-medium text-pollon-orange">
+          Bebida: <span className="text-gray-800">{drinks[0]}</span>
+        </p>
+      ) : (
+        drinks.map((d, i) => (
+          <p key={i} className="text-[11px] font-medium text-pollon-orange">
+            Bebida plato {i + 1}: <span className="text-gray-800">{d}</span>
+          </p>
+        ))
+      )}
+    </div>
+  );
+}
+
+/** Modal detalle del pedido (platos, bebidas, delivery, total, pago) */
 export function OrderDetailModal({ open, onClose, job, fee, items, loading }) {
   if (!open) return null;
   const j = job || {};
@@ -115,7 +162,7 @@ export function OrderDetailModal({ open, onClose, job, fee, items, loading }) {
       role="presentation"
     >
       <div
-        className="relative w-full max-w-xs overflow-hidden rounded-2xl bg-white shadow-2xl"
+        className="relative w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -135,19 +182,33 @@ export function OrderDetailModal({ open, onClose, job, fee, items, loading }) {
           {j.customer_name && (
             <p className="truncate text-xs text-gray-500">{j.customer_name}</p>
           )}
+          {j.customer_address && (
+            <p className="mt-1 line-clamp-2 text-[11px] font-medium leading-snug text-pollon-red">
+              {j.customer_address}
+            </p>
+          )}
         </div>
-        <div className="max-h-56 space-y-1.5 overflow-y-auto px-4 py-3">
+        <div className="max-h-64 space-y-3 overflow-y-auto px-4 py-3">
           {loading && <p className="py-4 text-center text-xs text-gray-400">Cargando…</p>}
           {!loading && items.length === 0 && (
             <p className="py-4 text-center text-xs text-gray-400">Sin detalle de platos</p>
           )}
           {items.map((it, i) => (
-            <div key={i} className="flex justify-between gap-2 text-sm">
-              <span className="min-w-0 text-gray-800">
-                <span className="font-semibold text-gray-500">{it.qty || 1}x</span> {it.name}
-              </span>
-              {it.subtotal != null && (
-                <span className="shrink-0 font-medium text-gray-700">{money(it.subtotal)}</span>
+            <div key={i} className="border-b border-gray-50 pb-2.5 last:border-0 last:pb-0">
+              <div className="flex justify-between gap-2 text-sm">
+                <span className="min-w-0 font-medium text-gray-900">
+                  <span className="font-bold text-gray-500">{it.qty || 1}x</span> {it.name}
+                </span>
+                {it.subtotal != null && (
+                  <span className="shrink-0 font-semibold text-gray-700">{money(it.subtotal)}</span>
+                )}
+              </div>
+              <ItemDrinkLines item={it} />
+              {it.bagQty > 0 && (
+                <p className="mt-0.5 text-[11px] text-gray-500">Bolsa x{it.bagQty}</p>
+              )}
+              {it.notes?.trim() && (
+                <p className="mt-0.5 text-[11px] text-gray-500">Nota: {it.notes}</p>
               )}
             </div>
           ))}

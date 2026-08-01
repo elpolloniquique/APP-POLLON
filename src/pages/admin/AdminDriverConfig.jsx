@@ -37,7 +37,7 @@ export function AdminDriverConfig() {
       .then((data) => setForm({
         enabled: data?.enabled ?? true,
         auto_offer: data?.auto_offer ?? false,
-        offer_ttl_seconds: data?.offer_ttl_seconds ?? 60,
+        offer_ttl_seconds: data?.offer_ttl_seconds ?? 120,
         retry_after_seconds: data?.retry_after_seconds ?? 180,
         max_search_radius_km: data?.max_search_radius_km ?? 8,
         arrival_radius_m: data?.arrival_radius_m ?? 80,
@@ -139,13 +139,13 @@ export function AdminDriverConfig() {
 
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="text-sm">
-              TTL oferta (segundos) — visible 1 min
+              TTL oferta (segundos) — visible 2 min
               <input type="number" min={15} max={300} value={form.offer_ttl_seconds} onChange={(e) => update('offer_ttl_seconds', Number(e.target.value))} className="mt-1 w-full rounded-xl border px-3 py-2" />
             </label>
             <label className="text-sm">
               Re-ofertar si nadie acepta (segundos)
               <input type="number" min={60} max={900} value={form.retry_after_seconds ?? 180} onChange={(e) => update('retry_after_seconds', Number(e.target.value))} className="mt-1 w-full rounded-xl border px-3 py-2" />
-              <span className="mt-0.5 block text-[11px] text-gray-500">Default 180 = cada 3 minutos</span>
+              <span className="mt-0.5 block text-[11px] text-gray-500">Default 180 = cada 3 minutos (solo si sigue en Nuevo)</span>
             </label>
             <label className="text-sm">
               Radio búsqueda (km)

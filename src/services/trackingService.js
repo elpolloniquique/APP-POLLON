@@ -213,12 +213,12 @@ export async function getDispatchSettings(branchId) {
     return {
       enabled: true,
       auto_offer: false,
-      offer_ttl_seconds: 60,
+      offer_ttl_seconds: 120,
       retry_after_seconds: 180,
       max_search_radius_km: 8,
       arrival_radius_m: 80,
       customer_arrival_radius_m: 60,
-      max_orders_per_driver: 3,
+      max_orders_per_driver: 2,
       require_gps: true,
       voice_alerts: false,
     };

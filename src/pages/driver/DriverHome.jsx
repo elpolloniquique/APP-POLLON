@@ -290,7 +290,13 @@ export function DriverHome() {
       else publishRef.current = true;
       await load();
     } catch (err) {
-      setError(err.message);
+      const msg = err.message || '';
+      if (/tomado por otro|ya no disponible|expirad/i.test(msg)) {
+        setError('Ese pedido ya no está disponible.');
+        await load();
+      } else {
+        setError(msg);
+      }
     } finally {
       setBusy(false);
     }
@@ -337,7 +343,7 @@ export function DriverHome() {
   const offers = summary?.pendingOffers || [];
   const isOnline = summary?.driver?.operational_status === 'available'
     || ['heading_to_branch', 'delivering', 'carrying_orders', 'offered'].includes(summary?.driver?.operational_status);
-  const maxOrders = summary?.driver?.max_orders || 3;
+  const maxOrders = summary?.driver?.max_orders || 2;
   const driverName =
     summary?.driver?.profiles?.full_name
     || summary?.driver?.profiles?.nombre
@@ -409,7 +415,7 @@ export function DriverHome() {
       {!loading && offers.length === 0 && actives.length === 0 && (
         <div className="rounded-2xl border border-dashed border-gray-300 bg-white px-4 py-10 text-center text-sm text-gray-500">
           {isOnline
-            ? 'Esperando pedidos… Oferta 1 min; si nadie acepta, reaparece a los 3 min (solo si sigue en Nuevo).'
+            ? 'Esperando pedidos… Oferta 2 min; si nadie acepta y sigue en Nuevo, reaparece a los 3 min. Máx. 2 pedidos activos.'
             : permsReady
               ? 'Pulsa Conectarme para recibir pedidos.'
               : 'Completa los permisos de arriba (app, notificaciones y GPS).'}

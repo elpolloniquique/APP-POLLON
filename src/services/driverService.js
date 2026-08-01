@@ -18,7 +18,7 @@ const DEMO_DRIVERS = [
     admin_status: 'approved',
     operational_status: 'available',
     preferred_branch_id: null,
-    max_orders: 3,
+    max_orders: 2,
     vehicle_type: 'motocicleta',
     vehicle_plate: 'AB-12-34',
     phone: '+56911111111',
@@ -166,9 +166,20 @@ export async function getMyDriverSummary() {
   if (offersRes.error) throw new Error(rpcError(offersRes.error, 'Error ofertas'));
   if (assignRes.error) throw new Error(rpcError(assignRes.error, 'Error asignaciones'));
 
-  // Cap para no saturar el panel (máx. cupo del repartidor)
-  const maxOrders = driver.max_orders || 3;
-  const pendingOffers = (offersRes.data || []).slice(0, maxOrders);
+  // Una oferta por job (evita duplicados al reintentar a los 3 min)
+  const byJob = new Map();
+  for (const o of (offersRes.data || [])) {
+    const jid = o.job_id || o.ep_delivery_jobs?.id;
+    if (!jid) continue;
+    const prev = byJob.get(jid);
+    if (!prev || new Date(o.expires_at || 0) > new Date(prev.expires_at || 0)) {
+      byJob.set(jid, o);
+    }
+  }
+  const maxOrders = driver.max_orders || 2;
+  const pendingOffers = [...byJob.values()]
+    .sort((a, b) => new Date(b.expires_at || 0) - new Date(a.expires_at || 0))
+    .slice(0, maxOrders);
 
   const done = doneRes.data || [];
   return {
