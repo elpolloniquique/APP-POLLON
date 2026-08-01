@@ -6,10 +6,7 @@ const VAPID_PUBLIC = import.meta.env.VITE_VAPID_PUBLIC_KEY || '';
 const NATIVE_NOTIF_FLAG = 'pollon_native_notif_ok';
 
 export function isPushConfigured() {
-  if (typeof window === 'undefined') return false;
-  // App APK: se puede trabajar sin VAPID (pedidos por polling + alarma en app)
-  if (isNativeDriverApp()) return true;
-  return Boolean(VAPID_PUBLIC && 'serviceWorker' in navigator && 'PushManager' in window);
+  return hasWebPushSupport();
 }
 
 export function hasWebPushSupport() {
@@ -99,83 +96,122 @@ export async function getExistingPushSubscription() {
   }
 }
 
+export async function setDriverAppBadge(count) {
+  try {
+    const n = Math.max(0, Number(count) || 0);
+    if (navigator.setAppBadge) {
+      if (n > 0) await navigator.setAppBadge(n);
+      else if (navigator.clearAppBadge) await navigator.clearAppBadge();
+    }
+    if ('serviceWorker' in navigator) {
+      const reg = await navigator.serviceWorker.ready.catch(() => null);
+      reg?.active?.postMessage({ type: 'DRIVER_CLEAR_BADGE' });
+      if (n > 0) {
+        // SW setAppBadge se actualiza en el próximo push; aquí limpiamos si 0
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+export async function clearDriverAppBadge() {
+  await setDriverAppBadge(0);
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    reg?.active?.postMessage({ type: 'DRIVER_CLEAR_BADGE' });
+  } catch {
+    /* ignore */
+  }
+}
+
 /**
- * Pide permiso de notificaciones.
- * En APK: si no hay Web Push / VAPID, igual marca listo (pedidos llegan en la app).
- * En web: requiere VAPID + suscripción.
+ * Pide permiso + suscripción Web Push (obligatoria para bandeja tipo WhatsApp).
  */
 export async function ensureDriverPushSubscription() {
   if (!isSupabaseConfigured() && !isNativeDriverApp()) {
     return { ok: true, demo: true };
   }
 
-  // 1) Permiso de notificaciones del sistema (si existe)
-  if (typeof Notification !== 'undefined') {
-    let permission = Notification.permission;
-    if (permission === 'default') {
-      permission = await Notification.requestPermission();
+  if (!VAPID_PUBLIC) {
+    throw new Error(
+      'Falta configurar notificaciones push (VITE_VAPID_PUBLIC_KEY). Avisa al administrador para activarlas en Vercel.'
+    );
+  }
+
+  if (typeof Notification === 'undefined') {
+    if (isNativeDriverApp()) {
+      try { localStorage.setItem(NATIVE_NOTIF_FLAG, '1'); } catch { /* ignore */ }
+      return { ok: true, nativeLocal: true };
     }
-    if (permission !== 'granted') {
-      throw new Error('Debes permitir las notificaciones para recibir nuevos pedidos.');
-    }
-  } else if (isNativeDriverApp()) {
-    // WebView sin Notification API: marcar OK localmente
-    try { localStorage.setItem(NATIVE_NOTIF_FLAG, '1'); } catch { /* ignore */ }
-    return { ok: true, nativeLocal: true };
-  } else {
     throw new Error('Este navegador no soporta notificaciones del sistema.');
+  }
+
+  let permission = Notification.permission;
+  if (permission === 'default') {
+    permission = await Notification.requestPermission();
+  }
+  if (permission !== 'granted') {
+    throw new Error('Debes permitir las notificaciones para recibir pedidos con la pantalla apagada.');
   }
 
   try { localStorage.setItem(NATIVE_NOTIF_FLAG, '1'); } catch { /* ignore */ }
 
-  // 2) Web Push (solo si hay clave VAPID + PushManager)
-  if (!hasWebPushSupport()) {
-    return { ok: true, localOnly: true };
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    throw new Error(
+      'Instala la app El Pollón y ábrela desde el ícono para recibir notificaciones en la bandeja.'
+    );
   }
 
-  try {
-    const reg = await navigator.serviceWorker.ready;
-    let sub = await reg.pushManager.getSubscription();
-    if (!sub) {
-      sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC),
-      });
+  // Esperar SW (puede tardar un poco tras instalar la PWA)
+  let reg = null;
+  for (let i = 0; i < 20; i += 1) {
+    try {
+      reg = await navigator.serviceWorker.ready;
+      if (reg) break;
+    } catch {
+      /* retry */
     }
-
-    const json = sub.toJSON();
-    const endpoint = json.endpoint;
-    const p256dh = json.keys?.p256dh;
-    const auth = json.keys?.auth;
-    if (!endpoint || !p256dh || !auth) {
-      if (isNativeDriverApp()) return { ok: true, localOnly: true };
-      throw new Error('No se pudo crear la suscripción push.');
-    }
-
-    if (isSupabaseConfigured()) {
-      const driver = await ensureMyDriverProfile();
-      const sb = getSupabase();
-      const { error } = await sb.from('ep_driver_push_subscriptions').upsert(
-        {
-          driver_id: driver.id,
-          endpoint,
-          p256dh,
-          auth,
-          user_agent: typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 400) : null,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'endpoint' }
-      );
-      if (error) throw new Error(error.message || 'No se pudo guardar la suscripción push');
-    }
-
-    return { ok: true, endpoint };
-  } catch (err) {
-    if (isNativeDriverApp()) {
-      return { ok: true, localOnly: true, warn: err?.message };
-    }
-    throw err;
+    await new Promise((r) => setTimeout(r, 250));
   }
+  if (!reg) {
+    throw new Error('No se pudo activar el servicio de notificaciones. Cierra y vuelve a abrir la app.');
+  }
+
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) {
+    sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC),
+    });
+  }
+
+  const json = sub.toJSON();
+  const endpoint = json.endpoint;
+  const p256dh = json.keys?.p256dh;
+  const auth = json.keys?.auth;
+  if (!endpoint || !p256dh || !auth) {
+    throw new Error('No se pudo crear la suscripción push.');
+  }
+
+  if (isSupabaseConfigured()) {
+    const driver = await ensureMyDriverProfile();
+    const sb = getSupabase();
+    const { error } = await sb.from('ep_driver_push_subscriptions').upsert(
+      {
+        driver_id: driver.id,
+        endpoint,
+        p256dh,
+        auth,
+        user_agent: typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 400) : null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'endpoint' }
+    );
+    if (error) throw new Error(error.message || 'No se pudo guardar la suscripción push');
+  }
+
+  return { ok: true, endpoint };
 }
 
 export async function checkDriverReadyPermissions() {
@@ -197,8 +233,8 @@ export async function checkDriverReadyPermissions() {
     notificationsState: notif,
     geoState: geo,
     geoGranted: geo === 'granted',
-    pushConfigured: isPushConfigured(),
-    hasPushSubscription: hasSub || (isNativeDriverApp() && (notif === 'granted' || nativeOk)),
+    pushConfigured: webPush,
+    hasPushSubscription: hasSub || (isNativeDriverApp() && nativeOk && !webPush),
     readyForOnline: (notif === 'granted' || nativeOk) && (geo === 'granted' || geo === 'prompt' || isNativeDriverApp()),
   };
 }
@@ -223,7 +259,7 @@ export async function notifyDriversForJob(jobId) {
     if (!res.ok) {
       const text = await res.text().catch(() => '');
       console.warn('[Pollón] notify-driver-offers:', res.status, text);
-      return { ok: false, status: res.status };
+      return { ok: false, status: res.status, body: text };
     }
     return await res.json().catch(() => ({ ok: true }));
   } catch (err) {

@@ -214,8 +214,8 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
       id: 'notif',
       ok: state.notifOk,
       icon: Bell,
-      title: 'Notificaciones',
-      body: 'Para avisarte de pedidos nuevos aunque estés en otra pantalla.',
+      title: 'Notificaciones (bandeja)',
+      body: 'Como WhatsApp: llegan a la bandeja aunque la app esté cerrada o la pantalla apagada.',
       action: runNotif,
       actionLabel: 'Activar notificaciones',
       disabled: state.needsInstall,
@@ -300,9 +300,9 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-bold text-white">
-                      {idx + 1}. {s.title}
-                    </p>
-                    <p className="mt-1 text-xs leading-relaxed text-white/65">{s.body}</p>
+              {idx + 1}. {s.title}
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-white/65">{s.body}</p>
 
                     {s.id === 'install' && state.needsInstall && isIosSafari() && (
                       <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-white/80">

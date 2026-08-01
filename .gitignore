@@ -30,3 +30,6 @@ dist-ssr
 releases/
 *.apk
 
+# Secretos locales push
+VAPID-PARA-VERCEL.txt
+

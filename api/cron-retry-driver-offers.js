@@ -92,7 +92,7 @@ export default async function handler(req, res) {
               jobId,
               tag: `pollon-offer-${offer.id}`,
             }),
-            { urgency: 'high', TTL: 60 }
+            { urgency: 'high', TTL: 86400 }
           );
           pushed += 1;
         } catch {

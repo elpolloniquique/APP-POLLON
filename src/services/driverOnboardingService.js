@@ -12,6 +12,8 @@ import {
 import {
   getNotificationPermission,
   ensureDriverPushSubscription,
+  hasWebPushSupport,
+  getExistingPushSubscription,
 } from './pushService';
 import { isStandaloneDisplayMode, isIosSafari, isAndroidChrome } from '../utils/pwa';
 
@@ -85,6 +87,11 @@ export async function evaluateDriverLiveTrackingReady(userId) {
     } catch {
       /* ignore */
     }
+  }
+  // PWA: exigir suscripción real para bandeja (tipo WhatsApp)
+  if (notifOk && hasWebPushSupport()) {
+    const sub = await getExistingPushSubscription();
+    notifOk = Boolean(sub);
   }
 
   let location = { ok: false, alwaysOk: false, locationOk: false };

@@ -143,12 +143,13 @@ export default async function handler(req, res) {
       const ticket = ticketShort(job.ticket_code);
       const name = job.customer_name || 'Cliente';
       const payload = JSON.stringify({
-        title: 'Nuevo pedido — El Pollón',
+        title: 'El Pollón · Nuevo pedido',
         body: `Pedido Nº ${ticket} · ${name} · Delivery ${moneyCLP(fee)}`,
         url: '/repartidor',
         offerId: offer.id,
         jobId,
         tag: `pollon-offer-${offer.id}`,
+        badgeCount: 1,
       });
 
       try {
@@ -158,7 +159,7 @@ export default async function handler(req, res) {
             keys: { p256dh: sub.p256dh, auth: sub.auth },
           },
           payload,
-          { urgency: 'high', TTL: 60 }
+          { urgency: 'high', TTL: 86400 }
         );
         sent += 1;
       } catch (err) {
