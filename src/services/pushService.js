@@ -163,35 +163,103 @@ export async function ensureDriverPushSubscription() {
     );
   }
 
-  // Esperar SW (puede tardar un poco tras instalar la PWA)
+  // Esperar SW activo (controller)
   let reg = null;
-  for (let i = 0; i < 20; i += 1) {
+  for (let i = 0; i < 30; i += 1) {
     try {
       reg = await navigator.serviceWorker.ready;
-      if (reg) break;
+      if (reg?.active) break;
     } catch {
       /* retry */
     }
-    await new Promise((r) => setTimeout(r, 250));
+    await new Promise((r) => setTimeout(r, 300));
   }
   if (!reg) {
     throw new Error('No se pudo activar el servicio de notificaciones. Cierra y vuelve a abrir la app.');
   }
 
-  let sub = await reg.pushManager.getSubscription();
-  // Re-suscribir si ya había una (tras rotar VAPID / redeploy) para no dejar endpoints muertos
-  if (sub) {
-    try {
-      await sub.unsubscribe();
-    } catch {
-      /* ignore */
-    }
+  const appServerKey = urlBase64ToUint8Array(VAPID_PUBLIC);
+  if (appServerKey.byteLength !== 65) {
+    throw new Error('Clave de notificaciones inválida. Avisa al administrador.');
+  }
+
+  let sub = null;
+  try {
+    sub = await reg.pushManager.getSubscription();
+  } catch {
     sub = null;
   }
-  sub = await reg.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC),
-  });
+
+  // Si hay sub vieja con otra clave, desuscribir; si no, reutilizar
+  if (sub) {
+    try {
+      // Reusar si sigue válida; si falla al enviar luego se limpia en servidor
+      // Tras rotar VAPID, Chrome exige unsubscribe
+      let sameKey = true;
+      try {
+        const opts = sub.options?.applicationServerKey;
+        if (opts) {
+          const existing = new Uint8Array(opts);
+          sameKey = existing.byteLength === appServerKey.byteLength
+            && existing.every((b, i) => b === appServerKey[i]);
+        } else {
+          sameKey = false;
+        }
+      } catch {
+        sameKey = false;
+      }
+      if (!sameKey) {
+        await sub.unsubscribe().catch(() => {});
+        sub = null;
+      }
+    } catch {
+      sub = null;
+    }
+  }
+
+  if (!sub) {
+    try {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: appServerKey,
+      });
+    } catch (err) {
+      const raw = String(err?.message || err || '');
+      const lower = raw.toLowerCase();
+      if (lower.includes('push service error') || lower.includes('registration failed')) {
+        throw new Error(
+          'Chrome/Google no pudo registrar el push (Push service error). '
+          + 'Haz esto: 1) Abre El Pollón desde el ÍCONO instalado (no el navegador). '
+          + '2) Ajustes del celular → Apps → El Pollón (o Chrome) → Notificaciones → Permitir. '
+          + '3) En la app: menú del candado/sitio → Borrar datos del sitio / restablecer permisos, vuelve a abrir y reintenta. '
+          + '4) Revisa que el celular tenga Google Play Services y conexión a internet. '
+          + 'Si usas Huawei sin GMS o Brave con Google bloqueado, el push no funciona.'
+        );
+      }
+      if (lower.includes('different application server key') || lower.includes('gcm_sender')) {
+        try {
+          const old = await reg.pushManager.getSubscription();
+          await old?.unsubscribe();
+        } catch {
+          /* ignore */
+        }
+        try {
+          sub = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: appServerKey,
+          });
+        } catch (err2) {
+          throw new Error(
+            `No se pudo reactivar push. Borra los datos del sitio el-pollon.cl y vuelve a intentar. (${err2?.message || err2})`
+          );
+        }
+      } else if (lower.includes('notallowed') || lower.includes('denied') || lower.includes('permission')) {
+        throw new Error('Debes permitir las notificaciones en Ajustes del celular.');
+      } else {
+        throw new Error(raw || 'No se pudo activar la suscripción push.');
+      }
+    }
+  }
 
   const json = sub.toJSON();
   const endpoint = json.endpoint;
