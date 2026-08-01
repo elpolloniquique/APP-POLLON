@@ -1,7 +1,7 @@
 /**
  * GPS en segundo plano para repartidores (Capacitor nativo).
- * - App nativa: foreground service + notificación → sigue con pantalla apagada.
- * - Web/PWA: watchPosition (limitado al salir de la app).
+ * - App nativa: foreground service + notificación → pantalla apagada / otra app.
+ * - Web/PWA: watchPosition (limitado).
  */
 import { Capacitor } from '@capacitor/core';
 import { Geolocation } from '@capacitor/geolocation';
@@ -30,12 +30,66 @@ export function getNativePlatform() {
 
 function isBgLocationOk(status) {
   const bg = status?.backgroundLocation;
-  // Android: granted | iOS: always | when_in_use (insuficiente para Always)
   return bg === 'granted' || bg === 'always';
 }
 
+/** Solo lectura del estado de permisos (sin prompts). */
+export async function checkLocationPermissionSnapshot() {
+  if (!isNativeDriverApp()) {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) {
+        resolve({ ok: false, locationOk: false, alwaysOk: false, mode: 'web' });
+        return;
+      }
+      if (navigator.permissions?.query) {
+        navigator.permissions
+          .query({ name: 'geolocation' })
+          .then((st) => {
+            const locationOk = st.state === 'granted';
+            resolve({
+              ok: locationOk,
+              locationOk,
+              alwaysOk: locationOk,
+              mode: 'web',
+              needsSettings: st.state === 'denied',
+              canOpenSettings: st.state === 'denied',
+            });
+          })
+          .catch(() => {
+            resolve({ ok: false, locationOk: false, alwaysOk: false, mode: 'web' });
+          });
+        return;
+      }
+      resolve({ ok: false, locationOk: false, alwaysOk: false, mode: 'web' });
+    });
+  }
+
+  try {
+    const status = await BackgroundGeolocation.checkPermissions();
+    const locationOk = status.location === 'granted';
+    const alwaysOk = isBgLocationOk(status);
+    return {
+      ok: locationOk && alwaysOk,
+      locationOk,
+      alwaysOk,
+      status,
+      mode: 'native',
+      needsSettings: locationOk && !alwaysOk,
+      canOpenSettings: !locationOk || !alwaysOk,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      locationOk: false,
+      alwaysOk: false,
+      error: err?.message,
+      canOpenSettings: true,
+    };
+  }
+}
+
 /**
- * Solicita ubicación (When In Use) y, en nativo, “Siempre” / background + notificaciones.
+ * Solicita ubicación (When In Use) y, en nativo, “Siempre” / background.
  */
 export async function requestAlwaysLocationPermission() {
   if (!isNativeDriverApp()) {
@@ -45,7 +99,7 @@ export async function requestAlwaysLocationPermission() {
         return;
       }
       navigator.geolocation.getCurrentPosition(
-        () => resolve({ ok: true, mode: 'web' }),
+        () => resolve({ ok: true, mode: 'web', locationOk: true, alwaysOk: true }),
         (err) => resolve({ ok: false, error: err.message || 'GPS denegado' }),
         { enableHighAccuracy: true, timeout: 12000 }
       );
@@ -53,11 +107,10 @@ export async function requestAlwaysLocationPermission() {
   }
 
   try {
-    // 1) Foreground (While using)
     try {
       await Geolocation.requestPermissions();
     } catch {
-      /* algunos dispositivos no exponen este plugin igual */
+      /* ignore */
     }
 
     let status = await BackgroundGeolocation.checkPermissions();
@@ -72,25 +125,30 @@ export async function requestAlwaysLocationPermission() {
         ok: false,
         error: 'Debes permitir la ubicación para entregas.',
         status,
+        locationOk: false,
+        alwaysOk: false,
         canOpenSettings: true,
       };
     }
 
-    // 2) Background / “Siempre” (Android 10+ puede pedir paso a Ajustes)
     if (!isBgLocationOk(status)) {
       status = await BackgroundGeolocation.requestPermissions({
         permissions: ['backgroundLocation', 'notification'],
       });
     }
 
-    // Con foreground service (notificación persistente) ya se puede rastrear
-    // con pantalla apagada aunque “Siempre” quede pendiente en algunos OEM.
-    // Si background quedó denegado, avisamos pero permitimos arrancar el FGS.
+    try {
+      status = await BackgroundGeolocation.checkPermissions();
+    } catch {
+      /* keep */
+    }
+
     const alwaysOk = isBgLocationOk(status);
     return {
       ok: true,
       mode: 'native',
       status,
+      locationOk: true,
       alwaysOk,
       needsSettings: !alwaysOk,
       canOpenSettings: !alwaysOk,
@@ -128,9 +186,8 @@ async function publishNativeFix(location) {
 }
 
 /**
- * Inicia seguimiento continuo.
- * Nativo: foreground service + notificación → pantalla apagada OK.
- * Web: watchPosition clásico.
+ * Inicia seguimiento continuo en vivo (publica a Supabase).
+ * Nativo: FGS + notificación → pantalla apagada / otra app.
  */
 export async function startDriverBackgroundGps({ onUpdate } = {}) {
   await stopDriverBackgroundGps();
@@ -154,8 +211,8 @@ export async function startDriverBackgroundGps({ onUpdate } = {}) {
   try {
     await BackgroundGeolocation.start(
       {
-        backgroundMessage: 'El Pollón rastrea tu ubicación hasta marcar Entregado.',
-        backgroundTitle: 'El Pollón · Entrega en curso',
+        backgroundMessage: 'El Pollón comparte tu ubicación en vivo con el local.',
+        backgroundTitle: 'El Pollón · Ubicación en vivo',
         requestPermissions: true,
         stale: false,
         distanceFilter: 20,

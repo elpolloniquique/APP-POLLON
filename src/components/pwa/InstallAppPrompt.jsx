@@ -9,22 +9,36 @@ import {
   isStandaloneDisplayMode,
   wasInstallPromptDismissed,
 } from '../../utils/pwa';
+import {
+  ensurePwaInstallListeners,
+  promptPwaInstall,
+  subscribeDeferredInstallPrompt,
+} from '../../utils/pwaInstallBridge';
+import { useAuth } from '../../context/AuthContext';
+import { isDriverRole } from '../../services/authService';
 
 /**
- * Aviso de instalación PWA — Android, desktop (Chrome/Edge) e iOS (guía manual).
- * No se muestra en modo standalone ni en /admin.
+ * Aviso de instalación PWA para clientes.
+ * No se muestra en standalone, /admin, ni /repartidor (los repartidores tienen onboarding propio).
  */
 export function InstallAppPrompt() {
   const { pathname } = useLocation();
+  const { role, profile } = useAuth();
   const [visible, setVisible] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [mode, setMode] = useState('native');
   const [installing, setInstalling] = useState(false);
 
   const isAdmin = pathname.startsWith('/admin');
+  const isDriverArea = pathname.startsWith('/repartidor');
+  const isDriver = isDriverRole(role || profile?.rol || profile?.role);
 
   useEffect(() => {
-    if (isAdmin || isStandaloneDisplayMode() || wasInstallPromptDismissed()) {
+    ensurePwaInstallListeners();
+  }, []);
+
+  useEffect(() => {
+    if (isAdmin || isDriverArea || isDriver || isStandaloneDisplayMode() || wasInstallPromptDismissed()) {
       setVisible(false);
       return undefined;
     }
@@ -44,21 +58,20 @@ export function InstallAppPrompt() {
       };
     }
 
-    const onBeforeInstall = (event) => {
-      event.preventDefault();
-      setDeferredPrompt(event);
-      setMode('native');
-      setVisible(true);
-    };
-
-    window.addEventListener('beforeinstallprompt', onBeforeInstall);
+    const unsub = subscribeDeferredInstallPrompt((p) => {
+      if (p) {
+        setDeferredPrompt(p);
+        setMode('native');
+        setVisible(true);
+      }
+    });
     window.addEventListener('appinstalled', onInstalled);
 
     return () => {
-      window.removeEventListener('beforeinstallprompt', onBeforeInstall);
+      unsub();
       window.removeEventListener('appinstalled', onInstalled);
     };
-  }, [isAdmin, pathname]);
+  }, [isAdmin, isDriverArea, isDriver, pathname]);
 
   const handleDismiss = useCallback(() => {
     dismissInstallPrompt();
@@ -71,22 +84,19 @@ export function InstallAppPrompt() {
       handleDismiss();
       return;
     }
-    if (!deferredPrompt) return;
-
     setInstalling(true);
     try {
-      await deferredPrompt.prompt();
-      await deferredPrompt.userChoice;
+      await promptPwaInstall();
     } catch {
-      /* usuario canceló o navegador no soporta */
+      /* ignore */
     } finally {
       setInstalling(false);
       setDeferredPrompt(null);
       setVisible(false);
     }
-  }, [deferredPrompt, mode, handleDismiss]);
+  }, [mode, handleDismiss]);
 
-  if (!visible || isAdmin || isStandaloneDisplayMode()) return null;
+  if (!visible || isAdmin || isDriverArea || isDriver || isStandaloneDisplayMode()) return null;
 
   const platformHint = isIosSafari()
     ? 'iPhone / iPad'

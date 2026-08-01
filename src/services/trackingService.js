@@ -285,7 +285,23 @@ export function startGpsWatch(onUpdate, { intervalMs = 8000, publishRef = null }
 
   let lastSent = 0;
   let stopped = false;
+  let wakeLock = null;
   const shouldPublish = () => publishRef == null || publishRef.current !== false;
+
+  const requestWake = async () => {
+    try {
+      if (shouldPublish() && navigator.wakeLock?.request) {
+        wakeLock = await navigator.wakeLock.request('screen');
+      }
+    } catch {
+      /* algunos dispositivos no permiten wake lock */
+    }
+  };
+  void requestWake();
+  const onVis = () => {
+    if (document.visibilityState === 'visible') void requestWake();
+  };
+  document.addEventListener('visibilitychange', onVis);
 
   const handlePos = async (pos, forceSend = false) => {
     if (stopped) return;
@@ -327,6 +343,9 @@ export function startGpsWatch(onUpdate, { intervalMs = 8000, publishRef = null }
 
   return () => {
     stopped = true;
+    document.removeEventListener('visibilitychange', onVis);
+    try { wakeLock?.release?.(); } catch { /* ignore */ }
+    wakeLock = null;
     navigator.geolocation.clearWatch(watchId);
   };
 }

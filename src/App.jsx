@@ -1,4 +1,5 @@
 import { BrowserRouter } from 'react-router-dom';
+import { useEffect } from 'react';
 import { BranchProvider } from './context/BranchContext';
 import { BranchMenuProvider } from './context/BranchMenuContext';
 import { AuthProvider } from './context/AuthContext';
@@ -6,6 +7,14 @@ import { CartProvider } from './context/CartContext';
 import { SeoManager } from './components/seo/SeoManager';
 import { InstallAppPrompt } from './components/pwa/InstallAppPrompt';
 import { AppRoutes } from './routes/AppRoutes';
+import { ensurePwaInstallListeners } from './utils/pwaInstallBridge';
+
+function PwaInstallBootstrap() {
+  useEffect(() => {
+    ensurePwaInstallListeners();
+  }, []);
+  return null;
+}
 
 export default function App() {
   return (
@@ -14,6 +23,7 @@ export default function App() {
         <AuthProvider>
           <CartProvider>
             <BranchMenuProvider>
+              <PwaInstallBootstrap />
               <SeoManager />
               <AppRoutes />
               <InstallAppPrompt />

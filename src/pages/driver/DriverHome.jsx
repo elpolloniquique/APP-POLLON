@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { DriverOfferCard } from '../../components/delivery/DriverOfferCard';
 import { DriverActiveOrderCard } from '../../components/delivery/DriverActiveOrderCard';
-import { DriverPermissionsGate } from '../../components/delivery/DriverPermissionsGate';
 import {
   ensureMyDriverProfile,
   getMyDriverSummary,
@@ -27,14 +26,18 @@ import {
   requestAlwaysLocationPermission,
   openNativeLocationSettings,
 } from '../../services/backgroundGpsService';
+import { evaluateDriverLiveTrackingReady } from '../../services/driverOnboardingService';
 import { playDriverOrderAlarm, unlockDriverAudio } from '../../utils/orderAlertSound';
 import { getSupabase, isSupabaseConfigured } from '../../services/supabaseClient';
+import { useAuth } from '../../context/AuthContext';
 
 function offerAlarmKey(o) {
   return `${o.id}|${o.expires_at || ''}`;
 }
 
 export function DriverHome() {
+  const { user, profile } = useAuth();
+  const userId = user?.id || profile?.id;
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -158,10 +161,11 @@ export function DriverHome() {
   }, []);
 
   useEffect(() => {
-    if (getNotificationPermission() === 'granted') {
-      ensureDriverPushSubscription().catch(() => {});
-    }
-  }, []);
+    if (!userId) return undefined;
+    evaluateDriverLiveTrackingReady(userId).then((s) => setPermsReady(s.ready));
+    return undefined;
+  }, [userId]);
+
 
   useEffect(() => {
     const offers = summary?.pendingOffers || [];
@@ -299,9 +303,8 @@ export function DriverHome() {
     return { ok: true, mode: 'web' };
   }, [goOffline]);
 
-  // Activos → background; sin activos (pero en línea) → GPS liviano sin publicar
+  // En línea → siempre GPS en vivo (background nativo), con o sin pedidos activos
   useEffect(() => {
-    const activesCount = summary?.activeAssignments?.length ?? 0;
     const onlineStatuses = ['available', 'heading_to_branch', 'delivering', 'carrying_orders', 'offered'];
     const isOnlineNow = onlineStatuses.includes(summary?.driver?.operational_status);
 
@@ -310,14 +313,11 @@ export function DriverHome() {
       return undefined;
     }
 
-    if (activesCount > 0) {
-      if (gpsModeRef.current !== 'active') void startGps(true);
-    } else if (gpsModeRef.current !== 'idle') {
-      void startGps(false);
+    if (gpsModeRef.current !== 'active') {
+      void startGps(true);
     }
     return undefined;
   }, [
-    summary?.activeAssignments?.length,
     summary?.driver?.operational_status,
     startGps,
     clearGps,
@@ -334,15 +334,28 @@ export function DriverHome() {
       await unlockDriverAudio();
       if (next === 'available') {
         if (!permsReady) {
-          throw new Error('Primero completa: instalar app, notificaciones y GPS.');
+          throw new Error('Completa la configuración de ubicación en vivo (pantalla anterior).');
         }
-        if (getNotificationPermission() !== 'granted') {
-          throw new Error('Debes permitir las notificaciones del sistema.');
+        const ready = await evaluateDriverLiveTrackingReady(userId);
+        if (!ready.ready) {
+          throw new Error(
+            ready.needsInstall
+              ? 'Instala la app El Pollón (pantalla de inicio) y ábrela desde el ícono.'
+              : 'Debes autorizar ubicación y notificaciones para trabajar.'
+          );
         }
-        await ensureDriverPushSubscription();
+        if (isNativeDriverApp() && !ready.alwaysOk) {
+          throw new Error('En Ajustes elige ubicación “Permitir todo el tiempo”.');
+        }
+        await ensureDriverPushSubscription().catch(() => {});
         if (isNativeDriverApp()) {
           const gps = await requestAlwaysLocationPermission();
-          if (!gps.ok) throw new Error(gps.error || 'GPS obligatorio');
+          if (!gps.ok) {
+            throw new Error(gps.error || 'GPS obligatorio para ubicación en vivo.');
+          }
+          if (!gps.alwaysOk && !ready.alwaysOk) {
+            throw new Error('GPS “Siempre” obligatorio para que el local te vea en vivo.');
+          }
         } else {
           const gps = await requestGpsFix();
           if (!gps.ok) throw new Error(gps.error || 'GPS obligatorio');
@@ -351,8 +364,7 @@ export function DriverHome() {
 
       await setMyOperationalStatus(next);
       if (next === 'available') {
-        const hasActive = (summary?.activeAssignments || []).length > 0;
-        await startGps(hasActive);
+        await startGps(true);
       } else {
         await clearGps();
       }
@@ -446,7 +458,16 @@ export function DriverHome() {
 
   return (
     <div className="mx-auto max-w-lg space-y-3 p-3 sm:p-4">
-      <DriverPermissionsGate onReadyChange={setPermsReady} />
+      <div className="flex items-start gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3.5 py-3 text-sm text-emerald-900">
+        <span className="mt-0.5 text-base">📍</span>
+        <div>
+          <p className="font-bold">Ubicación en vivo al conectarte</p>
+          <p className="text-xs opacity-90">
+            Misma app El Pollón que los clientes. En Disponible, caja/admin/despacho te ven en el mapa.
+            No cierres la app por completo ni quites el permiso de ubicación.
+          </p>
+        </div>
+      </div>
 
       <div className="flex items-center justify-between rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
         <div className="min-w-0">
@@ -457,8 +478,8 @@ export function DriverHome() {
               ? 'Apagado'
               : !gpsPos
                 ? 'Buscando…'
-                : (actives.length > 0 && isNativeDriverApp()
-                  ? 'Segundo plano · En vivo'
+                : (isOnline && isNativeDriverApp()
+                  ? 'En vivo · segundo plano'
                   : 'Encendido')}
           </p>
           <p className="mt-0.5 text-sm font-semibold text-pollon-orange">
@@ -527,8 +548,8 @@ export function DriverHome() {
           {isOnline
             ? 'Esperando pedidos… Oferta 2 min; si nadie acepta y sigue en Nuevo, reaparece a los 3 min. Máx. 2 pedidos activos.'
             : permsReady
-              ? 'Pulsa Conectarme para recibir pedidos.'
-              : 'Completa los permisos de arriba (app, notificaciones y GPS).'}
+              ? 'Pulsa Conectarme para recibir pedidos. Tu ubicación se compartirá en vivo.'
+              : 'Completa la configuración de ubicación en vivo para continuar.'}
         </div>
       )}
     </div>
