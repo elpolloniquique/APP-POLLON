@@ -127,7 +127,7 @@ export async function listLiveAssignments(branchId = null) {
     const orderIds = [...new Set(needCoords.map((r) => String(r.ep_delivery_jobs.source_order_id)))];
     const { data: pedidos } = await sb
       .from('pedidos')
-      .select('id, cliente_lat, cliente_lng, direccion')
+      .select('id, cliente_lat, cliente_lng, cliente_direccion')
       .in('id', orderIds);
     const byOrder = Object.fromEntries((pedidos || []).map((p) => [String(p.id), p]));
     for (const r of rows) {
