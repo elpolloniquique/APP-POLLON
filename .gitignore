@@ -33,3 +33,6 @@ releases/
 # Secretos locales push
 VAPID-PARA-VERCEL.txt
 
+
+.vercel
+.env*
