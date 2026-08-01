@@ -179,12 +179,19 @@ export async function ensureDriverPushSubscription() {
   }
 
   let sub = await reg.pushManager.getSubscription();
-  if (!sub) {
-    sub = await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC),
-    });
+  // Re-suscribir si ya había una (tras rotar VAPID / redeploy) para no dejar endpoints muertos
+  if (sub) {
+    try {
+      await sub.unsubscribe();
+    } catch {
+      /* ignore */
+    }
+    sub = null;
   }
+  sub = await reg.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC),
+  });
 
   const json = sub.toJSON();
   const endpoint = json.endpoint;
