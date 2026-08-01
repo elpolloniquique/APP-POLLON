@@ -22,7 +22,7 @@ export function DriverOfferCard({
   branchCity = 'Iquique',
 }) {
   const job = offer?.ep_delivery_jobs || offer?.job || {};
-  const fee = offer.offered_fee || job.delivery_fee || 0;
+  const fee = offer?.offered_fee || job.delivery_fee || 0;
   const orderTotal = job.order_total || 0;
   const charge = orderTotal + fee;
   const phone = job.customer_phone || '';

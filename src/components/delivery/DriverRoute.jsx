@@ -3,17 +3,27 @@ import { useAuth } from '../../context/AuthContext';
 import { Loader } from '../ui/Loader';
 import { isDriverRole, normalizeRole } from '../../services/authService';
 
-/** Solo rol delivery / repartidor */
+/** Solo rol delivery / repartidor. No redirigir mientras el perfil aún carga. */
 export function DriverRoute({ children }) {
-  const { session, profile, loading, role } = useAuth();
+  const { session, profile, loading, role, user } = useAuth();
 
   if (loading) return <Loader text="Cargando panel repartidor…" />;
   if (!session) return <Navigate to="/" replace state={{ openAuth: true }} />;
 
-  const r = normalizeRole(profile?.rol || profile?.role || role);
-  if (!isDriverRole(r)) {
-    return <Navigate to="/admin" replace />;
+  const fromProfile = normalizeRole(profile?.rol || profile?.role || role);
+  const fromMeta = normalizeRole(
+    user?.user_metadata?.role
+    || session?.user?.user_metadata?.role
+  );
+
+  // Sesión OK pero perfil aún null / fallback cliente: esperar un momento
+  if (!profile && !isDriverRole(fromMeta)) {
+    return <Loader text="Verificando cuenta repartidor…" />;
   }
 
-  return children;
+  if (isDriverRole(fromProfile) || isDriverRole(fromMeta)) {
+    return children;
+  }
+
+  return <Navigate to="/admin" replace />;
 }

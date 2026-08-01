@@ -23,7 +23,7 @@ export function DriverActiveOrderCard({
   onDelivered,
 }) {
   const job = assignment?.ep_delivery_jobs || {};
-  const toStore = assignment.phase === 'to_store' || assignment.phase === 'at_store';
+  const toStore = assignment?.phase === 'to_store' || assignment?.phase === 'at_store';
   const fee = job.delivery_fee || 0;
   const charge = (job.order_total || 0) + fee;
   const phone = job.customer_phone || '';

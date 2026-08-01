@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Bike, Map, History, Wallet, User, LogOut } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { unlockDriverAudio } from '../../utils/orderAlertSound';
@@ -37,13 +37,18 @@ export function DriverLayout() {
       await ensureMyDriverProfile().catch(() => {});
       const s = await getMyDriverSummary();
       const n = (s?.pendingOffers || []).length;
-      setPendingOffers(n);
+      setPendingOffers((prev) => (prev === n ? prev : n));
       if (n > 0) await setDriverAppBadge(n);
       else await clearDriverAppBadge();
     } catch {
       /* ignore */
     }
   }, []);
+
+  const outletContext = useMemo(
+    () => ({ trackingReady, pendingOffers, refreshBadge }),
+    [trackingReady, pendingOffers, refreshBadge]
+  );
 
   useEffect(() => {
     const unlock = () => { unlockDriverAudio(); };
@@ -55,7 +60,7 @@ export function DriverLayout() {
     const onVis = () => {
       if (document.visibilityState === 'visible') {
         unlockDriverAudio();
-        refreshBadge();
+        if (trackingReady) refreshBadge();
       }
     };
     document.addEventListener('visibilitychange', onVis);
@@ -65,10 +70,9 @@ export function DriverLayout() {
       window.removeEventListener('click', unlock, opts);
       document.removeEventListener('visibilitychange', onVis);
     };
-  }, [refreshBadge]);
+  }, [refreshBadge, trackingReady]);
 
   useEffect(() => {
-    // Tras recarga por “Push service error”, reintenta suscripción aunque el onboarding siga abierto
     retryDriverPushInBackground().catch(() => {});
   }, []);
 
@@ -77,7 +81,7 @@ export function DriverLayout() {
     refreshBadge();
     ensureDriverPushSubscription().catch(() => {});
     const unsub = subscribeDispatch(() => refreshBadge());
-    const t = setInterval(refreshBadge, 6000);
+    const t = setInterval(refreshBadge, 8000);
     const onMsg = (event) => {
       if (event.data?.type === 'DRIVER_NEW_OFFER') refreshBadge();
     };
@@ -136,43 +140,45 @@ export function DriverLayout() {
         </div>
       </header>
 
-      {trackingReady ? (
-        <>
-          <main className="relative flex-1 overflow-y-auto pb-24">
-            <Outlet context={{ trackingReady, pendingOffers, refreshBadge }} />
-          </main>
+      {/* Siempre montar Outlet: el onboarding cubre encima si falta setup.
+          Evita pantalla vacía cuando trackingReady aún es false. */}
+      <main className={`relative flex-1 overflow-y-auto ${trackingReady ? 'pb-24' : ''}`}>
+        {trackingReady ? (
+          <Outlet context={outletContext} />
+        ) : (
+          <div className="flex min-h-[50dvh] items-center justify-center px-6">
+            <p className="text-sm text-gray-500">Completa la configuración para continuar…</p>
+          </div>
+        )}
+      </main>
 
-          <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-gray-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_20px_rgba(0,0,0,.06)]">
-            <div className="mx-auto flex max-w-lg items-stretch justify-around px-1 py-1.5">
-              {TABS.map(({ to, end, icon: Icon, label, badgeKey }) => (
-                <NavLink
-                  key={to}
-                  to={to}
-                  end={end}
-                  className={({ isActive }) =>
-                    `relative flex flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-[10px] font-semibold ${
-                      isActive ? 'text-pollon-orange' : 'text-gray-500'
-                    }`
-                  }
-                >
-                  <span className="relative inline-flex">
-                    <Icon className="h-5 w-5" strokeWidth={1.8} />
-                    {badgeKey === 'offers' && pendingOffers > 0 && (
-                      <span className="absolute -right-2.5 -top-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#25D366] px-1 text-[10px] font-bold leading-none text-white shadow ring-2 ring-white">
-                        {pendingOffers > 9 ? '9+' : pendingOffers}
-                      </span>
-                    )}
-                  </span>
-                  {label}
-                </NavLink>
-              ))}
-            </div>
-          </nav>
-        </>
-      ) : (
-        <main className="relative flex flex-1 items-center justify-center bg-[#1a1210] px-6">
-          <p className="text-sm text-white/60">Preparando panel repartidor…</p>
-        </main>
+      {trackingReady && (
+        <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-gray-200 bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_20px_rgba(0,0,0,.06)]">
+          <div className="mx-auto flex max-w-lg items-stretch justify-around px-1 py-1.5">
+            {TABS.map(({ to, end, icon: Icon, label, badgeKey }) => (
+              <NavLink
+                key={to}
+                to={to}
+                end={end}
+                className={({ isActive }) =>
+                  `relative flex flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-[10px] font-semibold ${
+                    isActive ? 'text-pollon-orange' : 'text-gray-500'
+                  }`
+                }
+              >
+                <span className="relative inline-flex">
+                  <Icon className="h-5 w-5" strokeWidth={1.8} />
+                  {badgeKey === 'offers' && pendingOffers > 0 && (
+                    <span className="absolute -right-2.5 -top-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#25D366] px-1 text-[10px] font-bold leading-none text-white shadow ring-2 ring-white">
+                      {pendingOffers > 9 ? '9+' : pendingOffers}
+                    </span>
+                  )}
+                </span>
+                {label}
+              </NavLink>
+            ))}
+          </div>
+        </nav>
       )}
     </div>
   );

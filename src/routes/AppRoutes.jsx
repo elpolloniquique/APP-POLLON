@@ -26,6 +26,7 @@ import { ProtectedRoute, AdminHome } from '../components/admin/ProtectedRoute';
 import { CustomerRoute } from '../components/auth/CustomerRoute';
 import { DriverRoute } from '../components/delivery/DriverRoute';
 import { DriverLayout } from '../components/delivery/DriverLayout';
+import { DriverErrorBoundary } from '../components/delivery/DriverErrorBoundary';
 import { DriverHome } from '../pages/driver/DriverHome';
 import { DriverMapPage } from '../pages/driver/DriverMapPage';
 import { DriverHistory } from '../pages/driver/DriverHistory';
@@ -69,7 +70,9 @@ export function AppRoutes() {
         path="/repartidor"
         element={(
           <DriverRoute>
-            <DriverLayout />
+            <DriverErrorBoundary>
+              <DriverLayout />
+            </DriverErrorBoundary>
           </DriverRoute>
         )}
       >

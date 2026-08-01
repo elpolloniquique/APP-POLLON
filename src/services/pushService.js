@@ -93,32 +93,40 @@ export function requestGpsFix(timeoutMs = 12000) {
   });
 }
 
+function withTimeout(promise, ms, fallback = null) {
+  return Promise.race([
+    promise,
+    new Promise((resolve) => {
+      setTimeout(() => resolve(fallback), ms);
+    }),
+  ]);
+}
+
+/**
+ * Usa el SW ya registrado por vite-plugin-pwa (main.jsx).
+ * NO volver a register(): el doble registro + skipWaiting blanquea la PWA al recargar.
+ */
 async function ensureServiceWorkerRegistration() {
   if (!('serviceWorker' in navigator)) return null;
 
-  try {
-    await navigator.serviceWorker.register('/sw.js', { scope: '/' });
-  } catch {
-    /* puede ya estar registrado */
-  }
-
-  let reg = null;
-  for (let i = 0; i < 40; i += 1) {
+  let reg = await withTimeout(navigator.serviceWorker.getRegistration(), 2500, null);
+  if (!reg) {
+    // Solo registrar si PWA aún no lo hizo (dev / race de arranque)
     try {
-      reg = await navigator.serviceWorker.ready;
-      if (reg?.active) break;
+      reg = await withTimeout(
+        navigator.serviceWorker.register('/sw.js', { scope: '/' }),
+        4000,
+        null
+      );
     } catch {
-      /* retry */
+      return null;
     }
-    await new Promise((r) => setTimeout(r, 250));
   }
 
-  for (let i = 0; i < 20; i += 1) {
-    if (navigator.serviceWorker.controller) break;
-    await new Promise((r) => setTimeout(r, 250));
-  }
-
-  return reg;
+  const ready = await withTimeout(navigator.serviceWorker.ready, 5000, null);
+  if (ready?.active) return ready;
+  if (reg?.active) return reg;
+  return reg || null;
 }
 
 /**
@@ -144,8 +152,9 @@ async function softResetPushSubscription() {
 export async function getExistingPushSubscription() {
   if (!hasWebPushSupport()) return null;
   try {
-    const reg = await navigator.serviceWorker.ready;
-    return (await reg.pushManager.getSubscription()) || null;
+    const reg = await withTimeout(navigator.serviceWorker.ready, 4000, null);
+    if (!reg?.pushManager) return null;
+    return (await withTimeout(reg.pushManager.getSubscription(), 3000, null)) || null;
   } catch {
     return null;
   }
@@ -159,7 +168,7 @@ export async function setDriverAppBadge(count) {
       else if (navigator.clearAppBadge) await navigator.clearAppBadge();
     }
     if (n <= 0 && 'serviceWorker' in navigator) {
-      const reg = await navigator.serviceWorker.ready.catch(() => null);
+      const reg = await withTimeout(navigator.serviceWorker.ready, 3000, null);
       reg?.active?.postMessage({ type: 'DRIVER_CLEAR_BADGE' });
     }
   } catch {

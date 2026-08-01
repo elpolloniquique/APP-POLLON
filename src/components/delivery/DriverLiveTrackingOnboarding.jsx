@@ -78,13 +78,22 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
       onReadyChange?.(true);
       return undefined;
     }
-    refresh();
+    let cancelled = false;
+    const run = async () => {
+      const s = await refresh();
+      if (cancelled) return;
+      if (!s) return;
+    };
+    run();
     const onVis = () => {
-      if (document.visibilityState === 'visible') refresh();
+      if (document.visibilityState === 'visible' && !cancelled) refresh();
     };
     document.addEventListener('visibilitychange', onVis);
-    const unsub = subscribeDeferredInstallPrompt((p) => setCanNativeInstall(Boolean(p)));
+    const unsub = subscribeDeferredInstallPrompt((p) => {
+      if (!cancelled) setCanNativeInstall(Boolean(p));
+    });
     return () => {
+      cancelled = true;
       document.removeEventListener('visibilitychange', onVis);
       unsub();
     };
@@ -203,7 +212,7 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
 
   if (!state) {
     return (
-      <div className="flex min-h-[70dvh] items-center justify-center bg-[#1a1210] px-6 text-white">
+      <div className="fixed inset-0 z-[80] flex min-h-[100dvh] items-center justify-center bg-[#1a1210] px-6 text-white">
         <p className="text-sm text-white/70">Verificando cuenta de repartidor…</p>
       </div>
     );

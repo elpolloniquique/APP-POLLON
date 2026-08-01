@@ -8,9 +8,14 @@ if (import.meta.env.PROD) {
   registerSW({
     immediate: true,
     onRegisteredSW(_swUrl, registration) {
-      if (registration) {
-        setInterval(() => registration.update(), 60 * 60 * 1000);
-      }
+      if (!registration) return;
+      // Actualizar en background; no forzar claim agresivo en cada carga
+      setInterval(() => {
+        registration.update().catch(() => {});
+      }, 60 * 60 * 1000);
+    },
+    onOfflineReady() {
+      /* PWA lista */
     },
   });
 }

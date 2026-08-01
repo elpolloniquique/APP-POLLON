@@ -84,15 +84,19 @@ export function AuthProvider({ children }) {
     const sb = getSupabase();
     if (!sb) return undefined;
 
-    const { data: { subscription } } = sb.auth.onAuthStateChange((_event, s) => {
-      setSession(s);
-      if (s?.user) {
-        setTimeout(() => {
-          refreshProfile(s.user).catch((err) => console.warn('[Pollón] auth state profile:', err));
-        }, 0);
-      } else if (!getLegacySession() && !getCustomerLocal()) {
-        setProfile(null);
+    const { data: { subscription } } = sb.auth.onAuthStateChange((event, s) => {
+      // No tumbar sesión por eventos nulos transitorios al recargar (evita redirect / blanco)
+      if (!s?.user) {
+        if (event === 'SIGNED_OUT' && !getLegacySession() && !getCustomerLocal()) {
+          setSession(null);
+          setProfile(null);
+        }
+        return;
       }
+      setSession(s);
+      setTimeout(() => {
+        refreshProfile(s.user).catch((err) => console.warn('[Pollón] auth state profile:', err));
+      }, 0);
     });
     return () => subscription.unsubscribe();
   }, [refreshProfile]);
@@ -136,6 +140,7 @@ export function AuthProvider({ children }) {
   const requestPasswordReset = (email) => resetPassword(email);
 
   const role = normalizeRole(profile?.rol || profile?.role);
+  const user = session?.user || null;
   const isStaff = session && (session.legacy && !session.customer) ? isStaffRole(role) : (profile ? isStaffRole(role) : false);
   const isCustomer = profile ? isCustomerRole(role) : (session?.customer === true);
   const isAuthenticated = !!session;
@@ -149,6 +154,7 @@ export function AuthProvider({ children }) {
     <AuthContext.Provider
       value={{
         session,
+        user,
         profile,
         loading,
         signIn,

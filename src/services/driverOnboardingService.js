@@ -100,7 +100,12 @@ export async function evaluateDriverLiveTrackingReady(userId) {
 
   let hasPushSub = false;
   if (notif === 'granted' && hasWebPushSupport()) {
-    hasPushSub = Boolean(await getExistingPushSubscription());
+    try {
+      // Nunca bloquear el panel si serviceWorker.ready se cuelga
+      hasPushSub = Boolean(await getExistingPushSubscription());
+    } catch {
+      hasPushSub = false;
+    }
   }
 
   let location = { ok: false, alwaysOk: false, locationOk: false };

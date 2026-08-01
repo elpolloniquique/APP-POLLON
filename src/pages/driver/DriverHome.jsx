@@ -31,7 +31,6 @@ import { playDriverOrderAlarm, unlockDriverAudio } from '../../utils/orderAlertS
 import { getSupabase, isSupabaseConfigured } from '../../services/supabaseClient';
 import { useAuth } from '../../context/AuthContext';
 import { setDriverAppBadge, clearDriverAppBadge } from '../../services/pushService';
-import { useOutletContext } from 'react-router-dom';
 
 function offerAlarmKey(o) {
   return `${o.id}|${o.expires_at || ''}`;
@@ -40,7 +39,6 @@ function offerAlarmKey(o) {
 export function DriverHome() {
   const { user, profile } = useAuth();
   const userId = user?.id || profile?.id;
-  const outlet = useOutletContext() || {};
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -165,8 +163,15 @@ export function DriverHome() {
 
   useEffect(() => {
     if (!userId) return undefined;
-    evaluateDriverLiveTrackingReady(userId).then((s) => setPermsReady(s.ready));
-    return undefined;
+    let cancelled = false;
+    evaluateDriverLiveTrackingReady(userId)
+      .then((s) => {
+        if (!cancelled) setPermsReady(Boolean(s?.ready));
+      })
+      .catch(() => {
+        if (!cancelled) setPermsReady(false);
+      });
+    return () => { cancelled = true; };
   }, [userId]);
 
 
@@ -196,10 +201,9 @@ export function DriverHome() {
     const n = offers.length;
     if (n > 0) void setDriverAppBadge(n);
     else void clearDriverAppBadge();
-    outlet.refreshBadge?.();
 
     return undefined;
-  }, [summary?.pendingOffers, playOfferAlarmOnce, outlet.refreshBadge]);
+  }, [summary?.pendingOffers, playOfferAlarmOnce]);
 
   const clearGps = useCallback(async () => {
     stopGpsFnRef.current?.();
