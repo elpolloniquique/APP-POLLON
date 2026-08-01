@@ -162,14 +162,84 @@ export async function createJobFromLocalOrder(order) {
   return upsertJobFromOrder(order.id);
 }
 
-export function subscribeDispatch(callback) {
-  if (!isSupabaseConfigured()) return () => {};
+/** Un solo canal Realtime compartido (evita “Cannot add postgres_changes callbacks after subscribe”). */
+let dispatchChannel = null;
+const dispatchListeners = new Set();
+
+function notifyDispatchListeners(payload) {
+  dispatchListeners.forEach((cb) => {
+    try {
+      cb(payload);
+    } catch (err) {
+      console.warn('[Pollón] dispatch listener:', err);
+    }
+  });
+}
+
+function ensureDispatchChannel() {
+  if (dispatchChannel) return dispatchChannel;
   const sb = getSupabase();
-  const channel = sb
+  if (!sb) return null;
+
+  // Si quedó un canal huérfano con el mismo topic, quitarlo antes de recrear
+  try {
+    const existing = sb.getChannels?.() || [];
+    existing.forEach((ch) => {
+      if (ch?.topic === 'realtime:ep-dispatch-live' || ch?.topic === 'ep-dispatch-live') {
+        sb.removeChannel(ch);
+      }
+    });
+  } catch {
+    /* ignore */
+  }
+
+  const fanOut = (payload) => notifyDispatchListeners(payload);
+
+  dispatchChannel = sb
     .channel('ep-dispatch-live')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'ep_delivery_jobs' }, callback)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'ep_delivery_offers' }, callback)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'ep_driver_location_latest' }, callback)
-    .subscribe();
-  return () => sb.removeChannel(channel);
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'ep_delivery_jobs' }, fanOut)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'ep_delivery_offers' }, fanOut)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'ep_driver_location_latest' }, fanOut)
+    .subscribe((status) => {
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        console.warn('[Pollón] dispatch realtime:', status);
+        try {
+          if (dispatchChannel) sb.removeChannel(dispatchChannel);
+        } catch {
+          /* ignore */
+        }
+        dispatchChannel = null;
+      }
+    });
+
+  return dispatchChannel;
+}
+
+/**
+ * Suscripción multiplexada al despacho en vivo.
+ * Varios componentes pueden llamar esto a la vez sin romper Realtime.
+ */
+export function subscribeDispatch(callback) {
+  if (!callback) return () => {};
+  if (!isSupabaseConfigured()) return () => {};
+
+  dispatchListeners.add(callback);
+  try {
+    ensureDispatchChannel();
+  } catch (err) {
+    console.warn('[Pollón] subscribeDispatch:', err?.message || err);
+  }
+
+  return () => {
+    dispatchListeners.delete(callback);
+    if (dispatchListeners.size === 0 && dispatchChannel) {
+      try {
+        const sb = getSupabase();
+        if (sb) sb.removeChannel(dispatchChannel);
+      } catch {
+        /* ignore */
+      }
+      dispatchChannel = null;
+    }
+  };
 }
