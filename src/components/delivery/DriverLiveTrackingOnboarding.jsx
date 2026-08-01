@@ -107,8 +107,19 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
     setMsg('');
     try {
       await unlockDriverAudio();
-      await ensureDriverPushSubscription();
-      setMsg('Notificaciones listas.');
+      const res = await ensureDriverPushSubscription();
+      if (res?.reloading) {
+        setMsg('Reiniciando notificaciones…');
+        return;
+      }
+      if (res?.deferred) {
+        setMsg(
+          res.warn
+          || 'Permiso OK. Si no llegan a la bandeja, borra datos de el-pollon.cl en Chrome y reabre desde el ícono.'
+        );
+      } else {
+        setMsg('Notificaciones listas. Te llegarán a la bandeja aunque la pantalla esté apagada.');
+      }
       await refresh();
     } catch (err) {
       setMsg(err.message || 'No se pudieron activar las notificaciones');
@@ -215,9 +226,13 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
       ok: state.notifOk,
       icon: Bell,
       title: 'Notificaciones (bandeja)',
-      body: 'Como WhatsApp: llegan a la bandeja aunque la app esté cerrada o la pantalla apagada.',
+      body: state.pushDeferred
+        ? 'Permiso concedido. El registro con Google se reintentará solo; si no llegan, borra datos del sitio y vuelve a activar.'
+        : state.hasPushSub
+          ? 'Push activo: te llegarán a la bandeja aunque la app esté cerrada o la pantalla apagada.'
+          : 'Como WhatsApp: llegan a la bandeja aunque la app esté cerrada o la pantalla apagada.',
       action: runNotif,
-      actionLabel: 'Activar notificaciones',
+      actionLabel: state.notifOk && !state.hasPushSub ? 'Reintentar push' : 'Activar notificaciones',
       disabled: state.needsInstall,
     },
     {

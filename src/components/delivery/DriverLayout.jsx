@@ -7,7 +7,12 @@ import { APP_BUILD_ID } from '../../utils/buildStamp';
 import { DriverLiveTrackingOnboarding } from './DriverLiveTrackingOnboarding';
 import { getMyDriverSummary, ensureMyDriverProfile } from '../../services/driverService';
 import { subscribeDispatch } from '../../services/dispatchService';
-import { setDriverAppBadge, clearDriverAppBadge, ensureDriverPushSubscription } from '../../services/pushService';
+import {
+  setDriverAppBadge,
+  clearDriverAppBadge,
+  ensureDriverPushSubscription,
+  retryDriverPushInBackground,
+} from '../../services/pushService';
 
 const TABS = [
   { to: '/repartidor', end: true, icon: Bike, label: 'Pedidos', badgeKey: 'offers' },
@@ -63,6 +68,11 @@ export function DriverLayout() {
   }, [refreshBadge]);
 
   useEffect(() => {
+    // Tras recarga por “Push service error”, reintenta suscripción aunque el onboarding siga abierto
+    retryDriverPushInBackground().catch(() => {});
+  }, []);
+
+  useEffect(() => {
     if (!trackingReady) return undefined;
     refreshBadge();
     ensureDriverPushSubscription().catch(() => {});
@@ -71,12 +81,19 @@ export function DriverLayout() {
     const onMsg = (event) => {
       if (event.data?.type === 'DRIVER_NEW_OFFER') refreshBadge();
     };
+    const onVis = () => {
+      if (document.visibilityState === 'visible') {
+        retryDriverPushInBackground().catch(() => {});
+      }
+    };
+    document.addEventListener('visibilitychange', onVis);
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.addEventListener('message', onMsg);
     }
     return () => {
       unsub();
       clearInterval(t);
+      document.removeEventListener('visibilitychange', onVis);
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.removeEventListener('message', onMsg);
       }

@@ -88,10 +88,19 @@ export async function evaluateDriverLiveTrackingReady(userId) {
       /* ignore */
     }
   }
-  // PWA: exigir suscripción real para bandeja (tipo WhatsApp)
-  if (notifOk && hasWebPushSupport()) {
-    const sub = await getExistingPushSubscription();
-    notifOk = Boolean(sub);
+  // Si el permiso del sistema está OK, el paso de notificaciones cuenta
+  // (aunque Google Push falle temporalmente: se reintenta en background).
+  let pushDeferred = false;
+  try {
+    pushDeferred = localStorage.getItem('pollon_push_deferred_ok') === '1';
+  } catch {
+    /* ignore */
+  }
+  if (!notifOk && pushDeferred) notifOk = true;
+
+  let hasPushSub = false;
+  if (notif === 'granted' && hasWebPushSupport()) {
+    hasPushSub = Boolean(await getExistingPushSubscription());
   }
 
   let location = { ok: false, alwaysOk: false, locationOk: false };
@@ -125,6 +134,8 @@ export async function evaluateDriverLiveTrackingReady(userId) {
     mustNative: false,
     installed,
     notifOk,
+    hasPushSub,
+    pushDeferred: Boolean(pushDeferred && !hasPushSub),
     notifState: notif,
     gpsOk,
     locationOk: Boolean(location.locationOk),
