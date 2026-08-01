@@ -20,6 +20,13 @@ import {
   getNotificationPermission,
   requestGpsFix,
 } from '../../services/pushService';
+import {
+  startDriverBackgroundGps,
+  stopDriverBackgroundGps,
+  isNativeDriverApp,
+  requestAlwaysLocationPermission,
+  openNativeLocationSettings,
+} from '../../services/backgroundGpsService';
 import { playDriverOrderAlarm, unlockDriverAudio } from '../../utils/orderAlertSound';
 import { getSupabase, isSupabaseConfigured } from '../../services/supabaseClient';
 
@@ -34,7 +41,6 @@ export function DriverHome() {
   const [gpsOn, setGpsOn] = useState(false);
   const [gpsPos, setGpsPos] = useState(null);
   const [error, setError] = useState('');
-  const [stopGps, setStopGps] = useState(null);
   const [branch, setBranch] = useState(null);
   const [permsReady, setPermsReady] = useState(false);
 
@@ -44,6 +50,9 @@ export function DriverHome() {
   const stopAlarmRef = useRef(null);
   const loadTimerRef = useRef(null);
   const loadingRef = useRef(false);
+  /** null | 'idle' | 'active' — evita reiniciar GPS en cada poll */
+  const gpsModeRef = useRef(null);
+  const stopGpsFnRef = useRef(null);
 
   const playOfferAlarmOnce = useCallback((keys) => {
     const fresh = keys.filter((k) => k && !alarmedKeysRef.current.has(k));
@@ -143,9 +152,10 @@ export function DriverHome() {
   }, [scheduleLoad]);
 
   useEffect(() => () => {
-    stopGps?.();
+    stopGpsFnRef.current?.();
+    void stopDriverBackgroundGps();
     stopAlarmRef.current?.();
-  }, [stopGps]);
+  }, []);
 
   useEffect(() => {
     if (getNotificationPermission() === 'granted') {
@@ -179,20 +189,26 @@ export function DriverHome() {
     return undefined;
   }, [summary?.pendingOffers, playOfferAlarmOnce]);
 
+  const clearGps = useCallback(async () => {
+    stopGpsFnRef.current?.();
+    stopGpsFnRef.current = null;
+    await stopDriverBackgroundGps();
+    setGpsOn(false);
+    setGpsPos(null);
+    publishRef.current = false;
+    gpsModeRef.current = null;
+  }, []);
+
   const goOffline = useCallback(async (reason) => {
     try {
       await setMyOperationalStatus('offline');
     } catch {
       /* ignore */
     }
-    stopGps?.();
-    setStopGps(null);
-    setGpsOn(false);
-    setGpsPos(null);
-    publishRef.current = false;
+    await clearGps();
     if (reason) setError(reason);
     await load();
-  }, [load, stopGps]);
+  }, [load, clearGps]);
 
   useEffect(() => {
     const onlineStatuses = ['available', 'heading_to_branch', 'delivering', 'carrying_orders', 'offered'];
@@ -220,24 +236,92 @@ export function DriverHome() {
     return () => clearInterval(t);
   }, [summary?.driver?.operational_status, goOffline]);
 
-  const startGps = (publish) => {
+  const startGps = useCallback(async (publish) => {
     publishRef.current = !!publish;
-    stopGps?.();
+    stopGpsFnRef.current?.();
+    stopGpsFnRef.current = null;
+    await stopDriverBackgroundGps();
+
+    // Pedidos activos en app nativa → GPS segundo plano (pantalla apagada)
+    if (publish && isNativeDriverApp()) {
+      const res = await startDriverBackgroundGps({
+        onUpdate: (pos, err) => {
+          if (pos) setGpsPos(pos);
+          if (err) setError(err.message || 'Error GPS');
+        },
+      });
+      if (!res.ok) {
+        setError(res.error || 'No se pudo activar GPS en segundo plano');
+        if (res.canOpenSettings) {
+          setError(
+            `${res.error || 'GPS en segundo plano'} Abre ajustes y elige “Permitir todo el tiempo”.`
+          );
+        }
+        const stop = startGpsWatch(
+          (pos, err) => {
+            if (pos) setGpsPos(pos);
+            if (err) setError(err.message || 'Error GPS');
+          },
+          { publishRef, intervalMs: 5000 }
+        );
+        stopGpsFnRef.current = stop;
+        setGpsOn(true);
+        gpsModeRef.current = 'active';
+        return res;
+      }
+      if (res.needsSettings) {
+        setError(
+          'GPS activo. Para no perderte con pantalla apagada: Ajustes → Ubicación → Permitir todo el tiempo.'
+        );
+      }
+      const stopNative = () => { void stopDriverBackgroundGps(); };
+      stopGpsFnRef.current = stopNative;
+      setGpsOn(true);
+      gpsModeRef.current = 'active';
+      return res;
+    }
+
     const stop = startGpsWatch(
       (pos, err) => {
         if (pos) setGpsPos(pos);
         if (err) {
           setError(err.message || 'Error GPS');
           if (err?.code === 1) {
-            goOffline('Permiso de ubicación denegado. Activa el GPS para trabajar.');
+            void goOffline('Permiso de ubicación denegado. Activa el GPS para trabajar.');
           }
         }
       },
       { publishRef, intervalMs: 5000 }
     );
-    setStopGps(() => stop);
+    stopGpsFnRef.current = stop;
     setGpsOn(true);
-  };
+    gpsModeRef.current = publish ? 'active' : 'idle';
+    return { ok: true, mode: 'web' };
+  }, [goOffline]);
+
+  // Activos → background; sin activos (pero en línea) → GPS liviano sin publicar
+  useEffect(() => {
+    const activesCount = summary?.activeAssignments?.length ?? 0;
+    const onlineStatuses = ['available', 'heading_to_branch', 'delivering', 'carrying_orders', 'offered'];
+    const isOnlineNow = onlineStatuses.includes(summary?.driver?.operational_status);
+
+    if (!isOnlineNow) {
+      if (gpsModeRef.current) void clearGps();
+      return undefined;
+    }
+
+    if (activesCount > 0) {
+      if (gpsModeRef.current !== 'active') void startGps(true);
+    } else if (gpsModeRef.current !== 'idle') {
+      void startGps(false);
+    }
+    return undefined;
+  }, [
+    summary?.activeAssignments?.length,
+    summary?.driver?.operational_status,
+    startGps,
+    clearGps,
+  ]);
 
   const toggleOnline = async () => {
     const currentlyOnline = ['available', 'heading_to_branch', 'delivering', 'carrying_orders', 'offered'].includes(
@@ -256,20 +340,21 @@ export function DriverHome() {
           throw new Error('Debes permitir las notificaciones del sistema.');
         }
         await ensureDriverPushSubscription();
-        const gps = await requestGpsFix();
-        if (!gps.ok) throw new Error(gps.error || 'GPS obligatorio');
+        if (isNativeDriverApp()) {
+          const gps = await requestAlwaysLocationPermission();
+          if (!gps.ok) throw new Error(gps.error || 'GPS obligatorio');
+        } else {
+          const gps = await requestGpsFix();
+          if (!gps.ok) throw new Error(gps.error || 'GPS obligatorio');
+        }
       }
 
       await setMyOperationalStatus(next);
       if (next === 'available') {
         const hasActive = (summary?.activeAssignments || []).length > 0;
-        startGps(hasActive);
+        await startGps(hasActive);
       } else {
-        stopGps?.();
-        setStopGps(null);
-        setGpsOn(false);
-        setGpsPos(null);
-        publishRef.current = false;
+        await clearGps();
       }
       await load();
     } catch (err) {
@@ -284,10 +369,18 @@ export function DriverHome() {
     try {
       stopAlarmRef.current?.();
       stopAlarmRef.current = null;
+      // Al primer accept: pedir “Siempre” y arrancar background
+      if (isNativeDriverApp()) {
+        const perm = await requestAlwaysLocationPermission();
+        if (perm.needsSettings) {
+          setError(
+            'Elige ubicación “Permitir todo el tiempo” para que el mapa te vea con la pantalla apagada.'
+          );
+        }
+      }
       await acceptOffer(offer.id);
       publishRef.current = true;
-      if (!gpsOn) startGps(true);
-      else publishRef.current = true;
+      await startGps(true);
       await load();
     } catch (err) {
       const msg = err.message || '';
@@ -331,7 +424,7 @@ export function DriverHome() {
     try {
       await confirmDelivery(assignment.id);
       await load();
-      if ((summary?.activeAssignments || []).length <= 1) publishRef.current = false;
+      // El efecto de actives baja GPS background → idle / stop
     } catch (e) {
       setError(e.message);
     } finally {
@@ -360,7 +453,13 @@ export function DriverHome() {
           <p className="text-xs text-gray-500">Estado</p>
           <p className="text-lg font-bold text-gray-900">{isOnline ? 'En línea' : 'Desconectado'}</p>
           <p className={`text-sm font-semibold ${gpsOn ? 'text-emerald-600' : 'text-gray-400'}`}>
-            GPS: {gpsOn ? (gpsPos ? 'Encendido' : 'Buscando…') : 'Apagado'}
+            GPS: {!gpsOn
+              ? 'Apagado'
+              : !gpsPos
+                ? 'Buscando…'
+                : (actives.length > 0 && isNativeDriverApp()
+                  ? 'Segundo plano · En vivo'
+                  : 'Encendido')}
           </p>
           <p className="mt-0.5 text-sm font-semibold text-pollon-orange">
             Pedidos activos: {actives.length}/{maxOrders}
@@ -380,7 +479,18 @@ export function DriverHome() {
       </div>
 
       {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+        <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <p>{error}</p>
+          {isNativeDriverApp() && /ajustes|siempre|todo el tiempo/i.test(error) && (
+            <button
+              type="button"
+              onClick={() => openNativeLocationSettings()}
+              className="mt-2 text-xs font-bold underline"
+            >
+              Abrir ajustes de ubicación
+            </button>
+          )}
+        </div>
       )}
 
       <div className="space-y-3">

@@ -11,10 +11,15 @@ import {
   isPushConfigured,
   requestGpsFix,
 } from '../../services/pushService';
+import {
+  isNativeDriverApp,
+  requestAlwaysLocationPermission,
+  openNativeLocationSettings,
+} from '../../services/backgroundGpsService';
 import { unlockDriverAudio } from '../../utils/orderAlertSound';
 
 /**
- * Onboarding obligatorio: instalar PWA + notificaciones + GPS.
+ * Onboarding obligatorio: instalar app + notificaciones + GPS (Siempre en nativo).
  * Sin esto el repartidor no puede ponerse Disponible.
  */
 export function DriverPermissionsGate({ onReadyChange }) {
@@ -22,14 +27,14 @@ export function DriverPermissionsGate({ onReadyChange }) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
   const [gpsOk, setGpsOk] = useState(false);
-  const installed = isStandaloneDisplayMode();
+  const native = isNativeDriverApp();
+  const installed = isStandaloneDisplayMode() || native;
   const ios = isIosSafari();
   const android = isAndroidChrome();
 
   const refresh = useCallback(async () => {
     const s = await checkDriverReadyPermissions();
     setStatus(s);
-    // Si el SO ya otorgó GPS, marcar listo sin volver a pedir
     if (s.geoGranted) setGpsOk(true);
     return s;
   }, []);
@@ -38,7 +43,6 @@ export function DriverPermissionsGate({ onReadyChange }) {
     refresh();
   }, [refresh]);
 
-  // Si ya hay permiso de notificaciones pero falta suscripción, intentar en silencio
   useEffect(() => {
     if (status?.notificationsGranted && !status?.hasPushSubscription && isPushConfigured()) {
       ensureDriverPushSubscription()
@@ -73,10 +77,23 @@ export function DriverPermissionsGate({ onReadyChange }) {
     setMsg('');
     try {
       await unlockDriverAudio();
-      const res = await requestGpsFix();
-      if (!res.ok) throw new Error(res.error || 'GPS denegado');
-      setGpsOk(true);
-      setMsg('GPS activado correctamente.');
+      if (native) {
+        const res = await requestAlwaysLocationPermission();
+        if (!res.ok) throw new Error(res.error || 'GPS denegado');
+        setGpsOk(true);
+        if (res.needsSettings) {
+          setMsg(
+            'GPS activado. Para que el local te vea con la pantalla apagada, en Ajustes elige ubicación “Siempre” / “Permitir todo el tiempo”.'
+          );
+        } else {
+          setMsg('GPS “Siempre” listo. Al aceptar un pedido se rastrea aunque salgas de la app.');
+        }
+      } else {
+        const res = await requestGpsFix();
+        if (!res.ok) throw new Error(res.error || 'GPS denegado');
+        setGpsOk(true);
+        setMsg('GPS activado. Para seguimiento con pantalla apagada usa la app Android de El Pollón.');
+      }
       await refresh();
     } catch (err) {
       setGpsOk(false);
@@ -87,8 +104,8 @@ export function DriverPermissionsGate({ onReadyChange }) {
   };
 
   const notifOk = status?.notificationsGranted && (status?.hasPushSubscription || !status?.pushConfigured);
-  const installOk = installed || (!ios && !android);
-  const mustInstall = (ios || android) && !installed;
+  const installOk = installed || (!ios && !android) || native;
+  const mustInstall = !native && (ios || android) && !installed;
   const allReady = Boolean(notifOk && gpsOk && !mustInstall);
 
   useEffect(() => {
@@ -101,7 +118,11 @@ export function DriverPermissionsGate({ onReadyChange }) {
         <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
         <div>
           <p className="font-bold">Listo para trabajar</p>
-          <p className="text-xs opacity-90">Notificaciones y GPS activos. Ya puedes pulsar Disponible.</p>
+          <p className="text-xs opacity-90">
+            {native
+              ? 'Notificaciones y GPS listos. Al aceptar un pedido se activa el rastreo en segundo plano.'
+              : 'Notificaciones y GPS activos. Ya puedes pulsar Disponible.'}
+          </p>
         </div>
       </div>
     );
@@ -117,14 +138,15 @@ export function DriverPermissionsGate({ onReadyChange }) {
       </div>
 
       <ol className="space-y-3 px-3.5 py-3.5">
-        {/* Paso 1 — Instalar */}
         <li className="flex gap-3">
           <span className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${installOk ? 'bg-emerald-500 text-white' : 'bg-pollon-red text-white'}`}>
             <Smartphone className="h-4 w-4" />
           </span>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-bold text-gray-900">1. Instalar la app</p>
-            {installed ? (
+            {native ? (
+              <p className="text-xs text-emerald-700">App nativa El Pollón ✓</p>
+            ) : installed ? (
               <p className="text-xs text-emerald-700">App instalada ✓</p>
             ) : ios ? (
               <p className="mt-1 text-xs leading-relaxed text-gray-600">
@@ -133,7 +155,7 @@ export function DriverPermissionsGate({ onReadyChange }) {
               </p>
             ) : android ? (
               <p className="mt-1 text-xs leading-relaxed text-gray-600">
-                En Android: menú ⋮ del navegador → <strong>Instalar app</strong> / Agregar a inicio. Ábrela desde el ícono.
+                En Android: instala la <strong>APK de El Pollón</strong> (GPS con pantalla apagada) o menú ⋮ → Instalar app.
               </p>
             ) : (
               <p className="mt-1 text-xs text-gray-600">En PC puedes continuar; en el celular del repartidor sí debes instalarla.</p>
@@ -141,7 +163,6 @@ export function DriverPermissionsGate({ onReadyChange }) {
           </div>
         </li>
 
-        {/* Paso 2 — Notificaciones */}
         <li className="flex gap-3">
           <span className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${notifOk ? 'bg-emerald-500 text-white' : 'bg-pollon-red text-white'}`}>
             <Bell className="h-4 w-4" />
@@ -165,15 +186,18 @@ export function DriverPermissionsGate({ onReadyChange }) {
           </div>
         </li>
 
-        {/* Paso 3 — GPS */}
         <li className="flex gap-3">
           <span className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${gpsOk ? 'bg-emerald-500 text-white' : 'bg-pollon-red text-white'}`}>
             <MapPin className="h-4 w-4" />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold text-gray-900">3. GPS / ubicación en vivo</p>
+            <p className="text-sm font-bold text-gray-900">
+              3. GPS {native ? '“Siempre” / segundo plano' : '/ ubicación en vivo'}
+            </p>
             <p className="mt-0.5 text-xs text-gray-600">
-              Obligatoria para que el local vea tu ubicación al llevar pedidos.
+              {native
+                ? 'Elige “Permitir todo el tiempo” o “Siempre” para que el local te vea hasta Entregado, aunque salgas de la app.'
+                : 'Obligatoria para que el local vea tu ubicación al llevar pedidos.'}
             </p>
             {!gpsOk && (
               <button
@@ -182,16 +206,30 @@ export function DriverPermissionsGate({ onReadyChange }) {
                 onClick={enableGps}
                 className="mt-2 rounded-xl bg-pollon-red px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
               >
-                Activar GPS
+                {native ? 'Activar GPS Siempre' : 'Activar GPS'}
               </button>
             )}
             {gpsOk && <p className="mt-1 text-xs font-semibold text-emerald-700">GPS listo ✓</p>}
+            {native && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => openNativeLocationSettings()}
+                className="mt-2 block text-xs font-semibold text-pollon-red underline"
+              >
+                Abrir ajustes de ubicación
+              </button>
+            )}
           </div>
         </li>
       </ol>
 
       {msg && (
-        <div className={`mx-3.5 mb-3.5 flex items-start gap-2 rounded-xl px-3 py-2 text-xs ${msg.includes('correctamente') || msg.includes('activadas') ? 'bg-emerald-50 text-emerald-800' : 'bg-red-50 text-red-700'}`}>
+        <div className={`mx-3.5 mb-3.5 flex items-start gap-2 rounded-xl px-3 py-2 text-xs ${
+          msg.includes('listo') || msg.includes('activadas') || msg.includes('activado')
+            ? 'bg-emerald-50 text-emerald-800'
+            : 'bg-red-50 text-red-700'
+        }`}>
           <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <span>{msg}</span>
         </div>

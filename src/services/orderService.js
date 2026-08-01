@@ -298,16 +298,28 @@ export async function initOrders(onSync) {
 
 async function insertDetalle(sb, pedidoId, items) {
   if (!items?.length) return;
-  const rows = items.map((it) => ({
-    pedido_id: pedidoId,
-    // producto_id apunta a tabla legacy "productos"; menú multi-sucursal usa "products"
-    producto_id: null,
-    nombre_producto: it.name || 'Producto',
-    cantidad: it.qty || 1,
-    precio_unitario: Math.round((it.total || 0) / (it.qty || 1)),
-    subtotal: it.total || 0,
-    extras: { drink: it.drink, bagQty: it.bagQty, notes: it.notes, productId: it.id || it.producto_id },
-  }));
+  const rows = items.map((it) => {
+    const drinks = Array.isArray(it.drinks)
+      ? it.drinks.filter(Boolean)
+      : (it.drink
+        ? String(it.drink).split(' · ').map((s) => s.replace(/^#\d+:\s*/, '').trim()).filter(Boolean)
+        : []);
+    return {
+      pedido_id: pedidoId,
+      producto_id: null,
+      nombre_producto: it.name || 'Producto',
+      cantidad: it.qty || 1,
+      precio_unitario: Math.round((it.total || 0) / (it.qty || 1)),
+      subtotal: it.total || 0,
+      extras: {
+        drink: it.drink || drinks.join(' · ') || null,
+        drinks,
+        bagQty: it.bagQty || 0,
+        notes: it.notes || '',
+        productId: it.id || it.producto_id || null,
+      },
+    };
+  });
   const { error } = await sb.from('detalle_pedidos').insert(rows);
   if (error) console.warn('[Pollón] detalle_pedidos:', error.message);
 }

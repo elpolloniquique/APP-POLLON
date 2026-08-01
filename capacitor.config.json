@@ -1,0 +1,17 @@
+{
+  "appId": "cl.elpollon.app",
+  "appName": "El Pollón",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": true,
+    "useLegacyBridge": true
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}
