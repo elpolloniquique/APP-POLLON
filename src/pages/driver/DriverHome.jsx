@@ -199,7 +199,7 @@ export function DriverHome() {
     outlet.refreshBadge?.();
 
     return undefined;
-  }, [summary?.pendingOffers, playOfferAlarmOnce, outlet]);
+  }, [summary?.pendingOffers, playOfferAlarmOnce, outlet.refreshBadge]);
 
   const clearGps = useCallback(async () => {
     stopGpsFnRef.current?.();

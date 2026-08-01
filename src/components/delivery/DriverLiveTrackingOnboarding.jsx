@@ -49,13 +49,28 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
   const [canNativeInstall, setCanNativeInstall] = useState(Boolean(getDeferredInstallPrompt()));
 
   const refresh = useCallback(async () => {
-    const s = await evaluateDriverLiveTrackingReady(userId);
-    setState(s);
-    onReadyChange?.(s.ready);
-    if (s.ready) {
-      markDriverOnboardingComplete(userId, { alwaysOk: s.alwaysOk });
+    try {
+      const s = await evaluateDriverLiveTrackingReady(userId);
+      setState(s);
+      onReadyChange?.(s.ready);
+      if (s.ready) {
+        markDriverOnboardingComplete(userId, { alwaysOk: s.alwaysOk });
+      }
+      return s;
+    } catch (err) {
+      console.warn('[Pollón] onboarding evaluate:', err);
+      setState((prev) => prev || {
+        ready: false,
+        installed: false,
+        needsInstall: false,
+        notifOk: false,
+        gpsOk: false,
+        hasPushSub: false,
+        pushDeferred: false,
+      });
+      onReadyChange?.(false);
+      return null;
     }
-    return s;
   }, [userId, onReadyChange]);
 
   useEffect(() => {
@@ -108,14 +123,10 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
     try {
       await unlockDriverAudio();
       const res = await ensureDriverPushSubscription();
-      if (res?.reloading) {
-        setMsg('Reiniciando notificaciones…');
-        return;
-      }
       if (res?.deferred) {
         setMsg(
           res.warn
-          || 'Permiso OK. Si no llegan a la bandeja, borra datos de el-pollon.cl en Chrome y reabre desde el ícono.'
+          || 'Permiso OK. Puedes seguir con la ubicación; el push se reintentará solo.'
         );
       } else {
         setMsg('Notificaciones listas. Te llegarán a la bandeja aunque la pantalla esté apagada.');

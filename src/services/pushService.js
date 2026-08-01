@@ -6,7 +6,6 @@ const VAPID_PUBLIC = (import.meta.env.VITE_VAPID_PUBLIC_KEY || '').trim();
 const NATIVE_NOTIF_FLAG = 'pollon_native_notif_ok';
 const PUSH_OK_FLAG = 'pollon_push_subscribed_ok';
 const PUSH_DEFERRED_FLAG = 'pollon_push_deferred_ok';
-const PUSH_RELOAD_FLAG = 'pollon_push_reload_once';
 
 export function isPushConfigured() {
   return hasWebPushSupport();
@@ -122,7 +121,11 @@ async function ensureServiceWorkerRegistration() {
   return reg;
 }
 
-async function hardResetServiceWorkers() {
+/**
+ * Recuperación SUAVE del push.
+ * NUNCA borrar caches ni unregister del SW: eso deja la PWA en pantalla blanca.
+ */
+async function softResetPushSubscription() {
   try {
     const regs = await navigator.serviceWorker.getRegistrations();
     for (const reg of regs) {
@@ -132,15 +135,6 @@ async function hardResetServiceWorkers() {
       } catch {
         /* ignore */
       }
-      await reg.unregister().catch(() => false);
-    }
-  } catch {
-    /* ignore */
-  }
-  try {
-    if (window.caches?.keys) {
-      const keys = await caches.keys();
-      await Promise.all(keys.map((k) => caches.delete(k).catch(() => false)));
     }
   } catch {
     /* ignore */
@@ -254,7 +248,6 @@ function markPushOk() {
   try {
     localStorage.setItem(PUSH_OK_FLAG, '1');
     localStorage.removeItem(PUSH_DEFERRED_FLAG);
-    sessionStorage.removeItem(PUSH_RELOAD_FLAG);
   } catch {
     /* ignore */
   }
@@ -271,8 +264,8 @@ function isPushInfraError(err) {
 
 /**
  * Pide permiso + intenta Web Push (bandeja tipo WhatsApp).
- * Si Google/FCM falla: resetea SW, recarga UNA vez, y si sigue fallando
- * NO bloquea el onboarding (deferred) — reintenta al conectarse.
+ * Si Google/FCM falla: reintento suave (sin borrar caché) y deferred.
+ * Nunca recarga ni borra SW/caches: eso dejaba la pantalla en blanco.
  */
 export async function ensureDriverPushSubscription() {
   if (!isSupabaseConfigured() && !isNativeDriverApp()) {
@@ -335,48 +328,28 @@ export async function ensureDriverPushSubscription() {
   } catch (err1) {
     console.warn('[Pollón] push subscribe attempt 1:', err1);
     if (!isPushInfraError(err1)) {
-      // Error de guardado / perfil: reintentar una vez sin reset
       try {
         return await tryOnce();
       } catch (errSave) {
         console.warn('[Pollón] push save retry failed:', errSave);
-        throw errSave;
+        // Permiso ya OK: no tumbar la UI por un fallo de guardado
+        markDeferred();
+        return {
+          ok: true,
+          deferred: true,
+          warn: errSave?.message || 'No se pudo guardar la suscripción. Se reintentará al conectarte.',
+        };
       }
     }
   }
 
-  // Recuperación: reset SW/caches. Si aún no recargamos en esta sesión → reload.
-  let alreadyReloaded = false;
+  // Reintento suave: solo desuscribe push, NO toca caches ni SW
   try {
-    alreadyReloaded = sessionStorage.getItem(PUSH_RELOAD_FLAG) === '1';
-  } catch {
-    /* ignore */
-  }
-
-  try {
-    await hardResetServiceWorkers();
-    await new Promise((r) => setTimeout(r, 600));
-  } catch {
-    /* ignore */
-  }
-
-  if (!alreadyReloaded) {
-    try {
-      sessionStorage.setItem(PUSH_RELOAD_FLAG, '1');
-    } catch {
-      /* ignore */
-    }
-    // Recarga limpia: Chrome suele arreglar “Push service error” tras unregister
-    setTimeout(() => {
-      window.location.reload();
-    }, 120);
-    return { ok: true, reloading: true };
-  }
-
-  try {
+    await softResetPushSubscription();
+    await new Promise((r) => setTimeout(r, 400));
     return await tryOnce();
   } catch (err2) {
-    console.warn('[Pollón] push subscribe after reload failed:', err2);
+    console.warn('[Pollón] push soft-retry failed:', err2);
   }
 
   markDeferred();
@@ -384,9 +357,8 @@ export async function ensureDriverPushSubscription() {
     ok: true,
     deferred: true,
     warn:
-      'Permiso de notificaciones OK. Google Push falló en este intento; '
-      + 'se reintentará al conectarte. Si quieres forzar: Chrome → datos del sitio el-pollon.cl → borrar, '
-      + 'reinstala desde el ícono y vuelve a Activar notificaciones.',
+      'Permiso de notificaciones OK. El registro push se reintentará solo. '
+      + 'Puedes seguir con la ubicación.',
   };
 }
 
@@ -396,7 +368,6 @@ export async function retryDriverPushInBackground() {
   let needs = false;
   try {
     needs = localStorage.getItem(PUSH_DEFERRED_FLAG) === '1'
-      || sessionStorage.getItem(PUSH_RELOAD_FLAG) === '1'
       || localStorage.getItem(PUSH_OK_FLAG) !== '1';
   } catch {
     needs = true;

@@ -170,7 +170,9 @@ export function DriverLayout() {
           </nav>
         </>
       ) : (
-        <main className="relative flex-1" />
+        <main className="relative flex flex-1 items-center justify-center bg-[#1a1210] px-6">
+          <p className="text-sm text-white/60">Preparando panel repartidor…</p>
+        </main>
       )}
     </div>
   );
