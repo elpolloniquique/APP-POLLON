@@ -1,7 +1,7 @@
 /**
  * Control de cobro interno para cajeras (NO va al ticket ni al cliente).
- * - N/A: delivery sin repartidor asignado
- * - por_pagar / pagado: cuando ya hay repartidor (o pedido retiro/local)
+ * Por defecto N/A hasta que la cajera marque Por pagar o Pagado.
+ * Las 3 opciones son siempre editables.
  */
 export const CAJA_PAGO = {
   NA: 'na',
@@ -9,22 +9,20 @@ export const CAJA_PAGO = {
   PAGADO: 'pagado',
 };
 
-export function hasDriverAssigned(deliveryInfo) {
-  return Boolean(deliveryInfo?.driverId || deliveryInfo?.driver?.full_name || deliveryInfo?.driver?.nombre);
-}
+export const CAJA_PAGO_OPTIONS = [
+  CAJA_PAGO.NA,
+  CAJA_PAGO.POR_PAGAR,
+  CAJA_PAGO.PAGADO,
+];
 
 /**
  * Estado efectivo que debe ver la cajera.
- * @param {object} order
- * @param {object|null} deliveryInfo
+ * Default: N/A (sin marcar) hasta que elijan Por pagar / Pagado.
  */
-export function resolveCajaPagoStatus(order, deliveryInfo = null) {
-  const isDelivery = (order?.orderType || order?.tipo_entrega) === 'delivery';
-  if (isDelivery && !hasDriverAssigned(deliveryInfo)) {
-    return CAJA_PAGO.NA;
-  }
+export function resolveCajaPagoStatus(order) {
   if (order?.cajaPago === CAJA_PAGO.PAGADO) return CAJA_PAGO.PAGADO;
-  return CAJA_PAGO.POR_PAGAR;
+  if (order?.cajaPago === CAJA_PAGO.POR_PAGAR) return CAJA_PAGO.POR_PAGAR;
+  return CAJA_PAGO.NA;
 }
 
 export function cajaPagoLabel(status) {
@@ -33,6 +31,6 @@ export function cajaPagoLabel(status) {
   return 'N/A';
 }
 
-export function canEditCajaPago(order, deliveryInfo = null) {
-  return resolveCajaPagoStatus(order, deliveryInfo) !== CAJA_PAGO.NA;
+export function canEditCajaPago() {
+  return true;
 }

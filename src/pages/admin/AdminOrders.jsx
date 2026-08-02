@@ -154,7 +154,7 @@ export function AdminOrders() {
       }
     }
     if (cajaPagoFilter) {
-      const st = resolveCajaPagoStatus(o, deliveryMap[o.id]);
+      const st = resolveCajaPagoStatus(o);
       if (st !== cajaPagoFilter) return false;
     }
     return true;
@@ -172,7 +172,7 @@ export function AdminOrders() {
         o.total,
         estadoLabel(o.estado),
         info?.driver?.full_name || 'N/A',
-        cajaPagoLabel(resolveCajaPagoStatus(o, info)),
+        cajaPagoLabel(resolveCajaPagoStatus(o)),
         o.createdAt,
       ]);
     });
@@ -228,7 +228,7 @@ export function AdminOrders() {
   };
 
   const changeCajaPago = async (order, next) => {
-    if (!next || next === 'na') return;
+    if (!next || !['na', 'por_pagar', 'pagado'].includes(next)) return;
     setCajaBusy((s) => ({ ...s, [order.id]: true }));
     try {
       const updated = { ...order, cajaPago: next };
@@ -365,7 +365,6 @@ export function AdminOrders() {
               <td className="admin-col-caja p-2 sm:p-2.5">
                 <CajaPagoControl
                   order={o}
-                  deliveryInfo={info}
                   disabled={Boolean(cajaBusy[o.id])}
                   onChange={(next) => changeCajaPago(o, next)}
                 />
@@ -424,7 +423,6 @@ export function AdminOrders() {
           cajaPagoSlot={(
             <CajaPagoControl
               order={viewOrder}
-              deliveryInfo={deliveryMap[viewOrder.id]}
               disabled={Boolean(cajaBusy[viewOrder.id])}
               onChange={(next) => changeCajaPago(viewOrder, next)}
             />

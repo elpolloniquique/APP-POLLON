@@ -46,8 +46,14 @@ function rowToOrder(row) {
     deliveredAt: row.entregado_en,
     orderType: row.tipo_entrega || 'delivery',
     metodo_pago: row.metodo_pago,
-    /** Control interno de caja — no va al ticket ni al cliente */
-    cajaPago: datos.caja_pago === 'pagado' ? 'pagado' : (datos.caja_pago === 'por_pagar' ? 'por_pagar' : null),
+    /** Control interno de caja — no va al ticket ni al cliente. Default N/A. */
+    cajaPago: datos.caja_pago === 'pagado'
+      ? 'pagado'
+      : datos.caja_pago === 'por_pagar'
+        ? 'por_pagar'
+        : datos.caja_pago === 'na'
+          ? 'na'
+          : null,
     branchId: row.branch_id || row.sucursal_id || datos.branchId,
     customerId: row.customer_id || datos.customerId,
     observaciones: row.observaciones,
@@ -83,8 +89,10 @@ function orderToRow(order) {
       subtotal: order.subtotal ?? null,
       branchId: order.branchId,
       productIds: (order.items || []).map((it) => it.id || it.producto_id).filter(Boolean),
-      // Solo staff/caja — jamás se imprime en ticket
-      caja_pago: order.cajaPago === 'pagado' || order.cajaPago === 'por_pagar' ? order.cajaPago : null,
+      // Solo staff/caja — jamás se imprime en ticket. na | por_pagar | pagado
+      caja_pago: order.cajaPago === 'pagado' || order.cajaPago === 'por_pagar' || order.cajaPago === 'na'
+        ? order.cajaPago
+        : null,
     },
   });
 }

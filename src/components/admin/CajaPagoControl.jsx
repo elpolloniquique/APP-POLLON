@@ -2,18 +2,18 @@ import { useEffect, useRef, useState } from 'react';
 import { Banknote, Check, ChevronDown } from 'lucide-react';
 import {
   CAJA_PAGO,
+  CAJA_PAGO_OPTIONS,
   cajaPagoLabel,
-  canEditCajaPago,
   resolveCajaPagoStatus,
 } from '../../utils/cajaPago';
 
 /**
  * Botón profesional de cobro interno (solo panel cajera/admin).
+ * N/A | Por pagar | Pagado — siempre editable.
  * No imprimible / no visible para cliente.
  */
-export function CajaPagoControl({ order, deliveryInfo, onChange, disabled = false }) {
-  const status = resolveCajaPagoStatus(order, deliveryInfo);
-  const editable = canEditCajaPago(order, deliveryInfo) && !disabled;
+export function CajaPagoControl({ order, onChange, disabled = false }) {
+  const status = resolveCajaPagoStatus(order);
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
 
@@ -39,21 +39,9 @@ export function CajaPagoControl({ order, deliveryInfo, onChange, disabled = fals
 
   const pick = async (next) => {
     setOpen(false);
-    if (!editable || next === status || next === CAJA_PAGO.NA) return;
+    if (disabled || next === status) return;
     await onChange?.(next);
   };
-
-  if (!editable) {
-    return (
-      <span
-        className={`caja-pago caja-pago--pill ${tone}`}
-        title="Sin repartidor asignado — cobro N/A"
-      >
-        <Banknote className="h-3 w-3 opacity-70" />
-        N/A
-      </span>
-    );
-  }
 
   return (
     <div className="caja-pago-wrap relative" ref={rootRef}>
@@ -62,7 +50,7 @@ export function CajaPagoControl({ order, deliveryInfo, onChange, disabled = fals
         disabled={disabled}
         onClick={() => setOpen((v) => !v)}
         className={`caja-pago caja-pago--btn ${tone}`}
-        title="Marcar cobro (solo caja)"
+        title="Control de cobro (solo caja): N/A, Por pagar o Pagado"
         aria-haspopup="menu"
         aria-expanded={open}
       >
@@ -74,7 +62,7 @@ export function CajaPagoControl({ order, deliveryInfo, onChange, disabled = fals
       {open && (
         <div className="caja-pago-menu" role="menu">
           <p className="caja-pago-menu__hint">Control de caja</p>
-          {[CAJA_PAGO.POR_PAGAR, CAJA_PAGO.PAGADO].map((opt) => (
+          {CAJA_PAGO_OPTIONS.map((opt) => (
             <button
               key={opt}
               type="button"
