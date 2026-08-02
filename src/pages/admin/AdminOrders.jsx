@@ -9,10 +9,12 @@ import { adminListAllBranches } from '../../services/branchService';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { OrderDetailModal } from '../../components/admin/OrderDetailModal';
+import { CajaPagoControl } from '../../components/admin/CajaPagoControl';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { AdminBranchFilter } from '../../components/admin/AdminBranchFilter';
 import { AdminTable } from '../../components/admin/AdminTable';
 import { ORDER_STATES, canAdvanceOrderEstado, getNextOrderEstado } from '../../utils/constants';
+import { cajaPagoLabel, resolveCajaPagoStatus } from '../../utils/cajaPago';
 import {
   fetchDeliveryJobMap,
   autoDispatchNewOrder,
@@ -38,10 +40,12 @@ export function AdminOrders() {
   const [estado, setEstado] = useState('');
   const [search, setSearch] = useState('');
   const [driverFilter, setDriverFilter] = useState('');
+  const [cajaPagoFilter, setCajaPagoFilter] = useState('');
   const [desde, setDesde] = useState(() => todayISO());
   const [hasta, setHasta] = useState(() => todayISO());
   const [viewOrder, setViewOrder] = useState(null);
   const [branches, setBranches] = useState([]);
+  const [cajaBusy, setCajaBusy] = useState({});
 
   // Delivery integration
   const [deliveryMap, setDeliveryMap] = useState({});
@@ -149,11 +153,15 @@ export function AdminOrders() {
         if (info?.driverId !== driverFilter) return false;
       }
     }
+    if (cajaPagoFilter) {
+      const st = resolveCajaPagoStatus(o, deliveryMap[o.id]);
+      if (st !== cajaPagoFilter) return false;
+    }
     return true;
-  }), [ordersScoped, estado, search, desde, hasta, driverFilter, deliveryMap]);
+  }), [ordersScoped, estado, search, desde, hasta, driverFilter, cajaPagoFilter, deliveryMap]);
 
   const exportCsv = () => {
-    const rows = [['Código', 'Sucursal', 'Cliente', 'Teléfono', 'Total', 'Estado', 'Repartidor', 'Fecha']];
+    const rows = [['Código', 'Sucursal', 'Cliente', 'Teléfono', 'Total', 'Estado', 'Repartidor', 'Cobro caja', 'Fecha']];
     filtered.forEach((o) => {
       const info = deliveryMap[o.id];
       rows.push([
@@ -164,6 +172,7 @@ export function AdminOrders() {
         o.total,
         estadoLabel(o.estado),
         info?.driver?.full_name || 'N/A',
+        cajaPagoLabel(resolveCajaPagoStatus(o, info)),
         o.createdAt,
       ]);
     });
@@ -215,6 +224,21 @@ export function AdminOrders() {
       alert(e.message || 'No se encontraron repartidores disponibles');
     } finally {
       setSearchingDriver((s) => ({ ...s, [order.id]: false }));
+    }
+  };
+
+  const changeCajaPago = async (order, next) => {
+    if (!next || next === 'na') return;
+    setCajaBusy((s) => ({ ...s, [order.id]: true }));
+    try {
+      const updated = { ...order, cajaPago: next };
+      await updateOrder(updated);
+      refresh();
+      if (viewOrder?.id === order.id) setViewOrder(updated);
+    } catch (e) {
+      alert(e.message || 'No se pudo actualizar el cobro de caja');
+    } finally {
+      setCajaBusy((s) => ({ ...s, [order.id]: false }));
     }
   };
 
@@ -272,6 +296,12 @@ export function AdminOrders() {
           <option value="__none">Sin repartidor (N/A)</option>
           {driverNames.map((d) => <option key={d.driverId} value={d.driverId}>{d.name}</option>)}
         </select>
+        <select value={cajaPagoFilter} onChange={(e) => setCajaPagoFilter(e.target.value)} className="w-full sm:w-auto" title="Filtro interno de caja">
+          <option value="">Cobro caja: todos</option>
+          <option value="na">N/A (sin repartidor)</option>
+          <option value="por_pagar">Por pagar</option>
+          <option value="pagado">Pagado</option>
+        </select>
         <input type="search" placeholder="Buscar cliente, teléfono…" value={search} onChange={(e) => setSearch(e.target.value)} className="min-w-[160px] flex-1" />
         <button type="button" onClick={() => setAlarmOn(!alarmOn)} className={`rounded-lg px-3 py-1.5 text-sm font-medium sm:py-2 ${alarmOn ? 'bg-pollon-red text-white' : 'bg-gray-100'}`}>
           {alarmOn ? '🔔 Alarma ON' : '🔕 OFF'}
@@ -300,6 +330,7 @@ export function AdminOrders() {
           { key: 'total', label: 'Total' },
           { key: 'status', label: 'Estado' },
           { key: 'driver', label: 'Repartidor' },
+          { key: 'caja', label: 'Cobro', className: 'admin-col-caja' },
           { key: 'date', label: 'Hora', className: 'admin-col-date hidden md:table-cell' },
           { key: 'actions', label: '', className: 'admin-col-actions w-[1%] whitespace-nowrap' },
         ]}
@@ -330,6 +361,14 @@ export function AdminOrders() {
                 ) : (
                   <span className="text-xs text-gray-300">—</span>
                 )}
+              </td>
+              <td className="admin-col-caja p-2 sm:p-2.5">
+                <CajaPagoControl
+                  order={o}
+                  deliveryInfo={info}
+                  disabled={Boolean(cajaBusy[o.id])}
+                  onChange={(next) => changeCajaPago(o, next)}
+                />
               </td>
               <td className="admin-col-date hidden whitespace-nowrap p-2 text-[11px] text-gray-600 md:table-cell sm:p-2.5">
                 {formatDateTime(o.createdAt).split(',')[1]?.trim() || formatDateTime(o.createdAt)}
@@ -382,6 +421,14 @@ export function AdminOrders() {
           onClose={() => setViewOrder(null)}
           onChangeEstado={changeEstado}
           onCancelOrder={cancelOrder}
+          cajaPagoSlot={(
+            <CajaPagoControl
+              order={viewOrder}
+              deliveryInfo={deliveryMap[viewOrder.id]}
+              disabled={Boolean(cajaBusy[viewOrder.id])}
+              onChange={(next) => changeCajaPago(viewOrder, next)}
+            />
+          )}
         />
       )}
     </div>

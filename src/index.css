@@ -876,6 +876,95 @@
   .admin-orders-table .admin-table-scroll {
     -webkit-overflow-scrolling: touch;
   }
+
+  /* Cobro caja (solo staff — no ticket / no cliente) */
+  .caja-pago-wrap {
+    display: inline-flex;
+  }
+  .caja-pago {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    border-radius: 999px;
+    font-size: 0.6875rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    line-height: 1;
+    white-space: nowrap;
+  }
+  .caja-pago--pill {
+    border: 1px solid rgb(0 0 0 / 0.08);
+    padding: 0.35rem 0.55rem;
+  }
+  .caja-pago--btn {
+    border: 1px solid transparent;
+    padding: 0.35rem 0.55rem;
+    cursor: pointer;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+  }
+  .caja-pago--btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgb(0 0 0 / 0.08);
+  }
+  .caja-pago--btn:disabled {
+    opacity: 0.55;
+    cursor: wait;
+  }
+  .caja-pago--na {
+    background: #f3f4f6;
+    color: #6b7280;
+    border-color: #e5e7eb;
+  }
+  .caja-pago--por-pagar {
+    background: #fff7ed;
+    color: #c2410c;
+    border-color: #fdba74;
+  }
+  .caja-pago--pagado {
+    background: #ecfdf5;
+    color: #047857;
+    border-color: #6ee7b7;
+  }
+  .caja-pago-menu {
+    position: absolute;
+    z-index: 60;
+    top: calc(100% + 0.35rem);
+    left: 0;
+    min-width: 10.5rem;
+    border-radius: 0.75rem;
+    border: 1px solid rgb(0 0 0 / 0.08);
+    background: #fff;
+    padding: 0.4rem;
+    box-shadow: 0 10px 30px rgb(0 0 0 / 0.12);
+  }
+  .caja-pago-menu__hint {
+    padding: 0.25rem 0.5rem 0.4rem;
+    font-size: 0.625rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #9ca3af;
+  }
+  .caja-pago-menu__item {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    border-radius: 0.5rem;
+    padding: 0.55rem 0.6rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #111827;
+    text-align: left;
+  }
+  .caja-pago-menu__item:hover {
+    background: #f9fafb;
+  }
+  .caja-pago-menu__item.is-active {
+    background: #f0fdf4;
+    color: #047857;
+  }
   @media (max-width: 1366px) {
     .admin-orders-table .admin-data-table {
       min-width: 0 !important;

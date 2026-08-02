@@ -16,7 +16,7 @@ function itemExtras(it) {
   return lines;
 }
 
-export function OrderDetailModal({ order, branch, onClose, onChangeEstado, onCancelOrder, onPrint }) {
+export function OrderDetailModal({ order, branch, onClose, onChangeEstado, onCancelOrder, onPrint, cajaPagoSlot }) {
   if (!order) return null;
 
   const m = getOrderReceiptMeta(order, branch);
@@ -82,6 +82,11 @@ export function OrderDetailModal({ order, branch, onClose, onChangeEstado, onCan
             <span className="order-detail-modal__chip order-detail-modal__chip--pay">
               {paymentLabel(order.metodo_pago)}
             </span>
+            {cajaPagoSlot ? (
+              <span className="order-detail-modal__caja" title="Solo control interno de caja">
+                {cajaPagoSlot}
+              </span>
+            ) : null}
           </div>
 
           {!canAdvance && order.estado === 'entregado' && (
