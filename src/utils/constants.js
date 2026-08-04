@@ -179,5 +179,5 @@ export const ADMIN_NAV = [
   { id: 'driver_rates', path: '/admin/repartidores/tarifas', label: 'Tarifas', perm: 'driver_rates', group: 'delivery', icon: 'DollarSign' },
   { id: 'dispatch', path: '/admin/repartidores/despacho', label: 'Despacho', perm: 'dispatch', group: 'delivery', icon: 'Send' },
   { id: 'live_map', path: '/admin/repartidores/en-vivo', label: 'En vivo', perm: 'live_map', group: 'delivery', icon: 'MapPin' },
-  { id: 'driver_reports', path: '/admin/repartidores/reportes', label: 'Reportes delivery', perm: 'driver_reports', group: 'delivery', icon: 'FileBarChart' },
+  { id: 'driver_reports', path: '/admin/repartidores/reportes', label: 'Reportes', perm: 'driver_reports', group: 'delivery', icon: 'FileBarChart' },
 ];
