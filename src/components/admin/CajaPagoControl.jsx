@@ -12,7 +12,13 @@ import {
  * N/A | Por pagar | Pagado — siempre editable.
  * No imprimible / no visible para cliente.
  */
-export function CajaPagoControl({ order, onChange, disabled = false }) {
+export function CajaPagoControl({
+  order,
+  onChange,
+  disabled = false,
+  menuHint = 'Control de caja',
+  title = 'Marcar cobro (solo caja)',
+}) {
   const status = resolveCajaPagoStatus(order);
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
@@ -50,7 +56,7 @@ export function CajaPagoControl({ order, onChange, disabled = false }) {
         disabled={disabled}
         onClick={() => setOpen((v) => !v)}
         className={`caja-pago caja-pago--btn ${tone}`}
-        title="Control de cobro (solo caja): N/A, Por pagar o Pagado"
+        title={title}
         aria-haspopup="menu"
         aria-expanded={open}
       >
@@ -61,7 +67,7 @@ export function CajaPagoControl({ order, onChange, disabled = false }) {
 
       {open && (
         <div className="caja-pago-menu" role="menu">
-          <p className="caja-pago-menu__hint">Control de caja</p>
+          <p className="caja-pago-menu__hint">{menuHint}</p>
           {CAJA_PAGO_OPTIONS.map((opt) => (
             <button
               key={opt}

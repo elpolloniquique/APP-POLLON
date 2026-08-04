@@ -1,12 +1,23 @@
 import { getSupabase, isSupabaseConfigured } from './supabaseClient';
 import { resolveCajaPagoStatus, CAJA_PAGO } from '../utils/cajaPago';
 
-/** Comisión: 0.5% del valor de delivery (según diseño del reporte). */
-export const DRIVER_DELIVERY_COMMISSION_RATE = 0.005;
+/**
+ * Comisión del repartidor sobre el delivery.
+ * Regla de negocio: 5% del valor de delivery
+ * (ej. delivery $4.000 → comisión $200).
+ */
+export const DRIVER_DELIVERY_COMMISSION_RATE = 0.05;
 
 export function calcDeliveryCommission(deliveryFee) {
   const fee = Number(deliveryFee) || 0;
-  return Math.round(fee * DRIVER_DELIVERY_COMMISSION_RATE * 100) / 100;
+  // Enteros CLP (sin decimales)
+  return Math.round(fee * DRIVER_DELIVERY_COMMISSION_RATE);
+}
+
+function parseComisionCobro(datos) {
+  const v = datos?.comision_repartidor_pago;
+  if (v === 'pagado' || v === 'por_pagar' || v === 'na') return v;
+  return null;
 }
 
 function dayStartISO(dateStr, timeStr = '00:00') {
@@ -115,9 +126,7 @@ export async function fetchDriverReportRows({
       total = subTotal + deliveryFee;
     }
 
-    const cajaPago = datos.caja_pago === 'pagado' || datos.caja_pago === 'por_pagar' || datos.caja_pago === 'na'
-      ? datos.caja_pago
-      : null;
+    const comisionCobro = parseComisionCobro(datos);
 
     const driver = driverById[j.assigned_driver_id] || { id: j.assigned_driver_id, name: 'Repartidor' };
 
@@ -136,8 +145,9 @@ export async function fetchDriverReportRows({
       deliveryFee,
       total,
       commission: calcDeliveryCommission(deliveryFee),
-      cajaPago,
-      cobro: resolveCajaPagoStatus({ cajaPago }),
+      /** Cobro de la comisión del repartidor (NO el pago del cliente) */
+      comisionCobro,
+      cobro: resolveCajaPagoStatus({ cajaPago: comisionCobro }),
       jobStatus: j.status,
       createdAt: j.created_at,
       deliveredAt: j.delivered_at,
@@ -176,9 +186,9 @@ export async function fetchDriverOptionsForReport(branchId = null) {
   }));
 }
 
-export async function updateOrderCajaPago(orderId, cajaPago) {
-  if (!orderId || !['na', 'por_pagar', 'pagado'].includes(cajaPago)) {
-    throw new Error('Cobro inválido');
+export async function updateDriverCommissionCobro(orderId, status) {
+  if (!orderId || !['na', 'por_pagar', 'pagado'].includes(status)) {
+    throw new Error('Estado de cobro de comisión inválido');
   }
   if (!isSupabaseConfigured()) return { ok: true, demo: true };
 
@@ -191,10 +201,15 @@ export async function updateOrderCajaPago(orderId, cajaPago) {
   if (readErr) throw new Error(readErr.message);
   if (!row) throw new Error('Pedido no encontrado');
 
-  const datos = { ...(row.datos_json || {}), caja_pago: cajaPago };
+  const datos = { ...(row.datos_json || {}), comision_repartidor_pago: status };
   const { error } = await sb.from('pedidos').update({ datos_json: datos }).eq('id', orderId);
   if (error) throw new Error(error.message);
   return { ok: true };
+}
+
+/** @deprecated usar updateDriverCommissionCobro */
+export async function updateOrderCajaPago(orderId, cajaPago) {
+  return updateDriverCommissionCobro(orderId, cajaPago);
 }
 
 function demoRows() {
@@ -219,7 +234,7 @@ function demoRows() {
     deliveryFee: r.fee,
     total: r.sub + r.fee,
     commission: calcDeliveryCommission(r.fee),
-    cajaPago: r.cobro,
+    comisionCobro: r.cobro,
     cobro: r.cobro,
     jobStatus: 'delivered',
     createdAt: new Date().toISOString(),

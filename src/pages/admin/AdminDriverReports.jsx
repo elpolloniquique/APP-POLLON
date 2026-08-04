@@ -7,7 +7,7 @@ import { Loader } from '../../components/ui/Loader';
 import {
   fetchDriverReportRows,
   fetchDriverOptionsForReport,
-  updateOrderCajaPago,
+  updateDriverCommissionCobro,
 } from '../../services/driverReportService';
 import { money, todayISO } from '../../utils/format';
 import { CAJA_PAGO, cajaPagoLabel, resolveCajaPagoStatus } from '../../utils/cajaPago';
@@ -22,11 +22,8 @@ function formatMoneyReport(v) {
 }
 
 function formatCommission(v) {
-  const n = Number(v) || 0;
-  if (Math.abs(n - Math.round(n)) < 0.001) {
-    return `$ ${Math.round(n).toLocaleString('es-CL')}`;
-  }
-  return `$ ${n.toLocaleString('es-CL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const n = Math.round(Number(v) || 0);
+  return `$ ${n.toLocaleString('es-CL')}`;
 }
 
 /**
@@ -88,7 +85,7 @@ export function AdminDriverReports() {
 
   const filtered = useMemo(() => {
     if (!cobroFilter) return rows;
-    return rows.filter((r) => resolveCajaPagoStatus({ cajaPago: r.cajaPago }) === cobroFilter);
+    return rows.filter((r) => resolveCajaPagoStatus({ cajaPago: r.comisionCobro }) === cobroFilter);
   }, [rows, cobroFilter]);
 
   const uniqueDrivers = useMemo(
@@ -112,14 +109,14 @@ export function AdminDriverReports() {
   const onChangeCobro = async (row, next) => {
     setBusyId(row.id);
     try {
-      await updateOrderCajaPago(row.orderId, next);
+      await updateDriverCommissionCobro(row.orderId, next);
       setRows((prev) => prev.map((r) => (
         r.id === row.id
-          ? { ...r, cajaPago: next, cobro: next }
+          ? { ...r, comisionCobro: next, cobro: next }
           : r
       )));
     } catch (err) {
-      alert(err.message || 'No se pudo actualizar el cobro');
+      alert(err.message || 'No se pudo actualizar el cobro de comisión');
     } finally {
       setBusyId('');
     }
@@ -128,7 +125,7 @@ export function AdminDriverReports() {
   const exportCsv = () => {
     const header = [
       'Repartidor', 'Sucursal', 'Cliente', 'Telefono',
-      'Sub Total', 'Delivery', 'Total', 'Comision 0.5% delivery', 'Cobro', 'Ticket', 'Fecha',
+      'Sub Total', 'Delivery', 'Total', 'Comision', 'Cobro comision repartidor', 'Ticket', 'Fecha',
     ];
     const body = filtered.map((r) => [
       r.driverName,
@@ -139,7 +136,7 @@ export function AdminDriverReports() {
       r.deliveryFee,
       r.total,
       r.commission,
-      cajaPagoLabel(resolveCajaPagoStatus({ cajaPago: r.cajaPago })),
+      cajaPagoLabel(resolveCajaPagoStatus({ cajaPago: r.comisionCobro })),
       r.ticket,
       r.createdAt,
     ]);
@@ -212,8 +209,8 @@ export function AdminDriverReports() {
         </div>
 
         <label className="driver-report__field driver-report__field--grow">
-          <span>Cobros</span>
-          <select value={cobroFilter} onChange={(e) => setCobroFilter(e.target.value)}>
+          <span>Cobro comisión</span>
+          <select value={cobroFilter} onChange={(e) => setCobroFilter(e.target.value)} title="Si el repartidor ya pagó su comisión">
             <option value="">Todos</option>
             <option value={CAJA_PAGO.NA}>N/A</option>
             <option value={CAJA_PAGO.POR_PAGAR}>Por pagar</option>
@@ -272,7 +269,7 @@ export function AdminDriverReports() {
                   <th className="is-num">Sub Total</th>
                   <th className="is-num">Delivery</th>
                   <th className="is-num">Total</th>
-                  <th className="is-num">Comisión 0.5% del valor de delivery</th>
+                  <th className="is-num">Comision</th>
                   <th className="is-cobro">Cobro</th>
                 </tr>
               </thead>
@@ -303,9 +300,11 @@ export function AdminDriverReports() {
                       <td className="is-num">{formatCommission(r.commission)}</td>
                       <td className="is-cobro">
                         <CajaPagoControl
-                          order={{ cajaPago: r.cajaPago }}
+                          order={{ cajaPago: r.comisionCobro }}
                           disabled={busyId === r.id}
                           onChange={(next) => onChangeCobro(r, next)}
+                          menuHint="Comisión del repartidor"
+                          title="Marcar si el repartidor ya pagó su comisión"
                         />
                       </td>
                     </tr>
@@ -330,8 +329,7 @@ export function AdminDriverReports() {
       )}
 
       <p className="px-1 text-[11px] text-gray-500">
-        Comisión = 0.5% del delivery. El cobro es control interno de caja (no aparece en ticket ni al cliente).
-        Totales: Sub {money(totals.subTotal)} · Delivery {money(totals.delivery)} · Total {money(totals.total)}.
+        Comisión = 5% del delivery (ej. $4.000 → $200). Cobro = si el repartidor ya pagó esa comisión (no es el pago del cliente).
       </p>
     </div>
   );
