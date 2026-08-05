@@ -9,7 +9,7 @@ import {
   fetchDriverOptionsForReport,
   updateDriverCommissionCobro,
 } from '../../services/driverReportService';
-import { money, todayISO } from '../../utils/format';
+import { todayISO } from '../../utils/format';
 import { CAJA_PAGO, cajaPagoLabel, resolveCajaPagoStatus } from '../../utils/cajaPago';
 import '../../styles/driver-report.css';
 
