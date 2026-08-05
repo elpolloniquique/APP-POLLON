@@ -215,15 +215,42 @@ export function AdminOrders() {
   useEffect(() => {
     for (const o of ordersScoped) {
       const info = deliveryMap[o.id];
-      if (!info) continue;
-      if (o.estado === 'pendiente' && info.jobStatus === 'assigned' && info.driverId) {
-        const updated = {
+      if (!info?.jobStatus) continue;
+      const st = info.jobStatus;
+      const cur = o.estado;
+
+      // Repartidor aceptó → Aceptado
+      if (cur === 'pendiente' && (st === 'assigned' || st === 'heading_to_branch') && info.driverId) {
+        updateOrder({
           ...o,
           estado: 'aceptado',
           trackingMode: 'live_map',
           driverAcceptedAt: new Date().toISOString(),
-        };
-        updateOrder(updated).then(refresh);
+        }).then(refresh);
+        continue;
+      }
+
+      // Pedido recogido / en camino al cliente → En reparto
+      if (
+        (st === 'picked_up' || st === 'delivering')
+        && !['en_delivery', 'entregado', 'cancelado'].includes(cur)
+      ) {
+        updateOrder({
+          ...o,
+          estado: 'en_delivery',
+          trackingMode: o.trackingMode || 'live_map',
+          pickedUpAt: new Date().toISOString(),
+        }).then(refresh);
+        continue;
+      }
+
+      // Entregado en job → Entregado en pedido
+      if (st === 'delivered' && cur !== 'entregado' && cur !== 'cancelado') {
+        updateOrder({
+          ...o,
+          estado: 'entregado',
+          deliveredAt: new Date().toISOString(),
+        }).then(refresh);
       }
     }
   }, [deliveryMap, ordersScoped, updateOrder, refresh]);

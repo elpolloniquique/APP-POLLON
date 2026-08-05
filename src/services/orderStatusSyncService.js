@@ -24,6 +24,19 @@ function etaMinutesFromKm(km) {
 async function patchPedidoEstado(orderId, estado, datosPatch = {}) {
   if (!isSupabaseConfigured() || !orderId) return null;
   const sb = getSupabase();
+
+  // Preferir RPC (SECURITY DEFINER) — el repartidor no siempre puede UPDATE pedidos
+  try {
+    const { data: rpcData, error: rpcErr } = await sb.rpc('ep_sync_pedido_estado_from_driver', {
+      p_order_id: String(orderId),
+      p_estado: estado,
+      p_datos_patch: datosPatch,
+    });
+    if (!rpcErr && rpcData) return rpcData;
+  } catch {
+    /* fallback abajo */
+  }
+
   const { data: row, error: readErr } = await sb
     .from('pedidos')
     .select('id, estado, datos_json')

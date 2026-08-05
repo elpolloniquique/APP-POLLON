@@ -1,5 +1,6 @@
 import { getSupabase, isSupabaseConfigured } from './supabaseClient';
 import { notifyDriversForJob } from './pushService';
+import { syncAfterDriverPickup } from './orderStatusSyncService';
 
 const DEMO_JOBS = [
   {
@@ -131,7 +132,25 @@ export async function confirmPickup(assignmentId) {
   const sb = getSupabase();
   const { data, error } = await sb.rpc('ep_confirm_pickup', { p_assignment_id: assignmentId });
   if (error) throw error;
-  return data;
+
+  // Refuerzo: asegurar pedido → en_delivery aunque el SQL viejo no lo haga
+  let orderId = data?.order_id || null;
+  if (!orderId) {
+    const { data: asg } = await sb
+      .from('ep_delivery_assignments')
+      .select('job_id, ep_delivery_jobs(source_order_id)')
+      .eq('id', assignmentId)
+      .maybeSingle();
+    orderId = asg?.ep_delivery_jobs?.source_order_id || null;
+  }
+  if (orderId) {
+    try {
+      await syncAfterDriverPickup(orderId);
+    } catch (e) {
+      console.warn('[Pollón] sync pickup:', e?.message || e);
+    }
+  }
+  return { ...(data || { ok: true }), order_id: orderId };
 }
 
 export async function confirmDelivery(assignmentId) {

@@ -16,7 +16,6 @@ import {
 import { startGpsWatch } from '../../services/trackingService';
 import {
   syncAfterDriverAccept,
-  syncAfterDriverPickup,
   maybeAdvanceNearStore,
 } from '../../services/orderStatusSyncService';
 import {
@@ -476,14 +475,8 @@ export function DriverHome() {
   const onPickup = async (assignment) => {
     setBusy(true);
     try {
+      // confirmPickup ya sincroniza pedido → en_delivery
       await confirmPickup(assignment.id);
-      const orderId = assignment?.ep_delivery_jobs?.source_order_id
-        || assignment?.job?.source_order_id
-        || assignment?.source_order_id
-        || null;
-      if (orderId) {
-        await syncAfterDriverPickup(orderId);
-      }
       await load();
     } catch (e) {
       setError(e.message);

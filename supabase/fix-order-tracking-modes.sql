@@ -262,3 +262,79 @@ GRANT EXECUTE ON FUNCTION public.ep_customer_order_live_tracking(TEXT) TO authen
 
 COMMENT ON FUNCTION public.ep_customer_order_live_tracking(TEXT) IS
   'Tracking cliente: mapa+ETA solo si tracking_mode=live_map / driver aceptó.';
+
+-- 4) Sync estado pedido desde app repartidor (bypass RLS)
+CREATE OR REPLACE FUNCTION public.ep_sync_pedido_estado_from_driver(
+  p_order_id TEXT,
+  p_estado TEXT,
+  p_datos_patch JSONB DEFAULT '{}'::jsonb
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  did UUID;
+  is_staff BOOLEAN;
+  ped RECORD;
+  allowed BOOLEAN := false;
+  next_datos JSONB;
+BEGIN
+  did := public.ep_my_driver_id();
+  is_staff := public.ep_is_dispatch_staff();
+
+  IF did IS NULL AND NOT is_staff THEN
+    RAISE EXCEPTION 'No autorizado';
+  END IF;
+
+  SELECT * INTO ped FROM pedidos WHERE id = p_order_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('ok', false, 'error', 'not_found');
+  END IF;
+
+  IF is_staff THEN
+    allowed := true;
+  ELSE
+    SELECT EXISTS (
+      SELECT 1
+      FROM ep_delivery_jobs j
+      JOIN ep_delivery_assignments a ON a.job_id = j.id
+      WHERE j.source_order_id = p_order_id
+        AND a.driver_id = did
+        AND a.status IN ('active', 'completed')
+    ) INTO allowed;
+  END IF;
+
+  IF NOT allowed THEN
+    RAISE EXCEPTION 'No autorizado para este pedido';
+  END IF;
+
+  IF ped.estado IN ('entregado', 'cancelado') THEN
+    RETURN jsonb_build_object('ok', true, 'id', ped.id, 'estado', ped.estado, 'skipped', true);
+  END IF;
+
+  next_datos := COALESCE(ped.datos_json, '{}'::jsonb) || COALESCE(p_datos_patch, '{}'::jsonb);
+
+  UPDATE pedidos
+  SET
+    estado = COALESCE(NULLIF(p_estado, ''), ped.estado),
+    datos_json = next_datos,
+    entregado_en = CASE
+      WHEN p_estado = 'entregado' THEN COALESCE(entregado_en, now())
+      ELSE entregado_en
+    END
+  WHERE id = p_order_id
+  RETURNING id, estado, datos_json INTO ped;
+
+  RETURN jsonb_build_object(
+    'ok', true,
+    'id', ped.id,
+    'estado', ped.estado,
+    'datos_json', ped.datos_json
+  );
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.ep_sync_pedido_estado_from_driver(TEXT, TEXT, JSONB) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.ep_sync_pedido_estado_from_driver(TEXT, TEXT, JSONB) TO authenticated;
