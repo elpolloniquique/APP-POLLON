@@ -9,11 +9,12 @@ export const PERIOD_OPTIONS = [
 ];
 
 const STATUS_COLORS = {
-  pendiente: '#f59e0b',
+  pendiente: '#94a3b8',
+  aceptado: '#3b82f6',
   confirmado: '#6366f1',
   preparando: '#f97316',
   listo: '#14b8a6',
-  en_delivery: '#8b5cf6',
+  en_delivery: '#38bdf8',
   entregado: '#22c55e',
   cancelado: '#ef4444',
 };
@@ -131,7 +132,7 @@ export function computeKPIs(currentOrders, previousOrders) {
     pending,
     cancelled,
     conversion: currentOrders.length
-      ? Math.round((delivered / currentOrders.length) * 100)
+      ? Math.round((delivered / currentOrders.length) * 1000) / 10
       : 0,
     salesDelta: pctChange(sales, prevSales),
     productSalesDelta: pctChange(productSales, prevProduct),
@@ -232,16 +233,37 @@ export function buildTimeline(orders, periodId) {
 }
 
 export function buildStatusChart(orders) {
-  const counts = {};
+  // Orden fijo como en el diseño de la foto
+  const orderKeys = ['entregado', 'aceptado', 'en_delivery', 'preparando', 'pendiente', 'cancelado'];
+  const counts = Object.fromEntries(orderKeys.map((k) => [k, 0]));
   orders.forEach((o) => {
-    const s = o.estado || 'pendiente';
-    counts[s] = (counts[s] || 0) + 1;
+    let s = o.estado || 'pendiente';
+    if (s === 'listo') s = 'en_delivery';
+    if (s === 'confirmado') s = 'aceptado';
+    if (counts[s] == null) counts[s] = 0;
+    counts[s] += 1;
   });
-  const labels = Object.keys(counts);
+  const labels = [
+    ...orderKeys,
+    ...Object.keys(counts).filter((k) => !orderKeys.includes(k)),
+  ];
+  const total = orders.length || 1;
+  const STATUS_LABELS_ES = {
+    pendiente: 'Pendientes',
+    aceptado: 'Aceptados',
+    confirmado: 'Confirmados',
+    preparando: 'Preparando',
+    en_delivery: 'En reparto',
+    entregado: 'Entregados',
+    cancelado: 'Cancelados',
+  };
   return {
-    labels,
+    labels: labels.map((l) => STATUS_LABELS_ES[l] || l),
+    keys: labels,
+    counts: labels.map((l) => counts[l] || 0),
+    percents: labels.map((l) => Math.round(((counts[l] || 0) / total) * 1000) / 10),
     datasets: [{
-      data: labels.map((l) => counts[l]),
+      data: labels.map((l) => counts[l] || 0),
       backgroundColor: labels.map((l) => STATUS_COLORS[l] || '#94a3b8'),
       borderWidth: 0,
     }],
@@ -249,18 +271,21 @@ export function buildStatusChart(orders) {
 }
 
 export function buildPaymentChart(orders) {
-  const counts = {};
+  const totals = {};
   orders.forEach((o) => {
-    const p = o.metodo_pago || 'whatsapp';
-    counts[p] = (counts[p] || 0) + 1;
+    if (o.estado === 'cancelado') return;
+    const p = o.metodo_pago || 'efectivo';
+    totals[p] = (totals[p] || 0) + (Number(o.total) || 0);
   });
-  const labels = Object.keys(counts).map((k) => PAYMENT_LABELS[k] || k);
-  const keys = Object.keys(counts);
+  const keys = Object.keys(totals).filter((k) => totals[k] > 0);
+  const sum = keys.reduce((s, k) => s + totals[k], 0) || 1;
   return {
-    labels,
+    labels: keys.map((k) => PAYMENT_LABELS[k] || k),
+    amounts: keys.map((k) => totals[k]),
+    percents: keys.map((k) => Math.round((totals[k] / sum) * 1000) / 10),
     datasets: [{
-      data: keys.map((k) => counts[k]),
-      backgroundColor: ['#22c55e', '#3b82f6', '#f97316', '#8b5cf6'],
+      data: keys.map((k) => totals[k]),
+      backgroundColor: ['#3b82f6', '#22c55e', '#f97316', '#8b5cf6'],
       borderWidth: 0,
     }],
   };
@@ -269,18 +294,20 @@ export function buildPaymentChart(orders) {
 export function buildOrderTypeChart(orders) {
   const counts = {};
   orders.forEach((o) => {
+    if (o.estado === 'cancelado') return;
     const t = o.orderType || 'delivery';
     counts[t] = (counts[t] || 0) + 1;
   });
   const keys = Object.keys(counts);
+  const total = keys.reduce((s, k) => s + counts[k], 0) || 1;
   return {
     labels: keys.map((k) => ORDER_TYPE_LABELS[k] || k),
+    counts: keys.map((k) => counts[k]),
+    percents: keys.map((k) => Math.round((counts[k] / total) * 1000) / 10),
     datasets: [{
-      label: 'Pedidos',
       data: keys.map((k) => counts[k]),
-      backgroundColor: '#c41e1e',
-      borderRadius: 6,
-      maxBarThickness: 28,
+      backgroundColor: ['#c41e1e', '#64748b', '#f59e0b', '#8b5cf6'],
+      borderWidth: 0,
     }],
   };
 }
@@ -322,13 +349,14 @@ export function buildWeekdayChart(orders) {
 export function buildTopProducts(orders, limit = 6) {
   const items = buildTopProductItems(orders, limit);
   return {
-    labels: items.map((i) => (i.name.length > 18 ? `${i.name.slice(0, 18)}…` : i.name)),
+    labels: items.map((i) => (i.name.length > 22 ? `${i.name.slice(0, 22)}…` : i.name)),
     data: items.map((i) => i.qty),
+    sales: items.map((i) => i.sales),
     items,
   };
 }
 
-/** Ranking de productos más vendidos (cantidad de unidades). */
+/** Ranking de productos más vendidos (cantidad + monto). */
 export function buildTopProductItems(orders, limit = 6) {
   const stats = new Map();
   (orders || []).forEach((o) => {
@@ -338,8 +366,11 @@ export function buildTopProductItems(orders, limit = 6) {
       if (!name) return;
       const productId = it.id || it.producto_id || it.productId || null;
       const key = productId || name.toLowerCase();
-      const prev = stats.get(key) || { name, productId, qty: 0 };
-      prev.qty += Number(it.qty) || 1;
+      const qty = Number(it.qty) || 1;
+      const lineTotal = Number(it.total ?? it.subtotal ?? (Number(it.price) || 0) * qty) || 0;
+      const prev = stats.get(key) || { name, productId, qty: 0, sales: 0 };
+      prev.qty += qty;
+      prev.sales += lineTotal;
       if (productId && !prev.productId) prev.productId = productId;
       stats.set(key, prev);
     });
@@ -379,6 +410,8 @@ export function buildBranchStats(orders, branches, periodId) {
         name: b.name,
         orders: list.length,
         sales: sumTotal(list),
+        productSales: sumProductSales(list),
+        deliverySales: sumDelivery(list),
         ticket: avgTicket(list),
       };
     })

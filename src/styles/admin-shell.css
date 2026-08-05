@@ -339,6 +339,40 @@
   overflow-y: auto;
 }
 
+/* Dashboard: una sola pantalla sin scroll en PC grande */
+@media (min-width: 1280px) and (min-height: 760px) {
+  .admin-shell:has(.admin-dashboard) {
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
+  }
+
+  .admin-shell:has(.admin-dashboard) .admin-shell__body {
+    min-height: 0;
+    height: 100%;
+    max-height: 100%;
+    overflow: hidden;
+  }
+
+  .admin-shell__main:has(.admin-dashboard) {
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .admin-shell__main:has(.admin-dashboard) > .admin-dashboard {
+    flex: 1 1 auto;
+    height: 100%;
+    max-height: 100%;
+  }
+
+  /* Ocultar topbar genérica en Dashboard — el propio panel trae su título */
+  .admin-shell:has(.admin-dashboard) .admin-shell__topbar {
+    display: none;
+  }
+}
+
 .admin-shell__alert {
   margin: 0.65rem 0.75rem 0;
   border: 1px solid #fde68a;
