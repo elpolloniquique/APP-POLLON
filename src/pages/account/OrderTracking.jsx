@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { CheckCircle, Circle, Clock, MapPin, Navigation } from 'lucide-react';
+import { CheckCircle, Circle, Clock, MapPin, Navigation, Radio } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import {
   getOrderById,
@@ -10,10 +10,13 @@ import {
 } from '../../services/customerService';
 import { ORDER_STATUS_LABELS } from '../../utils/constants';
 import {
-  TRACKING_MODE,
   STATUS_LINE_STEPS,
+  LIVE_FLOW_STEPS,
   resolveTrackingMode,
   shouldShowLiveMap,
+  wasAcceptedViaDriverApp,
+  liveMapFallbackReason,
+  TRACKING_MODE,
 } from '../../utils/orderTrackingMode';
 import { money, formatDateTime } from '../../utils/format';
 import { isSupabaseConfigured } from '../../services/supabaseClient';
@@ -23,7 +26,6 @@ import { DELIVERY_COLORS } from '../../utils/liveMapColors';
 
 function StatusTimeline({ steps, current }) {
   const idx = Math.max(0, steps.indexOf(current));
-  // Mapear estados cercanos al flujo mostrado
   let activeIdx = idx;
   if (activeIdx < 0) {
     if (current === 'pendiente') activeIdx = -1;
@@ -76,11 +78,17 @@ export function OrderTracking() {
   const [live, setLive] = useState(null);
   const [etaMin, setEtaMin] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [liveError, setLiveError] = useState('');
 
   const refreshLive = async () => {
     if (!orderId) return;
-    const data = await getCustomerOrderLiveTracking(orderId);
-    setLive(data);
+    try {
+      const data = await getCustomerOrderLiveTracking(orderId);
+      setLive(data);
+      setLiveError('');
+    } catch (e) {
+      setLiveError(e?.message || 'No se pudo cargar el mapa en vivo');
+    }
   };
 
   useEffect(() => {
@@ -111,7 +119,8 @@ export function OrderTracking() {
       await refreshLive();
     });
 
-    const poll = setInterval(() => { void refreshLive(); }, 8000);
+    // GPS en vivo: refresco frecuente mientras el pedido está activo
+    const poll = setInterval(() => { void refreshLive(); }, 5000);
     return () => {
       unsub();
       clearInterval(poll);
@@ -120,6 +129,8 @@ export function OrderTracking() {
 
   const mode = resolveTrackingMode(order, live);
   const showMap = shouldShowLiveMap(order, live);
+  const acceptedViaApp = wasAcceptedViaDriverApp(order, live);
+  const fallbackMsg = liveMapFallbackReason(order, live);
 
   const mapModel = useMemo(() => {
     if (!showMap || !live) return null;
@@ -211,6 +222,9 @@ export function OrderTracking() {
   const current = order.estado || 'pendiente';
   const isCancelled = current === 'cancelado';
   const isDelivered = current === 'entregado';
+  const timelineSteps = (acceptedViaApp || mode === TRACKING_MODE.LIVE_MAP)
+    ? LIVE_FLOW_STEPS
+    : STATUS_LINE_STEPS;
 
   return (
     <div className="rounded-2xl bg-white p-6 shadow-sm">
@@ -218,12 +232,19 @@ export function OrderTracking() {
       <h1 className="mt-4 font-display text-3xl text-pollon-black">Seguimiento del pedido</h1>
       <p className="text-sm text-gray-500">#{order.ticketNumber} · {formatDateTime(order.createdAt)}</p>
 
-      <div className={`mt-6 inline-flex rounded-full px-4 py-2 text-sm font-bold text-white ${ORDER_STATUS_LABELS[current]?.color || 'bg-gray-500'}`}>
-        {ORDER_STATUS_LABELS[current]?.label || current}
+      <div className="mt-6 flex flex-wrap items-center gap-2">
+        <div className={`inline-flex rounded-full px-4 py-2 text-sm font-bold text-white ${ORDER_STATUS_LABELS[current]?.color || 'bg-gray-500'}`}>
+          {ORDER_STATUS_LABELS[current]?.label || current}
+        </div>
+        {showMap && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2.5 py-1 text-[11px] font-bold text-green-800">
+            <Radio className="h-3 w-3" /> En vivo en mapa
+          </span>
+        )}
       </div>
 
       {showMap && mapModel && !isCancelled && !isDelivered && (
-        <div className="mt-6 overflow-hidden rounded-2xl border border-gray-200">
+        <div className="mt-6 overflow-hidden rounded-2xl border border-gray-200 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-2 bg-gray-50 px-4 py-3">
             <div className="flex items-center gap-2 text-sm font-bold text-gray-800">
               <Navigation className="h-4 w-4 text-pollon-red" />
@@ -237,11 +258,11 @@ export function OrderTracking() {
               </div>
             )}
           </div>
-          <div className="h-[280px] w-full sm:h-[340px]">
+          <div className="h-[280px] w-full sm:h-[360px]">
             <LiveMap
               className="h-full w-full"
               center={mapModel.center}
-              zoom={14}
+              zoom={15}
               markers={mapModel.markers}
               routes={mapModel.routes}
               store={mapModel.store}
@@ -259,19 +280,18 @@ export function OrderTracking() {
         </div>
       )}
 
-      {!showMap && mode === TRACKING_MODE.STATUS_LINE && !isCancelled && (
+      {!showMap && !isCancelled && !isDelivered && fallbackMsg && (
         <p className="mt-4 rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
-          Seguimiento por estados: tu pedido avanza según la preparación en local (sin mapa en vivo).
+          {fallbackMsg}
         </p>
       )}
 
+      {liveError && (
+        <p className="mt-3 text-xs font-semibold text-red-600">{liveError}</p>
+      )}
+
       {!isCancelled && (
-        <StatusTimeline
-          steps={mode === TRACKING_MODE.LIVE_MAP
-            ? ['aceptado', 'preparando', 'en_delivery', 'entregado']
-            : STATUS_LINE_STEPS}
-          current={current}
-        />
+        <StatusTimeline steps={timelineSteps} current={current} />
       )}
 
       {isCancelled && <p className="mt-6 font-medium text-red-600">Este pedido fue cancelado.</p>}

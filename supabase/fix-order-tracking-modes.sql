@@ -174,10 +174,19 @@ DECLARE
   loc RECORD;
   branch RECORD;
   mode TEXT;
-  uid UUID := auth.uid();
+  profile_id UUID;
+  gps_age_sec NUMERIC;
+  gps_live BOOLEAN := false;
+  has_app_accept BOOLEAN := false;
 BEGIN
-  IF uid IS NULL THEN
+  IF auth.uid() IS NULL THEN
     RAISE EXCEPTION 'No autenticado';
+  END IF;
+
+  -- customer_id en pedidos = profiles.id (NO auth.uid)
+  profile_id := public.auth_user_profile_id();
+  IF profile_id IS NULL THEN
+    RAISE EXCEPTION 'No autorizado';
   END IF;
 
   SELECT * INTO ped FROM pedidos WHERE id = p_order_id;
@@ -185,7 +194,7 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'error', 'not_found');
   END IF;
 
-  IF ped.customer_id IS DISTINCT FROM uid THEN
+  IF ped.customer_id IS DISTINCT FROM profile_id THEN
     RAISE EXCEPTION 'No autorizado';
   END IF;
 
@@ -202,24 +211,40 @@ BEGIN
       'ok', true,
       'tracking_mode', mode,
       'estado', ped.estado,
-      'has_driver', false
+      'has_driver', false,
+      'driver_accepted_via_app', false,
+      'gps_live', false
     );
-  END IF;
-
-  -- Si hay driver asignado por aceptación, forzar live_map
-  IF mode IS DISTINCT FROM 'live_map' AND job.assigned_at IS NOT NULL THEN
-    mode := 'live_map';
   END IF;
 
   SELECT * INTO asg
   FROM ep_delivery_assignments
-  WHERE job_id = job.id AND status = 'active'
+  WHERE job_id = job.id
+    AND driver_id = job.assigned_driver_id
+    AND status IN ('active', 'completed')
   ORDER BY accepted_at DESC NULLS LAST
   LIMIT 1;
+
+  -- Aceptación real por app = hay assignment (accepted_at)
+  has_app_accept := (asg.id IS NOT NULL AND asg.accepted_at IS NOT NULL)
+    OR (ped.datos_json->>'tracking_mode' = 'live_map')
+    OR (ped.datos_json ? 'driver_accepted_at');
+
+  IF has_app_accept THEN
+    mode := 'live_map';
+  ELSIF mode IS DISTINCT FROM 'live_map' THEN
+    mode := 'status_line';
+  END IF;
 
   SELECT * INTO loc
   FROM ep_driver_location_latest
   WHERE driver_id = job.assigned_driver_id;
+
+  IF loc.updated_at IS NOT NULL AND loc.lat IS NOT NULL AND loc.lng IS NOT NULL THEN
+    gps_age_sec := EXTRACT(EPOCH FROM (now() - loc.updated_at));
+    -- Mismo criterio práctico que mapa admin: GPS fresco ≤ 120s
+    gps_live := gps_age_sec <= 120;
+  END IF;
 
   SELECT id, name, lat, lng, address, city INTO branch
   FROM branches
@@ -231,7 +256,13 @@ BEGIN
     'tracking_mode', mode,
     'estado', ped.estado,
     'has_driver', true,
-    'phase', COALESCE(asg.phase, 'to_store'),
+    'driver_accepted_via_app', has_app_accept,
+    'gps_live', gps_live,
+    'gps_age_seconds', gps_age_sec,
+    'phase', COALESCE(asg.phase, CASE
+      WHEN job.status IN ('picked_up', 'delivering') THEN 'to_customer'
+      ELSE 'to_store'
+    END),
     'driver', jsonb_build_object(
       'id', job.assigned_driver_id,
       'lat', loc.lat,
@@ -261,7 +292,7 @@ REVOKE ALL ON FUNCTION public.ep_customer_order_live_tracking(TEXT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.ep_customer_order_live_tracking(TEXT) TO authenticated;
 
 COMMENT ON FUNCTION public.ep_customer_order_live_tracking(TEXT) IS
-  'Tracking cliente: mapa+ETA solo si tracking_mode=live_map / driver aceptó.';
+  'Tracking cliente: mapa solo si repartidor aceptó por app Y GPS está vivo; si GPS falla → barra de estados.';
 
 -- 4) Sync estado pedido desde app repartidor (bypass RLS)
 CREATE OR REPLACE FUNCTION public.ep_sync_pedido_estado_from_driver(

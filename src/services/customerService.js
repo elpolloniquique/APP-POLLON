@@ -116,8 +116,16 @@ export async function getCustomerOrderLiveTracking(orderId) {
     p_order_id: String(orderId),
   });
   if (error) {
-    console.warn('[Pollón] live tracking:', error.message);
-    return null;
+    const msg = error.message || '';
+    // RPC no desplegado aún
+    if (/does not exist|schema cache/i.test(msg)) {
+      throw new Error('Falta ejecutar fix-order-tracking-modes.sql en Supabase para el mapa en vivo.');
+    }
+    if (/No autorizado|not authorized|permission/i.test(msg)) {
+      throw new Error('No autorizado para ver el seguimiento de este pedido.');
+    }
+    console.warn('[Pollón] live tracking:', msg);
+    throw new Error(msg || 'No se pudo cargar el seguimiento en vivo');
   }
   return data;
 }
