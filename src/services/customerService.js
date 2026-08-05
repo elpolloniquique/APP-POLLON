@@ -95,8 +95,31 @@ function mapOrder(row) {
     orderType: row.tipo_entrega,
     branchId: row.branch_id || row.sucursal_id,
     items: datos.items || [],
-    customer: datos.customer || { name: row.cliente_nombre, phone: row.cliente_telefono },
+    customer: datos.customer || {
+      name: row.cliente_nombre,
+      phone: row.cliente_telefono,
+      address: row.cliente_direccion,
+      addressLat: row.cliente_lat ?? datos.customer?.addressLat ?? null,
+      addressLng: row.cliente_lng ?? datos.customer?.addressLng ?? null,
+    },
+    trackingMode: datos.tracking_mode === 'live_map' || datos.tracking_mode === 'status_line'
+      ? datos.tracking_mode
+      : null,
+    deliveryFee: datos.deliveryFee || 0,
   };
+}
+
+/** Tracking en vivo del pedido (mapa + coords) — solo dueño del pedido. */
+export async function getCustomerOrderLiveTracking(orderId) {
+  if (!isSupabaseConfigured() || !orderId) return null;
+  const { data, error } = await sb().rpc('ep_customer_order_live_tracking', {
+    p_order_id: String(orderId),
+  });
+  if (error) {
+    console.warn('[Pollón] live tracking:', error.message);
+    return null;
+  }
+  return data;
 }
 
 export async function getCustomerOrders(customerId) {

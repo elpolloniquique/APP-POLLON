@@ -15,6 +15,11 @@ import {
 } from '../../services/dispatchService';
 import { startGpsWatch } from '../../services/trackingService';
 import {
+  syncAfterDriverAccept,
+  syncAfterDriverPickup,
+  maybeAdvanceNearStore,
+} from '../../services/orderStatusSyncService';
+import {
   ensureDriverPushSubscription,
   getNotificationPermission,
   requestGpsFix,
@@ -335,6 +340,36 @@ export function DriverHome() {
     clearGps,
   ]);
 
+  // ~5 min de la sucursal → estado "En cocina" (preparando)
+  useEffect(() => {
+    if (!gpsPos || !branch?.lat || !branch?.lng) return undefined;
+    const activesNow = summary?.activeAssignments || [];
+    const heading = activesNow.filter((a) => (a.phase || 'to_store') === 'to_store');
+    if (!heading.length) return undefined;
+
+    let cancelled = false;
+    const tick = async () => {
+      for (const a of heading) {
+        if (cancelled) return;
+        const orderId = a?.ep_delivery_jobs?.source_order_id || a?.source_order_id;
+        if (!orderId) continue;
+        await maybeAdvanceNearStore({
+          orderId,
+          driverLat: gpsPos.lat,
+          driverLng: gpsPos.lng,
+          storeLat: Number(branch.lat),
+          storeLng: Number(branch.lng),
+          currentEstado: 'aceptado',
+        });
+      }
+    };
+    const t = setTimeout(() => { void tick(); }, 1200);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [gpsPos, branch?.lat, branch?.lng, summary?.activeAssignments]);
+
   const toggleOnline = async () => {
     const currentlyOnline = ['available', 'heading_to_branch', 'delivering', 'carrying_orders', 'offered'].includes(
       summary?.driver?.operational_status
@@ -403,6 +438,13 @@ export function DriverHome() {
         }
       }
       await acceptOffer(offer.id);
+      const orderId = offer?.ep_delivery_jobs?.source_order_id
+        || offer?.job?.source_order_id
+        || offer?.source_order_id
+        || null;
+      if (orderId) {
+        await syncAfterDriverAccept(orderId);
+      }
       publishRef.current = true;
       await startGps(true);
       await load();
@@ -435,6 +477,13 @@ export function DriverHome() {
     setBusy(true);
     try {
       await confirmPickup(assignment.id);
+      const orderId = assignment?.ep_delivery_jobs?.source_order_id
+        || assignment?.job?.source_order_id
+        || assignment?.source_order_id
+        || null;
+      if (orderId) {
+        await syncAfterDriverPickup(orderId);
+      }
       await load();
     } catch (e) {
       setError(e.message);

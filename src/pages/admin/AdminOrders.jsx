@@ -20,6 +20,7 @@ import { OrderDetailModal } from '../../components/admin/OrderDetailModal';
 import { CajaPagoControl } from '../../components/admin/CajaPagoControl';
 import { ORDER_STATES, canAdvanceOrderEstado, getNextOrderEstado } from '../../utils/constants';
 import { cajaPagoLabel, resolveCajaPagoStatus } from '../../utils/cajaPago';
+import { withCashierStatusLineMode } from '../../services/orderStatusSyncService';
 import {
   fetchDeliveryJobMap,
   autoDispatchNewOrder,
@@ -216,7 +217,12 @@ export function AdminOrders() {
       const info = deliveryMap[o.id];
       if (!info) continue;
       if (o.estado === 'pendiente' && info.jobStatus === 'assigned' && info.driverId) {
-        const updated = { ...o, estado: 'aceptado' };
+        const updated = {
+          ...o,
+          estado: 'aceptado',
+          trackingMode: 'live_map',
+          driverAcceptedAt: new Date().toISOString(),
+        };
         updateOrder(updated).then(refresh);
       }
     }
@@ -324,11 +330,15 @@ export function AdminOrders() {
 
   const applyEstado = async (order, next) => {
     if (!next || next === order.estado) return;
-    const updated = {
+    let updated = {
       ...order,
       estado: next,
       deliveredAt: next === 'entregado' ? new Date().toISOString() : order.deliveredAt,
     };
+    // Cajera avanza sin aceptación de app → cliente solo ve barra de estados
+    if (order.trackingMode !== 'live_map' && next !== 'cancelado') {
+      updated = withCashierStatusLineMode(updated, next);
+    }
     await updateOrder(updated);
     refresh();
     if (viewOrder?.id === order.id) setViewOrder(updated);

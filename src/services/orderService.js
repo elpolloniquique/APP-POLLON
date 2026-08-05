@@ -54,6 +54,10 @@ function rowToOrder(row) {
         : datos.caja_pago === 'na'
           ? 'na'
           : null,
+    /** live_map = cliente ve mapa; status_line = solo barra de estados */
+    trackingMode: datos.tracking_mode === 'live_map' || datos.tracking_mode === 'status_line'
+      ? datos.tracking_mode
+      : null,
     branchId: row.branch_id || row.sucursal_id || datos.branchId,
     customerId: row.customer_id || datos.customerId,
     observaciones: row.observaciones,
@@ -93,6 +97,12 @@ function orderToRow(order) {
       caja_pago: order.cajaPago === 'pagado' || order.cajaPago === 'por_pagar' || order.cajaPago === 'na'
         ? order.cajaPago
         : null,
+      tracking_mode: order.trackingMode === 'live_map' || order.trackingMode === 'status_line'
+        ? order.trackingMode
+        : null,
+      driver_accepted_at: order.driverAcceptedAt || undefined,
+      picked_up_at: order.pickedUpAt || undefined,
+      comision_repartidor_pago: order.comisionRepartidorPago || undefined,
     },
   });
 }
