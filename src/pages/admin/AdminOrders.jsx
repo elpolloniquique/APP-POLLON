@@ -48,16 +48,24 @@ function orderHour(iso) {
 }
 
 function formatOrderTime(iso) {
-  if (!iso) return '—';
+  if (!iso) return { full: '—', short: '—' };
   try {
-    return new Date(iso).toLocaleTimeString('es-CL', {
-      hour: 'numeric',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: true,
-    });
+    const d = new Date(iso);
+    return {
+      full: d.toLocaleTimeString('es-CL', {
+        hour: 'numeric',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true,
+      }),
+      short: d.toLocaleTimeString('es-CL', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      }),
+    };
   } catch {
-    return formatDateTime(iso);
+    return { full: formatDateTime(iso), short: formatDateTime(iso) };
   }
 }
 
@@ -552,22 +560,116 @@ export function AdminOrders() {
       </div>
 
       <div className={`orders-panel__shell ${filtersOpen ? '' : 'is-expanded'}`}>
+        {/* Vista móvil: cards sin scroll horizontal */}
+        <div className="orders-panel__cards">
+          {filtered.length === 0 ? (
+            <p className="orders-panel__cards-empty">Sin pedidos con estos filtros</p>
+          ) : (
+            filtered.map((o) => {
+              const info = deliveryMap[o.id];
+              const driverName = info?.driver?.full_name || null;
+              const isDelivery = o.orderType === 'delivery';
+              const isNew = o.estado === 'pendiente';
+              const canSearch = isDelivery && (!info?.driverId || isNew);
+              const parts = orderMoneyParts(o);
+              const phone = o.customer?.phone || '';
+              const time = formatOrderTime(o.createdAt);
+
+              return (
+                <article key={o.id} className={`orders-panel__card ${isNew ? 'is-new' : ''}`}>
+                  <header className="orders-panel__card-head">
+                    <div>
+                      <span className="is-code">{o.codigo_pedido || o.ticketNumber}</span>
+                      <span className={`orders-panel__badge ${statusBadgeClass(o.estado)}`}>
+                        {estadoLabel(o.estado)}
+                      </span>
+                    </div>
+                    <time>{time.short}</time>
+                  </header>
+                  <div className="orders-panel__card-body">
+                    <p className="orders-panel__card-name">{o.customer?.name || '—'}</p>
+                    {phone ? (
+                      <a className="orders-panel__phone" href={`tel:${phone}`}>
+                        <Phone className="h-3.5 w-3.5" />
+                        {phone}
+                      </a>
+                    ) : null}
+                    <p className="orders-panel__card-meta">{branchFor(o).name} · {driverName || (isDelivery ? 'N/A' : '—')}</p>
+                    <div className="orders-panel__card-money">
+                      <span>Sub {money(parts.subtotal)}</span>
+                      <span>Del {money(parts.delivery)}</span>
+                      <strong>{money(parts.total)}</strong>
+                    </div>
+                    <div className="orders-panel__card-cobro">
+                      <CajaPagoControl
+                        order={o}
+                        disabled={Boolean(cajaBusy[o.id])}
+                        onChange={(next) => changeCajaPago(o, next)}
+                      />
+                    </div>
+                  </div>
+                  <footer className="orders-panel__card-actions">
+                    <button type="button" className="orders-panel__icon-btn" onClick={() => setViewOrder(o)} title="Ver">
+                      <Eye className="h-3.5 w-3.5" />
+                      <span className="orders-panel__icon-label">Ver</span>
+                    </button>
+                    <button type="button" className="orders-panel__icon-btn orders-panel__icon-btn--print" onClick={() => handlePrint(o)} title="Imprimir">
+                      <Printer className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      className="orders-panel__icon-btn orders-panel__icon-btn--status"
+                      onClick={() => changeEstado(o)}
+                      disabled={!canAdvanceOrderEstado(o.estado)}
+                      title="Avanzar estado"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" />
+                    </button>
+                    {canSearch && (
+                      <button
+                        type="button"
+                        className="orders-panel__icon-btn orders-panel__icon-btn--reassign"
+                        onClick={() => handleSearchDriver(o)}
+                        disabled={searchingDriver[o.id]}
+                        title="Reasignar"
+                      >
+                        <Search className={`h-3.5 w-3.5 ${searchingDriver[o.id] ? 'animate-spin' : ''}`} />
+                        <span className="orders-panel__icon-label">Reasignar</span>
+                      </button>
+                    )}
+                  </footer>
+                </article>
+              );
+            })
+          )}
+          {filtered.length > 0 && (
+            <div className="orders-panel__cards-total">
+              <strong>TOTAL</strong>
+              <span>{money(totals.subtotal)}</span>
+              <span>{money(totals.delivery)}</span>
+              <strong>{money(totals.total)}</strong>
+              <em>{filtered.length} pedido{filtered.length !== 1 ? 's' : ''}</em>
+            </div>
+          )}
+        </div>
+
+        {/* Vista tablet / PC 10" / desktop: tabla fluida sin scroll horizontal */}
         <div className="orders-panel__scroll">
           <table className="orders-panel__table">
             <thead>
               <tr>
-                <th>Código</th>
-                <th>Sucursal</th>
-                <th>Cliente</th>
-                <th>Teléfono</th>
-                <th className="is-num">Subtotal</th>
-                <th className="is-num">Delivery</th>
-                <th className="is-num">Total</th>
-                <th>Estado</th>
-                <th>Repartidor</th>
-                <th>Cobro</th>
-                <th>Hora</th>
-                <th>Acciones</th>
+                <th className="col-code">Código</th>
+                <th className="col-branch">Sucursal</th>
+                <th className="col-client">Cliente</th>
+                <th className="col-phone">Teléfono</th>
+                <th className="is-num col-sub">Subtotal</th>
+                <th className="is-num col-del">Delivery</th>
+                <th className="is-num col-total">Total</th>
+                <th className="col-estado">Estado</th>
+                <th className="col-driver">Repartidor</th>
+                <th className="col-cobro">Cobro</th>
+                <th className="col-hora">Hora</th>
+                <th className="col-actions">Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -584,40 +686,44 @@ export function AdminOrders() {
                   const canSearch = isDelivery && (!info?.driverId || isNew);
                   const parts = orderMoneyParts(o);
                   const phone = o.customer?.phone || '';
+                  const time = formatOrderTime(o.createdAt);
 
                   return (
                     <tr key={o.id} className={isNew ? 'is-new' : ''}>
-                      <td className="is-code">{o.codigo_pedido || o.ticketNumber}</td>
-                      <td>{branchFor(o).name}</td>
-                      <td>{o.customer?.name || '—'}</td>
-                      <td>
+                      <td className="is-code col-code">{o.codigo_pedido || o.ticketNumber}</td>
+                      <td className="col-branch orders-panel__clip">{branchFor(o).name}</td>
+                      <td className="col-client orders-panel__clip">{o.customer?.name || '—'}</td>
+                      <td className="col-phone">
                         {phone ? (
-                          <a className="orders-panel__phone" href={`tel:${phone}`}>
+                          <a className="orders-panel__phone" href={`tel:${phone}`} title={phone}>
                             <Phone className="h-3.5 w-3.5" />
-                            {phone}
+                            <span className="orders-panel__phone-text">{phone}</span>
                           </a>
                         ) : '—'}
                       </td>
-                      <td className="is-num">{money(parts.subtotal)}</td>
-                      <td className="is-num">{money(parts.delivery)}</td>
-                      <td className="is-num is-strong">{money(parts.total)}</td>
-                      <td className="is-center">
+                      <td className="is-num col-sub">{money(parts.subtotal)}</td>
+                      <td className="is-num col-del">{money(parts.delivery)}</td>
+                      <td className="is-num is-strong col-total">{money(parts.total)}</td>
+                      <td className="is-center col-estado">
                         <span className={`orders-panel__badge ${statusBadgeClass(o.estado)}`}>
                           {estadoLabel(o.estado)}
                         </span>
                       </td>
-                      <td>
+                      <td className="col-driver orders-panel__clip">
                         {driverName || (isDelivery ? 'N/A' : '—')}
                       </td>
-                      <td>
+                      <td className="col-cobro">
                         <CajaPagoControl
                           order={o}
                           disabled={Boolean(cajaBusy[o.id])}
                           onChange={(next) => changeCajaPago(o, next)}
                         />
                       </td>
-                      <td>{formatOrderTime(o.createdAt)}</td>
-                      <td>
+                      <td className="col-hora">
+                        <span className="orders-panel__time-full">{time.full}</span>
+                        <span className="orders-panel__time-short">{time.short}</span>
+                      </td>
+                      <td className="col-actions">
                         <div className="orders-panel__actions-cell">
                           <button
                             type="button"
@@ -672,11 +778,18 @@ export function AdminOrders() {
             </tbody>
             <tfoot>
               <tr className="orders-panel__tfoot">
-                <td colSpan={4} className="orders-panel__footer-label">TOTAL</td>
-                <td className="is-num">{money(totals.subtotal)}</td>
-                <td className="is-num">{money(totals.delivery)}</td>
-                <td className="is-num">{money(totals.total)}</td>
-                <td colSpan={5} className="orders-panel__footer-meta">
+                <td className="orders-panel__footer-label col-code">TOTAL</td>
+                <td className="col-branch" />
+                <td className="col-client" />
+                <td className="col-phone" />
+                <td className="is-num col-sub">{money(totals.subtotal)}</td>
+                <td className="is-num col-del">{money(totals.delivery)}</td>
+                <td className="is-num col-total">{money(totals.total)}</td>
+                <td className="col-estado" />
+                <td className="col-driver" />
+                <td className="col-cobro" />
+                <td className="col-hora" />
+                <td className="orders-panel__footer-meta col-actions">
                   {filtered.length} pedido{filtered.length !== 1 ? 's' : ''}
                 </td>
               </tr>
