@@ -7,6 +7,8 @@ import {
   Volume2,
   VolumeX,
   Phone,
+  ChevronDown,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { useOrders } from '../../hooks/useOrders';
 import { useStaffBranch } from '../../hooks/useStaffBranch';
@@ -95,6 +97,14 @@ export function AdminOrders() {
   const [viewOrder, setViewOrder] = useState(null);
   const [branches, setBranches] = useState([]);
   const [cajaBusy, setCajaBusy] = useState({});
+  const [filtersOpen, setFiltersOpen] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('pollon-orders-filters-open');
+      return saved == null ? true : saved === '1';
+    } catch {
+      return true;
+    }
+  });
 
   const [deliveryMap, setDeliveryMap] = useState({});
   const [driverNames, setDriverNames] = useState([]);
@@ -337,6 +347,29 @@ export function AdminOrders() {
     refreshDelivery();
   };
 
+  const toggleFilters = () => {
+    setFiltersOpen((open) => {
+      const next = !open;
+      try {
+        sessionStorage.setItem('pollon-orders-filters-open', next ? '1' : '0');
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
+
+  const activeFiltersCount = [
+    !showingTodayOnly,
+    horaInicial !== '',
+    horaFinal !== '',
+    estado !== '',
+    driverFilter !== '',
+    orderTypeFilter !== '',
+    cajaPagoFilter !== '',
+    search.trim() !== '',
+  ].filter(Boolean).length;
+
   const liveOk = ready && isBackendReady && realtimeStatus === 'live';
 
   return (
@@ -403,101 +436,122 @@ export function AdminOrders() {
         </div>
       </div>
 
-      <div className="orders-panel__filters">
-        <label className="orders-panel__field">
-          <span>Desde</span>
-          <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
-        </label>
-        <label className="orders-panel__field">
-          <span>Hasta</span>
-          <input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
-        </label>
-
+      <div className={`orders-panel__filters-wrap ${filtersOpen ? 'is-open' : 'is-closed'}`}>
         <button
           type="button"
-          className={`orders-panel__today ${showingTodayOnly ? 'is-active' : ''}`}
-          onClick={resetToToday}
-          title="Ver pedidos de hoy"
+          className="orders-panel__filters-toggle"
+          onClick={toggleFilters}
+          aria-expanded={filtersOpen}
         >
-          <span>Hoy</span>
-          <strong>{todayCount}</strong>
+          <SlidersHorizontal className="h-3.5 w-3.5" />
+          <span>Filtros</span>
+          {activeFiltersCount > 0 && (
+            <span className="orders-panel__filters-badge">{activeFiltersCount}</span>
+          )}
+          <span className="orders-panel__filters-hint">
+            {filtersOpen ? 'Ocultar' : 'Mostrar'} · Hoy {todayCount}
+          </span>
+          <ChevronDown className={`orders-panel__filters-chevron ${filtersOpen ? 'is-open' : ''}`} />
         </button>
 
-        <label className="orders-panel__field">
-          <span>Hora inicial</span>
-          <select value={horaInicial} onChange={(e) => setHoraInicial(e.target.value)}>
-            <option value="">Todas</option>
-            {HOUR_OPTIONS.map((h) => (
-              <option key={`hi-${h}`} value={h}>{`${String(h).padStart(2, '0')}:00`}</option>
-            ))}
-          </select>
-        </label>
-        <label className="orders-panel__field">
-          <span>Hora final</span>
-          <select value={horaFinal} onChange={(e) => setHoraFinal(e.target.value)}>
-            <option value="">Todas</option>
-            {HOUR_OPTIONS.map((h) => (
-              <option key={`hf-${h}`} value={h}>{`${String(h).padStart(2, '0')}:00`}</option>
-            ))}
-          </select>
-        </label>
+        {filtersOpen && (
+          <div className="orders-panel__filters">
+            <label className="orders-panel__field orders-panel__field--date">
+              <span>Desde</span>
+              <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+            </label>
+            <label className="orders-panel__field orders-panel__field--date">
+              <span>Hasta</span>
+              <input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
+            </label>
 
-        <label className="orders-panel__field">
-          <span>Estaciones</span>
-          <select value={estado} onChange={(e) => setEstado(e.target.value)}>
-            <option value="">Todas las estaciones</option>
-            {ORDER_STATES.map((s) => (
-              <option key={s} value={s}>{estadoLabel(s)}</option>
-            ))}
-          </select>
-        </label>
+            <button
+              type="button"
+              className={`orders-panel__today ${showingTodayOnly ? 'is-active' : ''}`}
+              onClick={resetToToday}
+              title="Ver pedidos de hoy"
+            >
+              <span>Hoy</span>
+              <strong>{todayCount}</strong>
+            </button>
 
-        <label className="orders-panel__field">
-          <span>Repartidores</span>
-          <select value={driverFilter} onChange={(e) => setDriverFilter(e.target.value)}>
-            <option value="">Todos los repartidores</option>
-            <option value="__none">Sin repartidor (N/A)</option>
-            {driverNames.map((d) => (
-              <option key={d.driverId} value={d.driverId}>{d.name}</option>
-            ))}
-          </select>
-        </label>
+            <label className="orders-panel__field orders-panel__field--hour">
+              <span>Hora inicial</span>
+              <select value={horaInicial} onChange={(e) => setHoraInicial(e.target.value)}>
+                <option value="">Todas</option>
+                {HOUR_OPTIONS.map((h) => (
+                  <option key={`hi-${h}`} value={h}>{`${String(h).padStart(2, '0')}:00`}</option>
+                ))}
+              </select>
+            </label>
+            <label className="orders-panel__field orders-panel__field--hour">
+              <span>Hora final</span>
+              <select value={horaFinal} onChange={(e) => setHoraFinal(e.target.value)}>
+                <option value="">Todas</option>
+                {HOUR_OPTIONS.map((h) => (
+                  <option key={`hf-${h}`} value={h}>{`${String(h).padStart(2, '0')}:00`}</option>
+                ))}
+              </select>
+            </label>
 
-        <label className="orders-panel__field">
-          <span>Cocina asig.</span>
-          <select value={orderTypeFilter} onChange={(e) => setOrderTypeFilter(e.target.value)}>
-            <option value="">Todos</option>
-            <option value="delivery">Delivery</option>
-            <option value="retiro">Retiro</option>
-            <option value="reserva">Reserva</option>
-          </select>
-        </label>
+            <label className="orders-panel__field orders-panel__field--estado">
+              <span>Estaciones</span>
+              <select value={estado} onChange={(e) => setEstado(e.target.value)}>
+                <option value="">Todas las estaciones</option>
+                {ORDER_STATES.map((s) => (
+                  <option key={s} value={s}>{estadoLabel(s)}</option>
+                ))}
+              </select>
+            </label>
 
-        <label className="orders-panel__field">
-          <span>Cobro caja</span>
-          <select value={cajaPagoFilter} onChange={(e) => setCajaPagoFilter(e.target.value)}>
-            <option value="">Todos</option>
-            <option value="na">N/A</option>
-            <option value="por_pagar">Por pagar</option>
-            <option value="pagado">Pagado</option>
-          </select>
-        </label>
+            <label className="orders-panel__field orders-panel__field--driver">
+              <span>Repartidores</span>
+              <select value={driverFilter} onChange={(e) => setDriverFilter(e.target.value)}>
+                <option value="">Todos los repartidores</option>
+                <option value="__none">Sin repartidor (N/A)</option>
+                {driverNames.map((d) => (
+                  <option key={d.driverId} value={d.driverId}>{d.name}</option>
+                ))}
+              </select>
+            </label>
 
-        <label className="orders-panel__field orders-panel__field--search">
-          <span>Buscar</span>
-          <div className="orders-panel__search">
-            <Search className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-            <input
-              type="search"
-              placeholder="Buscar por código, cliente o teléfono..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+            <label className="orders-panel__field orders-panel__field--tipo">
+              <span>Cocina asig.</span>
+              <select value={orderTypeFilter} onChange={(e) => setOrderTypeFilter(e.target.value)}>
+                <option value="">Todos</option>
+                <option value="delivery">Delivery</option>
+                <option value="retiro">Retiro</option>
+                <option value="reserva">Reserva</option>
+              </select>
+            </label>
+
+            <label className="orders-panel__field orders-panel__field--cobro">
+              <span>Cobro caja</span>
+              <select value={cajaPagoFilter} onChange={(e) => setCajaPagoFilter(e.target.value)}>
+                <option value="">Todos</option>
+                <option value="na">N/A</option>
+                <option value="por_pagar">Por pagar</option>
+                <option value="pagado">Pagado</option>
+              </select>
+            </label>
+
+            <label className="orders-panel__field orders-panel__field--search">
+              <span>Buscar</span>
+              <div className="orders-panel__search">
+                <Search className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                <input
+                  type="search"
+                  placeholder="Buscar por código, cliente o teléfono..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+            </label>
           </div>
-        </label>
+        )}
       </div>
 
-      <div className="orders-panel__shell">
+      <div className={`orders-panel__shell ${filtersOpen ? '' : 'is-expanded'}`}>
         <div className="orders-panel__scroll">
           <table className="orders-panel__table">
             <thead>
