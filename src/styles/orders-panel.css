@@ -576,48 +576,99 @@
 .orders-panel__badge--otro { background: #e5e7eb; color: #374151; }
 
 .orders-panel__actions-cell {
-  display: inline-flex;
+  display: grid;
+  grid-template-columns: repeat(4, 2.35rem);
+  gap: 0.35rem;
   align-items: center;
-  gap: 0.2rem;
-  flex-wrap: nowrap;
+  justify-content: start;
+  width: max-content;
+  max-width: 100%;
+}
+
+.orders-panel__table .col-actions {
+  vertical-align: middle;
 }
 
 .orders-panel__icon-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.15rem;
-  min-height: 1.65rem;
-  min-width: 1.65rem;
-  border-radius: 0.35rem;
-  border: 1px solid #e5e7eb;
+  gap: 0;
+  box-sizing: border-box;
+  width: 2.35rem;
+  height: 2.35rem;
+  min-width: 2.35rem;
+  min-height: 2.35rem;
+  padding: 0;
+  border-radius: 0.45rem;
+  border: 1.5px solid #d1d5db;
   background: #fff;
-  padding: 0.2rem 0.28rem;
   color: #374151;
   cursor: pointer;
   font-size: 0.58rem;
   font-weight: 700;
+  line-height: 1;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.12s ease, border-color 0.12s ease, transform 0.1s ease;
 }
 
-.orders-panel__icon-btn:hover { background: #f9fafb; }
-.orders-panel__icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.orders-panel__icon-svg {
+  width: 1.05rem;
+  height: 1.05rem;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+.orders-panel__icon-btn:hover {
+  background: #f9fafb;
+}
+
+.orders-panel__icon-btn:active:not(:disabled):not(.orders-panel__icon-btn--ghost) {
+  transform: scale(0.96);
+  background: #f3f4f6;
+}
+
+.orders-panel__icon-btn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.orders-panel__icon-btn--ghost {
+  visibility: hidden;
+  pointer-events: none;
+  border-color: transparent;
+  background: transparent;
+}
 
 .orders-panel__icon-btn--print {
-  border-color: #fdba74;
+  border-color: #fb923c;
   background: #fff7ed;
   color: #c2410c;
+}
+
+.orders-panel__icon-btn--print:hover {
+  background: #ffedd5;
 }
 
 .orders-panel__icon-btn--reassign {
-  border-color: #fdba74;
+  border-color: #fb923c;
   background: #fff7ed;
   color: #c2410c;
 }
 
+.orders-panel__icon-btn--reassign:hover {
+  background: #ffedd5;
+}
+
 .orders-panel__icon-btn--status {
-  border-color: #fecaca;
+  border-color: #f87171;
   background: #fef2f2;
   color: #b91c1c;
+}
+
+.orders-panel__icon-btn--status:hover {
+  background: #fee2e2;
 }
 
 .orders-panel__table tfoot td {
@@ -727,15 +778,24 @@
   .orders-panel__table .col-driver { width: 8%; }
   .orders-panel__table .col-cobro { width: 9%; }
   .orders-panel__table .col-hora { width: 6.5%; }
-  .orders-panel__table .col-actions { width: 20%; }
+  .orders-panel__table .col-actions { width: 22%; }
 
   .orders-panel__actions-cell {
-    gap: 0.18rem;
+    grid-template-columns: repeat(4, 2.6rem);
+    gap: 0.4rem;
   }
 
   .orders-panel__icon-btn {
-    min-height: 1.7rem;
-    min-width: 1.7rem;
+    width: 2.6rem;
+    height: 2.6rem;
+    min-width: 2.6rem;
+    min-height: 2.6rem;
+    border-radius: 0.5rem;
+  }
+
+  .orders-panel__icon-svg {
+    width: 1.15rem;
+    height: 1.15rem;
   }
 
   .orders-panel__btn {
@@ -881,16 +941,24 @@
   }
 
   .orders-panel__card-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem;
+    display: grid;
+    grid-template-columns: repeat(4, 2.75rem);
+    gap: 0.45rem;
+    justify-content: start;
     margin-top: 0.55rem;
     padding-top: 0.5rem;
     border-top: 1px solid #f3f4f6;
   }
 
+  .orders-panel__card-actions .orders-panel__icon-btn {
+    width: 2.75rem;
+    height: 2.75rem;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+
   .orders-panel__card-actions .orders-panel__icon-label {
-    display: inline;
+    display: none;
   }
 
   .orders-panel__cards-total {
@@ -924,10 +992,18 @@
   }
 }
 
-/* Desktop amplio: labels de acción visibles */
+/* Desktop amplio */
 @media (min-width: 1440px) {
-  .orders-panel__icon-btn .orders-panel__icon-label {
-    display: inline;
+  .orders-panel__actions-cell {
+    grid-template-columns: repeat(4, 2.4rem);
+    gap: 0.4rem;
+  }
+
+  .orders-panel__icon-btn {
+    width: 2.4rem;
+    height: 2.4rem;
+    min-width: 2.4rem;
+    min-height: 2.4rem;
   }
 
   .orders-panel__table {

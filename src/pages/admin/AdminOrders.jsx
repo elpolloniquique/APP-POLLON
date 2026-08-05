@@ -645,12 +645,12 @@ export function AdminOrders() {
                     </div>
                   </div>
                   <footer className="orders-panel__card-actions">
-                    <button type="button" className="orders-panel__icon-btn" onClick={() => setViewOrder(o)} title="Ver">
-                      <Eye className="h-3.5 w-3.5" />
+                    <button type="button" className="orders-panel__icon-btn" onClick={() => setViewOrder(o)} title="Ver" aria-label="Ver">
+                      <Eye className="orders-panel__icon-svg" />
                       <span className="orders-panel__icon-label">Ver</span>
                     </button>
-                    <button type="button" className="orders-panel__icon-btn orders-panel__icon-btn--print" onClick={() => handlePrint(o)} title="Imprimir">
-                      <Printer className="h-3.5 w-3.5" />
+                    <button type="button" className="orders-panel__icon-btn orders-panel__icon-btn--print" onClick={() => handlePrint(o)} title="Imprimir" aria-label="Imprimir">
+                      <Printer className="orders-panel__icon-svg" />
                     </button>
                     <button
                       type="button"
@@ -658,20 +658,24 @@ export function AdminOrders() {
                       onClick={() => changeEstado(o)}
                       disabled={!canAdvanceOrderEstado(o.estado)}
                       title="Avanzar estado"
+                      aria-label="Avanzar estado"
                     >
-                      <RefreshCw className="h-3.5 w-3.5" />
+                      <RefreshCw className="orders-panel__icon-svg" />
                     </button>
-                    {canSearch && (
+                    {canSearch ? (
                       <button
                         type="button"
                         className="orders-panel__icon-btn orders-panel__icon-btn--reassign"
                         onClick={() => handleSearchDriver(o)}
                         disabled={searchingDriver[o.id]}
                         title="Reasignar"
+                        aria-label="Reasignar"
                       >
-                        <Search className={`h-3.5 w-3.5 ${searchingDriver[o.id] ? 'animate-spin' : ''}`} />
+                        <Search className={`orders-panel__icon-svg ${searchingDriver[o.id] ? 'animate-spin' : ''}`} />
                         <span className="orders-panel__icon-label">Reasignar</span>
                       </button>
+                    ) : (
+                      <span className="orders-panel__icon-btn orders-panel__icon-btn--ghost" aria-hidden="true" />
                     )}
                   </footer>
                 </article>
@@ -770,23 +774,24 @@ export function AdminOrders() {
                         </span>
                       </td>
                       <td className="col-actions">
-                        <div className="orders-panel__actions-cell">
+                        <div className="orders-panel__actions-cell" role="group" aria-label="Acciones del pedido">
                           <button
                             type="button"
                             className="orders-panel__icon-btn"
                             onClick={() => setViewOrder(o)}
                             title="Ver pedido"
+                            aria-label="Ver pedido"
                           >
-                            <Eye className="h-3.5 w-3.5" />
-                            <span className="orders-panel__icon-label">Ver</span>
+                            <Eye className="orders-panel__icon-svg" />
                           </button>
                           <button
                             type="button"
                             className="orders-panel__icon-btn orders-panel__icon-btn--print"
                             onClick={() => handlePrint(o)}
                             title="Imprimir"
+                            aria-label="Imprimir"
                           >
-                            <Printer className="h-3.5 w-3.5" />
+                            <Printer className="orders-panel__icon-svg" />
                           </button>
                           <button
                             type="button"
@@ -798,22 +803,23 @@ export function AdminOrders() {
                                 ? `Avanzar a ${estadoLabel(getNextOrderEstado(o.estado))}`
                                 : 'Pedido finalizado'
                             }
+                            aria-label="Avanzar estado"
                           >
-                            <RefreshCw className="h-3.5 w-3.5" />
+                            <RefreshCw className="orders-panel__icon-svg" />
                           </button>
-                          {canSearch && (
+                          {canSearch ? (
                             <button
                               type="button"
                               className="orders-panel__icon-btn orders-panel__icon-btn--reassign"
                               onClick={() => handleSearchDriver(o)}
                               disabled={searchingDriver[o.id]}
                               title="Buscar / reasignar repartidor"
+                              aria-label="Reasignar repartidor"
                             >
-                              <Search className={`h-3.5 w-3.5 ${searchingDriver[o.id] ? 'animate-spin' : ''}`} />
-                              <span className="orders-panel__icon-label">
-                                {searchingDriver[o.id] ? '…' : 'Reasignar'}
-                              </span>
+                              <Search className={`orders-panel__icon-svg ${searchingDriver[o.id] ? 'animate-spin' : ''}`} />
                             </button>
+                          ) : (
+                            <span className="orders-panel__icon-btn orders-panel__icon-btn--ghost" aria-hidden="true" />
                           )}
                         </div>
                       </td>
