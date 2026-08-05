@@ -744,7 +744,7 @@
     }
   }
 
-  /* Sidebar siempre drawer (hamburguesa) — sin modo estático */
+  /* Sidebar: ver admin-shell.css (fijo en ≥1024, drawer en <1024) */
 
   /* Leaflet: contener paneles dentro del mapa (no tapar menú admin z-1200) */
   .leaflet-container {
