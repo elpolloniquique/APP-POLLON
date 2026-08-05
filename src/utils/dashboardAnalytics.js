@@ -82,6 +82,24 @@ function sumTotal(list) {
   return list.reduce((s, o) => s + (Number(o.total) || 0), 0);
 }
 
+function orderDeliveryFee(o) {
+  if ((o.orderType || 'delivery') !== 'delivery') return 0;
+  return Number(o.deliveryFee) || 0;
+}
+
+function orderProductSales(o) {
+  const total = Number(o.total) || 0;
+  return Math.max(0, total - orderDeliveryFee(o));
+}
+
+function sumDelivery(list) {
+  return list.reduce((s, o) => s + orderDeliveryFee(o), 0);
+}
+
+function sumProductSales(list) {
+  return list.reduce((s, o) => s + orderProductSales(o), 0);
+}
+
 function avgTicket(list) {
   return list.length ? sumTotal(list) / list.length : 0;
 }
@@ -89,15 +107,25 @@ function avgTicket(list) {
 export function computeKPIs(currentOrders, previousOrders) {
   const sales = sumTotal(currentOrders);
   const prevSales = sumTotal(previousOrders);
+  const productSales = sumProductSales(currentOrders);
+  const deliverySales = sumDelivery(currentOrders);
+  const prevProduct = sumProductSales(previousOrders);
+  const prevDelivery = sumDelivery(previousOrders);
   const delivered = currentOrders.filter((o) => o.estado === 'entregado').length;
   const pending = currentOrders.filter((o) =>
-    ['pendiente', 'confirmado', 'preparando'].includes(o.estado),
+    ['pendiente', 'aceptado', 'confirmado', 'preparando'].includes(o.estado),
   ).length;
   const cancelled = currentOrders.filter((o) => o.estado === 'cancelado').length;
+  const prevDelivered = previousOrders.filter((o) => o.estado === 'entregado').length;
+  const prevPending = previousOrders.filter((o) =>
+    ['pendiente', 'aceptado', 'confirmado', 'preparando'].includes(o.estado),
+  ).length;
 
   return {
     orders: currentOrders.length,
     sales,
+    productSales,
+    deliverySales,
     ticket: avgTicket(currentOrders),
     delivered,
     pending,
@@ -106,8 +134,12 @@ export function computeKPIs(currentOrders, previousOrders) {
       ? Math.round((delivered / currentOrders.length) * 100)
       : 0,
     salesDelta: pctChange(sales, prevSales),
+    productSalesDelta: pctChange(productSales, prevProduct),
+    deliverySalesDelta: pctChange(deliverySales, prevDelivery),
     ordersDelta: pctChange(currentOrders.length, previousOrders.length),
     ticketDelta: pctChange(avgTicket(currentOrders), avgTicket(previousOrders)),
+    deliveredDelta: pctChange(delivered, prevDelivered),
+    pendingDelta: pctChange(pending, prevPending),
   };
 }
 
@@ -193,6 +225,8 @@ export function buildTimeline(orders, periodId) {
   return {
     labels: buckets.map((b) => b.label),
     sales: buckets.map((b) => sumTotal(b.orders)),
+    productSales: buckets.map((b) => sumProductSales(b.orders)),
+    deliverySales: buckets.map((b) => sumDelivery(b.orders)),
     orders: buckets.map((b) => b.orders.length),
   };
 }
