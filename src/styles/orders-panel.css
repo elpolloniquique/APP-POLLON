@@ -481,6 +481,52 @@
   white-space: nowrap;
 }
 
+.orders-panel__client-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.2;
+  max-height: 2.4em;
+}
+
+.orders-panel__driver-short {
+  display: none;
+}
+
+.orders-panel__driver-full {
+  display: inline;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.orders-panel__time {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.orders-panel__time-clock {
+  font-weight: 700;
+  font-size: 0.68rem;
+  color: #111827;
+}
+
+.orders-panel__time-meridiem {
+  font-size: 0.55rem;
+  font-weight: 700;
+  color: #6b7280;
+  text-transform: lowercase;
+}
+
 .orders-panel__phone {
   display: inline-flex;
   align-items: center;
@@ -598,28 +644,25 @@
   opacity: 0.9;
 }
 
-.orders-panel__time-short { display: none; }
-.orders-panel__time-full { display: inline; }
-
 .orders-panel__icon-btn .orders-panel__icon-label {
   display: none;
 }
 
-/* Anchos de columna base (PC 10"+) */
-.orders-panel__table .col-code { width: 5.2%; }
-.orders-panel__table .col-branch { width: 10%; }
+/* Anchos de columna base (desktop grande: con Total y nombre completo) */
+.orders-panel__table .col-code { width: 5%; }
+.orders-panel__table .col-branch { width: 9%; }
 .orders-panel__table .col-client { width: 11%; }
 .orders-panel__table .col-phone { width: 9%; }
 .orders-panel__table .col-sub { width: 7%; }
 .orders-panel__table .col-del { width: 6.5%; }
 .orders-panel__table .col-total { width: 7%; }
 .orders-panel__table .col-estado { width: 8%; }
-.orders-panel__table .col-driver { width: 9%; }
-.orders-panel__table .col-cobro { width: 8.5%; }
-.orders-panel__table .col-hora { width: 7.5%; }
-.orders-panel__table .col-actions { width: 11.3%; }
+.orders-panel__table .col-driver { width: 10%; }
+.orders-panel__table .col-cobro { width: 8%; }
+.orders-panel__table .col-hora { width: 6.5%; }
+.orders-panel__table .col-actions { width: 13%; }
 
-/* —— PC 10" / tablet landscape (≈900–1279): denser, sin scroll X —— */
+/* —— PC 10" / tablet landscape (≈900–1279): denser, sin Total, repartidor corto —— */
 @media (max-width: 1279px) {
   .orders-panel__table {
     font-size: 0.66rem;
@@ -644,33 +687,73 @@
     font-size: 0.55rem;
   }
 
-  .orders-panel__time-full { display: none; }
-  .orders-panel__time-short { display: inline; }
+  .orders-panel__time-clock {
+    font-size: 0.62rem;
+  }
 
-  .orders-panel__phone svg {
-    width: 0.85rem;
-    height: 0.85rem;
+  .orders-panel__time-meridiem {
+    font-size: 0.5rem;
+  }
+
+  .orders-panel__driver-full {
+    display: none;
+  }
+
+  .orders-panel__driver-short {
+    display: inline;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .orders-panel__table .col-total {
+    display: none;
   }
 
   .orders-panel__table .col-branch {
     display: none;
   }
 
+  .orders-panel__phone svg {
+    width: 0.85rem;
+    height: 0.85rem;
+  }
+
   .orders-panel__table .col-code { width: 6%; }
-  .orders-panel__table .col-client { width: 13%; }
+  .orders-panel__table .col-client { width: 14%; }
   .orders-panel__table .col-phone { width: 10%; }
-  .orders-panel__table .col-sub { width: 8%; }
-  .orders-panel__table .col-del { width: 7.5%; }
-  .orders-panel__table .col-total { width: 8%; }
+  .orders-panel__table .col-sub { width: 9%; }
+  .orders-panel__table .col-del { width: 8.5%; }
   .orders-panel__table .col-estado { width: 9%; }
-  .orders-panel__table .col-driver { width: 10%; }
-  .orders-panel__table .col-cobro { width: 9.5%; }
-  .orders-panel__table .col-hora { width: 7%; }
-  .orders-panel__table .col-actions { width: 12%; }
+  .orders-panel__table .col-driver { width: 8%; }
+  .orders-panel__table .col-cobro { width: 9%; }
+  .orders-panel__table .col-hora { width: 6.5%; }
+  .orders-panel__table .col-actions { width: 20%; }
+
+  .orders-panel__actions-cell {
+    gap: 0.18rem;
+  }
+
+  .orders-panel__icon-btn {
+    min-height: 1.7rem;
+    min-width: 1.7rem;
+  }
 
   .orders-panel__btn {
     padding: 0.35rem 0.5rem;
     font-size: 0.65rem;
+  }
+
+  .orders-panel__table .caja-pago--btn {
+    padding: 0.22rem 0.35rem;
+    font-size: 0.58rem;
+  }
+
+  .orders-panel__table .caja-pago--btn svg:first-child {
+    display: none;
+  }
+
+  .orders-panel__card-money strong {
+    display: none;
   }
 }
 
@@ -680,29 +763,13 @@
     display: none;
   }
 
-  .orders-panel__table .col-sub {
-    display: none;
-  }
-
-  .orders-panel__table .col-client { width: 16%; }
-  .orders-panel__table .col-del { width: 9%; }
-  .orders-panel__table .col-total { width: 10%; }
+  .orders-panel__table .col-client { width: 18%; }
+  .orders-panel__table .col-sub { width: 11%; }
+  .orders-panel__table .col-del { width: 10%; }
   .orders-panel__table .col-estado { width: 11%; }
-  .orders-panel__table .col-driver { width: 12%; }
-  .orders-panel__table .col-cobro { width: 12%; }
-  .orders-panel__table .col-actions { width: 14%; }
-}
-
-/* Compactar cobro en pantallas medias */
-@media (max-width: 1279px) {
-  .orders-panel__table .caja-pago--btn {
-    padding: 0.22rem 0.35rem;
-    font-size: 0.58rem;
-  }
-
-  .orders-panel__table .caja-pago--btn svg:first-child {
-    display: none;
-  }
+  .orders-panel__table .col-driver { width: 9%; }
+  .orders-panel__table .col-cobro { width: 11%; }
+  .orders-panel__table .col-actions { width: 22%; }
 }
 
 /* —— Móvil: cards (sin scroll horizontal) —— */
@@ -766,11 +833,18 @@
     flex-wrap: wrap;
   }
 
-  .orders-panel__card-head time {
+  .orders-panel__card-head time,
+  .orders-panel__card-head .orders-panel__time {
     font-size: 0.68rem;
     font-weight: 700;
     color: #6b7280;
     white-space: nowrap;
+    align-items: flex-end;
+    text-align: right;
+  }
+
+  .orders-panel__card-head .orders-panel__time-clock {
+    color: #111827;
   }
 
   .orders-panel__card-name {

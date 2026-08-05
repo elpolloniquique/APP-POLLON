@@ -48,16 +48,25 @@ function orderHour(iso) {
 }
 
 function formatOrderTime(iso) {
-  if (!iso) return { full: '—', short: '—' };
+  if (!iso) {
+    return { clock: '—', meridiem: '', full: '—', short: '—' };
+  }
   try {
     const d = new Date(iso);
+    const parts12 = d.toLocaleTimeString('es-CL', {
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true,
+    });
+    // "1:46:20 p. m." → reloj + meridiano
+    const match = parts12.match(/^(.+?)\s*([ap]\.?\s*m\.?)$/i);
+    const clock12 = match ? match[1].trim() : parts12;
+    const meridiem = match ? match[2].replace(/\s+/g, ' ').toLowerCase() : '';
     return {
-      full: d.toLocaleTimeString('es-CL', {
-        hour: 'numeric',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: true,
-      }),
+      clock: clock12,
+      meridiem,
+      full: parts12,
       short: d.toLocaleTimeString('es-CL', {
         hour: 'numeric',
         minute: '2-digit',
@@ -65,8 +74,31 @@ function formatOrderTime(iso) {
       }),
     };
   } catch {
-    return { full: formatDateTime(iso), short: formatDateTime(iso) };
+    const fallback = formatDateTime(iso);
+    return { clock: fallback, meridiem: '', full: fallback, short: fallback };
   }
+}
+
+/** "Akiles Tutacane huillca" → "Akiles T." */
+function formatDriverShort(fullName) {
+  if (!fullName) return null;
+  const parts = String(fullName).trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return null;
+  if (parts.length === 1) return parts[0];
+  const first = parts[0];
+  const initial = parts[1].charAt(0).toUpperCase();
+  return `${first} ${initial}.`;
+}
+
+function driverDisplay(fullName, isDelivery) {
+  if (fullName) {
+    return {
+      full: fullName,
+      short: formatDriverShort(fullName) || fullName,
+    };
+  }
+  const fallback = isDelivery ? 'N/A' : '—';
+  return { full: fallback, short: fallback };
 }
 
 function statusBadgeClass(estado) {
@@ -569,6 +601,7 @@ export function AdminOrders() {
               const info = deliveryMap[o.id];
               const driverName = info?.driver?.full_name || null;
               const isDelivery = o.orderType === 'delivery';
+              const driver = driverDisplay(driverName, isDelivery);
               const isNew = o.estado === 'pendiente';
               const canSearch = isDelivery && (!info?.driverId || isNew);
               const parts = orderMoneyParts(o);
@@ -584,7 +617,10 @@ export function AdminOrders() {
                         {estadoLabel(o.estado)}
                       </span>
                     </div>
-                    <time>{time.short}</time>
+                    <time className="orders-panel__time">
+                      <span className="orders-panel__time-clock">{time.clock}</span>
+                      {time.meridiem ? <span className="orders-panel__time-meridiem">{time.meridiem}</span> : null}
+                    </time>
                   </header>
                   <div className="orders-panel__card-body">
                     <p className="orders-panel__card-name">{o.customer?.name || '—'}</p>
@@ -594,7 +630,7 @@ export function AdminOrders() {
                         {phone}
                       </a>
                     ) : null}
-                    <p className="orders-panel__card-meta">{branchFor(o).name} · {driverName || (isDelivery ? 'N/A' : '—')}</p>
+                    <p className="orders-panel__card-meta">{branchFor(o).name} · {driver.short}</p>
                     <div className="orders-panel__card-money">
                       <span>Sub {money(parts.subtotal)}</span>
                       <span>Del {money(parts.delivery)}</span>
@@ -682,6 +718,7 @@ export function AdminOrders() {
                   const info = deliveryMap[o.id];
                   const driverName = info?.driver?.full_name || null;
                   const isDelivery = o.orderType === 'delivery';
+                  const driver = driverDisplay(driverName, isDelivery);
                   const isNew = o.estado === 'pendiente';
                   const canSearch = isDelivery && (!info?.driverId || isNew);
                   const parts = orderMoneyParts(o);
@@ -692,7 +729,11 @@ export function AdminOrders() {
                     <tr key={o.id} className={isNew ? 'is-new' : ''}>
                       <td className="is-code col-code">{o.codigo_pedido || o.ticketNumber}</td>
                       <td className="col-branch orders-panel__clip">{branchFor(o).name}</td>
-                      <td className="col-client orders-panel__clip">{o.customer?.name || '—'}</td>
+                      <td className="col-client">
+                        <span className="orders-panel__client-name" title={o.customer?.name || ''}>
+                          {o.customer?.name || '—'}
+                        </span>
+                      </td>
                       <td className="col-phone">
                         {phone ? (
                           <a className="orders-panel__phone" href={`tel:${phone}`} title={phone}>
@@ -709,8 +750,9 @@ export function AdminOrders() {
                           {estadoLabel(o.estado)}
                         </span>
                       </td>
-                      <td className="col-driver orders-panel__clip">
-                        {driverName || (isDelivery ? 'N/A' : '—')}
+                      <td className="col-driver" title={driver.full}>
+                        <span className="orders-panel__driver-full">{driver.full}</span>
+                        <span className="orders-panel__driver-short">{driver.short}</span>
                       </td>
                       <td className="col-cobro">
                         <CajaPagoControl
@@ -720,8 +762,12 @@ export function AdminOrders() {
                         />
                       </td>
                       <td className="col-hora">
-                        <span className="orders-panel__time-full">{time.full}</span>
-                        <span className="orders-panel__time-short">{time.short}</span>
+                        <span className="orders-panel__time" title={time.full}>
+                          <span className="orders-panel__time-clock">{time.clock}</span>
+                          {time.meridiem ? (
+                            <span className="orders-panel__time-meridiem">{time.meridiem}</span>
+                          ) : null}
+                        </span>
                       </td>
                       <td className="col-actions">
                         <div className="orders-panel__actions-cell">
