@@ -149,9 +149,9 @@ const DELIVERY_MODULE_PERMS = [
 ];
 
 export const ROLE_PERMISSIONS = {
-  super_admin: ['dashboard', 'menu', 'orders', 'kitchen', 'products', 'categories', 'branches', 'cash', 'inventory', 'reports', 'settings', 'users', 'customers', 'campaigns', ...DELIVERY_MODULE_PERMS],
-  admin_sucursal: ['dashboard', 'menu', 'orders', 'kitchen', 'customers', 'branches', 'cash', 'inventory', 'reports', 'settings', ...DELIVERY_MODULE_PERMS],
-  administrador: ['dashboard', 'menu', 'orders', 'kitchen', 'customers', 'branches', 'cash', 'inventory', 'reports', 'settings', ...DELIVERY_MODULE_PERMS],
+  super_admin: ['dashboard', 'menu', 'orders', 'kitchen', 'products', 'categories', 'branches', 'cash', 'inventory', 'reports', 'users', 'settings', 'customers', 'campaigns', ...DELIVERY_MODULE_PERMS],
+  admin_sucursal: ['dashboard', 'menu', 'orders', 'kitchen', 'customers', 'branches', 'cash', 'inventory', 'reports', 'users', 'settings', ...DELIVERY_MODULE_PERMS],
+  administrador: ['dashboard', 'menu', 'orders', 'kitchen', 'customers', 'branches', 'cash', 'inventory', 'reports', 'users', 'settings', ...DELIVERY_MODULE_PERMS],
   cajera: ['dashboard', 'orders', 'kitchen', 'dispatch', 'live_map'],
   cajero: ['dashboard', 'orders', 'kitchen', 'dispatch', 'live_map'],
   despachador: ['dashboard', 'orders', 'kitchen', 'dispatch', 'live_map'],
@@ -173,6 +173,7 @@ export const ADMIN_NAV = [
   { id: 'caja', path: '/admin/caja', label: 'Caja diaria', perm: 'cash', icon: 'Banknote' },
   { id: 'stock', path: '/admin/stock', label: 'Stock', perm: 'inventory', icon: 'Package' },
   { id: 'reportes', path: '/admin/reportes', label: 'Reportes', perm: 'reports', icon: 'BarChart3' },
+  { id: 'usuarios', path: '/admin/usuarios', label: 'Usuarios', perm: 'users', icon: 'Users' },
   { id: 'config', path: '/admin/config', label: 'Configuración', perm: 'settings', icon: 'Settings' },
   { id: 'drivers', path: '/admin/repartidores', label: 'Repartidores', perm: 'drivers', group: 'delivery', icon: 'Bike' },
   { id: 'driver_config', path: '/admin/repartidores/config', label: 'Config. despacho', perm: 'driver_config', group: 'delivery', icon: 'SlidersHorizontal' },

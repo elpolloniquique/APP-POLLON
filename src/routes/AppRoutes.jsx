@@ -12,6 +12,7 @@ import { AdminBranches } from '../pages/admin/AdminBranches';
 import { AdminCash } from '../pages/admin/AdminCash';
 import { AdminInventory } from '../pages/admin/AdminInventory';
 import { AdminReports } from '../pages/admin/AdminReports';
+import { AdminUsers } from '../pages/admin/AdminUsers';
 import { AdminConfig } from '../pages/admin/AdminConfig';
 import { AdminCustomers } from '../pages/admin/AdminCustomers';
 import { AdminCampaigns } from '../pages/admin/AdminCampaigns';
@@ -102,6 +103,7 @@ export function AppRoutes() {
         <Route path="caja" element={<ProtectedRoute perm="cash"><AdminCash /></ProtectedRoute>} />
         <Route path="stock" element={<ProtectedRoute perm="inventory"><AdminInventory /></ProtectedRoute>} />
         <Route path="reportes" element={<ProtectedRoute perm="reports"><AdminReports /></ProtectedRoute>} />
+        <Route path="usuarios" element={<ProtectedRoute perm="users"><AdminUsers /></ProtectedRoute>} />
         <Route path="config" element={<ProtectedRoute perm="settings"><AdminConfig /></ProtectedRoute>} />
 
         {/* Módulo delivery GPS — aditivo */}
