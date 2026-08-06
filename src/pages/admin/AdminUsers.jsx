@@ -331,8 +331,8 @@ export function AdminUsers() {
               <h2>Gestión de Usuarios</h2>
               <p>Administra personal por sucursal y rol</p>
             </div>
-            <button type="button" className="aus-btn aus-btn--primary aus-btn--sm" onClick={openCreate}>
-              <Plus className="h-3.5 w-3.5" />
+            <button type="button" className="aus-btn aus-btn--primary" onClick={openCreate}>
+              <Plus className="h-4 w-4" />
               Agregar
             </button>
           </div>
@@ -345,10 +345,10 @@ export function AdminUsers() {
               { label: 'Roles', value: kpis.roles, tone: 'black', icon: Shield },
             ].map((k) => (
               <div key={k.label} className={`aus-kpi aus-kpi--${k.tone}`}>
-                <k.icon className="h-3.5 w-3.5" />
-                <div>
-                  <span>{k.label}</span>
-                  <strong>{k.value}</strong>
+                <span className="aus-kpi__icon"><k.icon className="h-4 w-4" strokeWidth={2.25} /></span>
+                <div className="aus-kpi__text">
+                  <span className="aus-kpi__label">{k.label}</span>
+                  <strong className="aus-kpi__value">{k.value}</strong>
                 </div>
               </div>
             ))}
@@ -356,7 +356,7 @@ export function AdminUsers() {
 
           <div className="aus-filters">
             <label className="aus-search">
-              <Search className="h-3.5 w-3.5 opacity-55" />
+              <Search className="h-4 w-4 aus-search__icon" strokeWidth={2} />
               <input
                 type="search"
                 placeholder="Buscar usuario..."
@@ -364,28 +364,30 @@ export function AdminUsers() {
                 onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               />
             </label>
-            <select
-              value={roleFilter}
-              onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }}
-              aria-label="Filtrar rol"
-            >
-              <option value="">Todos los roles</option>
-              {MANAGEABLE_STAFF_ROLES.map((r) => (
-                <option key={r.id} value={r.id}>{r.label}</option>
-              ))}
-            </select>
-            <select
-              value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-              aria-label="Filtrar estado"
-            >
-              <option value="all">Todos</option>
-              <option value="active">Activos</option>
-              <option value="inactive">Inactivos</option>
-            </select>
-            <button type="button" className="aus-icon-btn" title="Filtros" aria-label="Filtros">
-              <Filter className="h-3.5 w-3.5" />
-            </button>
+            <div className="aus-filters__row">
+              <select
+                value={roleFilter}
+                onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }}
+                aria-label="Filtrar rol"
+              >
+                <option value="">Todos los roles</option>
+                {MANAGEABLE_STAFF_ROLES.map((r) => (
+                  <option key={r.id} value={r.id}>{r.label}</option>
+                ))}
+              </select>
+              <select
+                value={statusFilter}
+                onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+                aria-label="Filtrar estado"
+              >
+                <option value="all">Todos</option>
+                <option value="active">Activos</option>
+                <option value="inactive">Inactivos</option>
+              </select>
+              <button type="button" className="aus-icon-btn" title="Filtros" aria-label="Filtros">
+                <Filter className="h-4 w-4" />
+              </button>
+            </div>
           </div>
 
           <div className="aus-table-wrap">
@@ -395,11 +397,11 @@ export function AdminUsers() {
               <table className="aus-table">
                 <thead>
                   <tr>
-                    <th>Usuario</th>
-                    <th>Rol</th>
-                    <th>Sucursal</th>
-                    <th>Estado</th>
-                    <th>Acciones</th>
+                    <th className="aus-col-user">Usuario</th>
+                    <th className="aus-col-role">Rol</th>
+                    <th className="aus-col-branch">Sucursal</th>
+                    <th className="aus-col-status">Estado</th>
+                    <th className="aus-col-actions">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>

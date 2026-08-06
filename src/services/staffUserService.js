@@ -39,6 +39,9 @@ export const MANAGEABLE_STAFF_ROLES = MANAGEABLE;
 
 export function staffRoleMeta(role) {
   const r = normalizeRole(role);
+  if (r === 'super_admin') {
+    return { id: r, label: 'Super Admin', description: 'Acceso total', tone: 'super' };
+  }
   return MANAGEABLE.find((x) => x.id === r)
     || { id: r, label: r, description: '', tone: 'gray' };
 }
