@@ -23,7 +23,7 @@ const DRAWER_MQ = '(max-width: 1023px)';
 function NavIcon({ name, className }) {
   const Comp = ICON_MAP[name];
   if (!Comp) return null;
-  return <Comp className={className} strokeWidth={1.85} />;
+  return <Comp className={className} strokeWidth={2.2} />;
 }
 
 function useIsDrawerMode() {
@@ -187,7 +187,7 @@ export function AdminLayout() {
             data-tip="Cerrar sesión"
             title="Cerrar sesión"
           >
-            <LogOut className="h-4 w-4 shrink-0" />
+            <LogOut className="h-5 w-5 shrink-0" strokeWidth={2.2} />
             <span className="admin-shell__logout-label">Cerrar sesión</span>
           </button>
         </div>
