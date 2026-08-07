@@ -56,7 +56,7 @@ ChartJS.register(
   Legend,
 );
 
-const CHART_FONT = { size: 9 };
+const CHART_FONT = { size: 11, weight: '600' };
 const GRID_COLOR = 'rgba(0,0,0,0.04)';
 
 function formatRangeDate(d) {
