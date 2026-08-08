@@ -6,7 +6,7 @@ import {
   LogOut, Menu, X,
   LayoutDashboard, BookOpen, ShoppingBag, ChefHat, Users, Megaphone,
   Building2, Banknote, Package, BarChart3, Settings, Bike, SlidersHorizontal,
-  DollarSign, Send, MapPin, FileBarChart,
+  DollarSign, Send, MapPin, FileBarChart, MessageCircle,
 } from 'lucide-react';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import '../../styles/admin-shell.css';
@@ -14,7 +14,7 @@ import '../../styles/admin-shell.css';
 const ICON_MAP = {
   LayoutDashboard, BookOpen, ShoppingBag, ChefHat, Users, Megaphone,
   Building2, Banknote, Package, BarChart3, Settings, Bike, SlidersHorizontal,
-  DollarSign, Send, MapPin, FileBarChart,
+  DollarSign, Send, MapPin, FileBarChart, MessageCircle,
 };
 
 /** < 1024px = drawer (móvil / POS <~10"); ≥1024 = sidebar fijo */

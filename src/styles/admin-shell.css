@@ -351,7 +351,8 @@
 @media (min-width: 1280px) and (min-height: 760px) {
   .admin-shell:has(.admin-dashboard),
   .admin-shell:has(.admin-product-report),
-  .admin-shell:has(.admin-users) {
+  .admin-shell:has(.admin-users),
+  .admin-shell:has(.admin-whatsapp) {
     height: 100dvh;
     max-height: 100dvh;
     overflow: hidden;
@@ -359,7 +360,8 @@
 
   .admin-shell:has(.admin-dashboard) .admin-shell__body,
   .admin-shell:has(.admin-product-report) .admin-shell__body,
-  .admin-shell:has(.admin-users) .admin-shell__body {
+  .admin-shell:has(.admin-users) .admin-shell__body,
+  .admin-shell:has(.admin-whatsapp) .admin-shell__body {
     min-height: 0;
     height: 100%;
     max-height: 100%;
@@ -368,7 +370,8 @@
 
   .admin-shell__main:has(.admin-dashboard),
   .admin-shell__main:has(.admin-product-report),
-  .admin-shell__main:has(.admin-users) {
+  .admin-shell__main:has(.admin-users),
+  .admin-shell__main:has(.admin-whatsapp) {
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -377,7 +380,8 @@
 
   .admin-shell__main:has(.admin-dashboard) > .admin-dashboard,
   .admin-shell__main:has(.admin-product-report) > .admin-product-report,
-  .admin-shell__main:has(.admin-users) > .admin-users {
+  .admin-shell__main:has(.admin-users) > .admin-users,
+  .admin-shell__main:has(.admin-whatsapp) > .admin-whatsapp {
     flex: 1 1 auto;
     height: 100%;
     max-height: 100%;
@@ -386,7 +390,8 @@
   /* Ocultar topbar genérica — el panel trae su propio título */
   .admin-shell:has(.admin-dashboard) .admin-shell__topbar,
   .admin-shell:has(.admin-product-report) .admin-shell__topbar,
-  .admin-shell:has(.admin-users) .admin-shell__topbar {
+  .admin-shell:has(.admin-users) .admin-shell__topbar,
+  .admin-shell:has(.admin-whatsapp) .admin-shell__topbar {
     display: none;
   }
 }

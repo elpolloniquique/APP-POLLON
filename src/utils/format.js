@@ -69,6 +69,15 @@ export function optimizeMediaUrl(path, { width = 480, quality = 78 } = {}, fallb
   return url;
 }
 
+/** URL de tienda con búsqueda de plato (deep link WhatsApp / SEO). */
+export function storeSearchUrl(query, branchId) {
+  const params = new URLSearchParams();
+  if (branchId) params.set('branch', String(branchId));
+  if (query) params.set('q', String(query));
+  const qs = params.toString();
+  return qs ? `/tienda?${qs}#store-products` : '/tienda';
+}
+
 /** URL de tienda filtrada por categoría (y opcionalmente sucursal). */
 export function storeCategoryUrl(categoryId, branchId) {
   const params = new URLSearchParams();

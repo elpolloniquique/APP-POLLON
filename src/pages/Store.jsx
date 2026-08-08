@@ -74,7 +74,7 @@ export function Store() {
     const q = search.toLowerCase();
     return categories.flatMap((cat) =>
       (productsByCategory[cat.id] || [])
-        .filter((p) => p.name.toLowerCase().includes(q))
+        .filter((p) => p.name.toLowerCase().includes(q) || (p.description || '').toLowerCase().includes(q))
         .map((p) => ({ ...p, __categoryId: cat.id, __categoryName: cat.name }))
     );
   }, [categories, productsByCategory, search]);
@@ -134,7 +134,14 @@ export function Store() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              setSearchParams(search.trim() ? { q: search.trim() } : {});
+              setSearchParams((prev) => {
+                const next = new URLSearchParams(prev);
+                const q = search.trim();
+                if (q) next.set('q', q);
+                else next.delete('q');
+                if (branch?.id) next.set('branch', branch.id);
+                return next;
+              });
             }}
             className="relative"
           >

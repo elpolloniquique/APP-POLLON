@@ -6,7 +6,7 @@ import { WhatsAppIcon } from '../ui/WhatsAppIcon';
 import { useCart } from '../../context/CartContext';
 import { useBranch } from '../../context/BranchContext';
 import { useAuth } from '../../context/AuthContext';
-import { money, buildWhatsappMessage, formatDateTime } from '../../utils/format';
+import { money, formatDateTime } from '../../utils/format';
 import { PAYMENT_METHODS, ORDER_TYPE_LABELS } from '../../utils/constants';
 import {
   getAvailableOrderTypes,
@@ -262,7 +262,9 @@ export function CheckoutModal() {
 
   const handleWhatsApp = () => {
     if (!confirmedOrder || !whatsapp) return;
-    const msg = buildWhatsappMessage(confirmedOrder, branch);
+    const name = confirmedOrder.customer?.name || '';
+    const code = confirmedOrder.ticketNumber || confirmedOrder.codigo_pedido || '';
+    const msg = `Hola, soy ${name}, pedido #${code}. Quiero avisos de estado.`;
     window.open(`https://wa.me/${whatsapp}?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
@@ -340,10 +342,10 @@ export function CheckoutModal() {
                 </span>
                 <span className="checkout-wa-btn__copy">
                   <span className="checkout-wa-btn__title">
-                    Enviar el detalle de mi pedido por WhatsApp
+                    Activar avisos de mi pedido por WhatsApp
                   </span>
                   <span className="checkout-wa-btn__hint">
-                    Al enviar tendrás una atención más rápida y te contactarán de inmediato.
+                    Te confirmaremos el pedido y te avisaremos cocina, reparto y entrega.
                   </span>
                 </span>
               </button>

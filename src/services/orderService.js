@@ -426,6 +426,13 @@ export async function saveOrder(order) {
     if (!error) {
       await insertDetalle(sb, order.id, order.items);
       commitOrderLocally(order);
+      pingWaOrderNotify({
+        event: 'insert',
+        orderId: order.id,
+        codigo_pedido: order.codigo_pedido,
+        phone: order.customer?.phone,
+        estado: order.estado || 'pendiente',
+      });
       return order;
     }
 
@@ -439,8 +446,34 @@ export async function saveOrder(order) {
   throw new Error('No se pudo generar un código de pedido único. Intenta de nuevo.');
 }
 
+function pingWaOrderNotify(payload) {
+  try {
+    const client = getSupabase();
+    const run = async () => {
+      const headers = { 'Content-Type': 'application/json' };
+      try {
+        const { data } = await client?.auth.getSession();
+        if (data?.session?.access_token) {
+          headers.Authorization = `Bearer ${data.session.access_token}`;
+        }
+      } catch {
+        /* checkout anónimo */
+      }
+      await fetch('/api/wa-order-notify', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      });
+    };
+    run().catch(() => {});
+  } catch {
+    /* no bloquear pedidos si el bot falla */
+  }
+}
+
 export async function updateOrder(order) {
   const idx = orders.findIndex((o) => o.id === order.id);
+  const prev = idx >= 0 ? orders[idx] : null;
   if (idx >= 0) orders[idx] = order;
   else orders.push(order);
 
@@ -452,6 +485,16 @@ export async function updateOrder(order) {
   const row = orderToRow(order);
   const { error } = await sb.from('pedidos').upsert(row, { onConflict: 'id' });
   if (error) throw error;
+  if (order.estado && order.estado !== prev?.estado) {
+    pingWaOrderNotify({
+      event: 'update',
+      orderId: order.id,
+      estado: order.estado,
+      prevEstado: prev?.estado || null,
+      codigo_pedido: order.codigo_pedido || order.ticketNumber,
+      phone: order.customer?.phone,
+    });
+  }
 
   // Si sale de "pendiente" (Nuevo), cancelar ofertas abiertas al repartidor
   if (
