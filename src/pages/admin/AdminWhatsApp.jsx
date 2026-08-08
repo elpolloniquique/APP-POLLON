@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   MessageCircle, QrCode, RefreshCw, Unplug, Save, Plus, Trash2,
   Play, UserRound, Bot, Bell, BookOpen, Wifi, WifiOff, AlertTriangle,
-  BarChart3, Image as ImageIcon, Cpu,
+  BarChart3, Image as ImageIcon, Cpu, Download, Upload,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { normalizeRole } from '../../services/authService';
+import { normalizeRole, getProfileBranchId } from '../../services/authService';
 import { adminListAllBranches } from '../../services/branchService';
 import {
   waAdmin,
@@ -23,15 +23,20 @@ import {
 } from '../../services/whatsappAdminService';
 import '../../styles/admin-whatsapp.css';
 
-const TABS = [
+const TABS_SUPER = [
   { id: 'conexion', label: 'Conexión' },
   { id: 'configurar', label: 'Configurar' },
   { id: 'entrenar', label: 'Entrenar + Live' },
   { id: 'metricas', label: 'Métricas' },
 ];
+const TABS_BRANCH = [
+  { id: 'entrenar', label: 'Entrenar + Live' },
+  { id: 'metricas', label: 'Métricas' },
+];
 
 const TEMPLATE_KEYS = [
-  ['bienvenida', 'Bienvenida'],
+  ['bienvenida', 'Bienvenida A'],
+  ['bienvenida_b', 'Bienvenida B (A/B)'],
   ['como_comprar', 'Cómo comprar'],
   ['confirmacion_pedido', 'Confirmación de pedido'],
   ['estado_cocina', 'Estado: cocina'],
@@ -47,6 +52,7 @@ const TEMPLATE_KEYS = [
   ['delivery_info', 'Delivery'],
   ['bestsellers', 'Más vendidos'],
   ['estado_pedido', 'Estado del pedido'],
+  ['opt_out', 'Opt-out / baja'],
 ];
 
 function Badge({ connected, configured }) {
@@ -57,11 +63,15 @@ function Badge({ connected, configured }) {
 
 export function AdminWhatsApp() {
   const { profile, can } = useAuth();
-  const isSuper = normalizeRole(profile?.role || profile?.rol) === 'super_admin' || can('whatsapp_ai');
+  const role = normalizeRole(profile?.role || profile?.rol);
+  const isSuper = role === 'super_admin';
+  const canWa = isSuper || can('whatsapp_ai');
+  const staffBranchId = getProfileBranchId(profile);
+  const tabs = isSuper ? TABS_SUPER : TABS_BRANCH;
 
   const [branches, setBranches] = useState([]);
   const [branchId, setBranchId] = useState('');
-  const [tab, setTab] = useState('conexion');
+  const [tab, setTab] = useState(isSuper ? 'conexion' : 'entrenar');
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -90,15 +100,28 @@ export function AdminWhatsApp() {
   };
 
   useEffect(() => {
-    if (!isSuper) return;
+    if (!canWa) return;
     adminListAllBranches()
       .then((list) => {
-        const active = (list || []).filter((b) => b.isActive !== false);
-        setBranches(active.length ? active : list || []);
-        setBranchId((prev) => prev || active[0]?.id || list?.[0]?.id || '');
+        const all = list || [];
+        const active = all.filter((b) => b.isActive !== false);
+        const pool = active.length ? active : all;
+        if (!isSuper && staffBranchId) {
+          const mine = pool.filter((b) => b.id === staffBranchId);
+          setBranches(mine.length ? mine : [{ id: staffBranchId, name: 'Mi sucursal' }]);
+          setBranchId(staffBranchId);
+          return;
+        }
+        setBranches(pool);
+        setBranchId((prev) => prev || pool[0]?.id || '');
       })
-      .catch(() => setBranches([]));
-  }, [isSuper]);
+      .catch(() => {
+        if (!isSuper && staffBranchId) {
+          setBranches([{ id: staffBranchId, name: 'Mi sucursal' }]);
+          setBranchId(staffBranchId);
+        } else setBranches([]);
+      });
+  }, [canWa, isSuper, staffBranchId]);
 
   const loadAll = useCallback(async (id) => {
     if (!id) return;
@@ -147,6 +170,8 @@ export function AdminWhatsApp() {
         modo_proactivo: settings.modo_proactivo,
         avisos_en_modo_humano: settings.avisos_en_modo_humano,
         enviar_foto_plato: settings.enviar_foto_plato,
+        ab_welcome_enabled: settings.ab_welcome_enabled === true,
+        avisos_si_opt_out: settings.avisos_si_opt_out !== false,
         ollama_enabled: settings.ollama_enabled === true,
         ollama_model: settings.ollama_model || 'llama3.2',
         usar_horario_sucursal: settings.usar_horario_sucursal,
@@ -251,8 +276,61 @@ export function AdminWhatsApp() {
     }
   }
 
-  if (!isSuper) {
-    return <div className="admin-whatsapp admin-whatsapp--denied">Solo Super Admin puede ver WhatsApp inteligente.</div>;
+  async function handleExportKb() {
+    const payload = {
+      version: 1,
+      branchId,
+      exportedAt: new Date().toISOString(),
+      kb: (kb || []).map((row) => ({
+        title: row.title,
+        keywords: row.keywords || [],
+        pregunta: row.pregunta || '',
+        respuesta: row.respuesta || '',
+        intent_hint: row.intent_hint || null,
+        prioridad: row.prioridad || 10,
+        activa: row.activa !== false,
+      })),
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pollon-wa-kb-${(branch?.name || branchId || 'sucursal').replace(/\s+/g, '-').toLowerCase()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    flash(true, 'KB exportada.');
+  }
+
+  async function handleImportKb(file) {
+    if (!file || !branchId) return;
+    try {
+      const parsed = JSON.parse(await file.text());
+      const rows = Array.isArray(parsed) ? parsed : (parsed.kb || []);
+      if (!rows.length) throw new Error('El JSON no tiene entradas KB.');
+      let ok = 0;
+      for (const row of rows) {
+        if (!row?.respuesta && !row?.title) continue;
+        await saveWaKb({
+          branch_id: branchId,
+          title: row.title,
+          keywords: row.keywords,
+          pregunta: row.pregunta,
+          respuesta: row.respuesta,
+          intent_hint: row.intent_hint,
+          prioridad: row.prioridad,
+          activa: row.activa,
+        });
+        ok += 1;
+      }
+      setKb(await listWaKb(branchId));
+      flash(true, `Importadas ${ok} entradas de entrenamiento.`);
+    } catch (ex) {
+      flash(false, ex.message || 'JSON inválido');
+    }
+  }
+
+  if (!canWa) {
+    return <div className="admin-whatsapp admin-whatsapp--denied">No tienes permiso para WhatsApp inteligente.</div>;
   }
 
   return (
@@ -264,21 +342,27 @@ export function AdminWhatsApp() {
           <p className="awa-sub">Atención y avisos por sucursal · concierge, no cajero</p>
         </div>
         <div className="awa-header__actions">
-          <select className="awa-select" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
-            {branches.map((b) => (
-              <option key={b.id} value={b.id}>{b.name}{b.city ? ` · ${b.city}` : ''}</option>
-            ))}
-          </select>
+          {isSuper ? (
+            <select className="awa-select" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>{b.name}{b.city ? ` · ${b.city}` : ''}</option>
+              ))}
+            </select>
+          ) : (
+            <span className="awa-select awa-select--locked">{branch?.name || 'Tu sucursal'}</span>
+          )}
           <Badge connected={evo.connected} configured={evo.configured !== false && (evo.configured || settings)} />
-          <label className="awa-toggle">
-            <input
-              type="checkbox"
-              checked={!!settings?.enabled}
-              onChange={(e) => toggleEnabled(e.target.checked)}
-              disabled={!settings}
-            />
-            <span>Activar en esta sucursal</span>
-          </label>
+          {isSuper && (
+            <label className="awa-toggle">
+              <input
+                type="checkbox"
+                checked={!!settings?.enabled}
+                onChange={(e) => toggleEnabled(e.target.checked)}
+                disabled={!settings}
+              />
+              <span>Activar en esta sucursal</span>
+            </label>
+          )}
         </div>
       </header>
 
@@ -308,7 +392,7 @@ export function AdminWhatsApp() {
       )}
 
       <nav className="awa-tabs" aria-label="Secciones WhatsApp">
-        {TABS.map((t) => (
+        {tabs.map((t) => (
           <button
             key={t.id}
             type="button"
@@ -397,6 +481,17 @@ export function AdminWhatsApp() {
                 <label className="awa-check">
                   <input type="checkbox" checked={!!settings.enviar_foto_plato} onChange={(e) => patch('enviar_foto_plato', e.target.checked)} />
                   <ImageIcon className="h-4 w-4" /> Enviar 1 foto del plato (solo URL pública, sin spam)
+                </label>
+                <label className="awa-check">
+                  <input type="checkbox" checked={!!settings.ab_welcome_enabled} onChange={(e) => patch('ab_welcome_enabled', e.target.checked)} />
+                  A/B bienvenida (A vs B por teléfono, default OFF)
+                </label>
+                {settings.ab_welcome_enabled && (
+                  <p className="awa-help">La variante B usa la plantilla “Bienvenida B”. Métricas en la pestaña Métricas.</p>
+                )}
+                <label className="awa-check">
+                  <input type="checkbox" checked={settings.avisos_si_opt_out !== false} onChange={(e) => patch('avisos_si_opt_out', e.target.checked)} />
+                  Si el cliente pidió baja, igual enviar avisos de pedido (cocina/reparto)
                 </label>
                 <div className="awa-row">
                   <label>Timeout humano (min)
@@ -503,7 +598,7 @@ export function AdminWhatsApp() {
                   {TEMPLATE_KEYS.map(([key, label]) => (
                     <label key={key}>{label}
                       <textarea
-                        rows={key.includes('confirmacion') || key === 'bienvenida' || key === 'como_comprar' ? 7 : 4}
+                        rows={key.includes('confirmacion') || key === 'bienvenida' || key === 'bienvenida_b' || key === 'como_comprar' ? 7 : 4}
                         value={settings.templates?.[key] || ''}
                         onChange={(e) => patchTemplate(key, e.target.value)}
                       />
@@ -527,6 +622,24 @@ export function AdminWhatsApp() {
             <section className="awa-live">
               <article className="awa-card">
                 <h2><BookOpen className="h-4 w-4" /> Entrenar (KB)</h2>
+                <div className="awa-kb-io">
+                  <button type="button" className="awa-btn" onClick={handleExportKb} disabled={!kb.length}>
+                    <Download className="h-4 w-4" /> Exportar JSON
+                  </button>
+                  <label className="awa-btn awa-btn--file">
+                    <Upload className="h-4 w-4" /> Importar JSON
+                    <input
+                      type="file"
+                      accept="application/json,.json"
+                      hidden
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        e.target.value = '';
+                        if (f) handleImportKb(f);
+                      }}
+                    />
+                  </label>
+                </div>
                 <form className="awa-kb-form" onSubmit={handleSaveKb}>
                   <input placeholder="Título" value={kbForm.title} onChange={(e) => setKbForm({ ...kbForm, title: e.target.value })} required />
                   <input placeholder="Keywords (coma)" value={kbForm.keywords} onChange={(e) => setKbForm({ ...kbForm, keywords: e.target.value })} />
@@ -604,7 +717,11 @@ export function AdminWhatsApp() {
                     <tbody>
                       {sessions.map((s) => (
                         <tr key={s.id}>
-                          <td>{s.phone}{s.last_name ? ` · ${s.last_name}` : ''}</td>
+                          <td>
+                            {s.phone}{s.last_name ? ` · ${s.last_name}` : ''}
+                            {s.opt_out ? <span className="awa-pill awa-pill--off">opt-out</span> : null}
+                            {s.ab_variant ? <span className="awa-pill">A/B {String(s.ab_variant).toUpperCase()}</span> : null}
+                          </td>
                           <td>{s.mode === 'human' ? 'Humano' : 'Bot'}</td>
                           <td className="awa-muted">{s.last_intent || '—'}</td>
                           <td className="awa-row-btns">
@@ -673,6 +790,18 @@ export function AdminWhatsApp() {
                   <div><b>{metrics?.period?.desconexiones ?? 0}</b><span>Fallos Evolution</span></div>
                   <div><b>{metrics?.humanOpen ?? 0}</b><span>Chats en modo humano</span></div>
                   <div><b>{metrics?.sessions ?? 0}</b><span>Sesiones totales</span></div>
+                  <div><b>{metrics?.optOut ?? 0}</b><span>Opt-out</span></div>
+                  <div><b>{metrics?.pedidosConAvisos ?? 0}</b><span>Pedidos con avisos WA</span></div>
+                </div>
+              </article>
+              <article className="awa-card">
+                <h2>A/B bienvenida (7d)</h2>
+                <p className="awa-help">Solo cuenta si el A/B está ON y el cliente saludó (variante fijada por teléfono).</p>
+                <div className="awa-metrics__grid">
+                  <div><b>{metrics?.ab?.a?.sessions ?? 0}</b><span>Sesiones A</span></div>
+                  <div><b>{metrics?.ab?.a?.avisos ?? 0}</b><span>Avisos desde A</span></div>
+                  <div><b>{metrics?.ab?.b?.sessions ?? 0}</b><span>Sesiones B</span></div>
+                  <div><b>{metrics?.ab?.b?.avisos ?? 0}</b><span>Avisos desde B</span></div>
                 </div>
               </article>
               <article className="awa-card">

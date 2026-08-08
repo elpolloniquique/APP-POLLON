@@ -88,6 +88,31 @@
   font-weight: 700;
   color: #0f172a;
 }
+.awa-select--locked {
+  display: inline-flex;
+  align-items: center;
+  cursor: default;
+  background: #f8fafc;
+}
+.awa-pill {
+  display: inline-block;
+  margin-left: 0.35rem;
+  border-radius: 999px;
+  padding: 0.08rem 0.4rem;
+  font-size: 0.65rem;
+  font-weight: 800;
+  background: #e2e8f0;
+  color: #334155;
+  vertical-align: middle;
+}
+.awa-pill--off { background: #fee2e2; color: #991b1b; }
+.awa-kb-io {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0 0 0.55rem;
+}
+.awa-btn--file { cursor: pointer; }
 
 .awa-badge {
   display: inline-flex;

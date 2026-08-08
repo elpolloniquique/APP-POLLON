@@ -121,6 +121,10 @@ export function computeKPIs(currentOrders, previousOrders) {
   const prevPending = previousOrders.filter((o) =>
     ['pendiente', 'aceptado', 'confirmado', 'preparando'].includes(o.estado),
   ).length;
+  const waAvisos = currentOrders.filter((o) => o.waAvisos === true).length;
+  const pctWaAvisos = currentOrders.length
+    ? Math.round((waAvisos / currentOrders.length) * 1000) / 10
+    : 0;
 
   return {
     orders: currentOrders.length,
@@ -141,6 +145,8 @@ export function computeKPIs(currentOrders, previousOrders) {
     ticketDelta: pctChange(avgTicket(currentOrders), avgTicket(previousOrders)),
     deliveredDelta: pctChange(delivered, prevDelivered),
     pendingDelta: pctChange(pending, prevPending),
+    waAvisos,
+    pctWaAvisos,
   };
 }
 

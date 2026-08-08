@@ -9,6 +9,7 @@ import {
   TrendingUp,
   Truck,
   Wallet,
+  MessageCircle,
 } from 'lucide-react';
 import { Line, Doughnut, Bar } from 'react-chartjs-2';
 import {
@@ -437,6 +438,13 @@ export function AdminDashboard() {
           accent="amber"
           compareLabel={compareLabel}
         />
+      </div>
+
+      <div className="dashboard-wa-strip" title="Pedidos del periodo con avisos WhatsApp activados">
+        <MessageCircle className="h-3.5 w-3.5" strokeWidth={2.4} />
+        <strong>{analytics.kpis.pctWaAvisos}%</strong>
+        <span>con avisos WhatsApp</span>
+        <span className="dashboard-wa-strip__n">{analytics.kpis.waAvisos} de {analytics.kpis.orders}</span>
       </div>
 
       {/* Body: mid + bottom + summary */}

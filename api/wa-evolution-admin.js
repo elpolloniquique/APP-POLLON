@@ -1,7 +1,7 @@
 /**
- * Proxy Evolution + simulador + live — SOLO super_admin.
+ * Proxy Evolution + simulador + live.
  * POST /api/wa-evolution-admin
- * Body: { action, branchId, ... }
+ * Super admin: todo. Admin sucursal: live/métricas/simulador de SU sucursal.
  *
  * actions: status | qr | logout | restart | simulate | retry_outbox |
  *          set_human | set_bot | mark_alerts_read | metrics | ping_ollama
@@ -21,7 +21,7 @@ import { retryPendingOutbox } from '../lib/whatsapp/notify.js';
 import { loadWaMetrics } from '../lib/whatsapp/metrics.js';
 import { pingOllama, ollamaConfigured, defaultOllamaModel } from '../lib/whatsapp/ollama.js';
 
-async function requireSuperAdmin(req, admin) {
+async function requireWaStaff(req, admin) {
   const authHeader = req.headers.authorization || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
   if (!token) return { error: 'Sin autorización', status: 401 };
@@ -31,12 +31,17 @@ async function requireSuperAdmin(req, admin) {
   if (!authData?.user) return { error: 'Sesión inválida', status: 401 };
   const { data: caller } = await admin
     .from('profiles')
-    .select('id, role, is_active')
+    .select('id, role, is_active, branch_id')
     .eq('auth_user_id', authData.user.id)
     .maybeSingle();
   if (!caller || caller.is_active === false) return { error: 'Perfil no autorizado', status: 403 };
-  if (caller.role !== 'super_admin') return { error: 'Solo super admin', status: 403 };
-  return { caller };
+  const role = caller.role === 'administrador' ? 'admin_sucursal' : caller.role;
+  if (role === 'super_admin') return { caller, isSuper: true, branchId: null };
+  if (role === 'admin_sucursal') {
+    if (!caller.branch_id) return { error: 'Admin sucursal sin sucursal asignada', status: 403 };
+    return { caller, isSuper: false, branchId: caller.branch_id };
+  }
+  return { error: 'No autorizado para WhatsApp inteligente', status: 403 };
 }
 
 function webhookPublicUrl() {
@@ -54,12 +59,18 @@ export default async function handler(req, res) {
   const admin = getSupabaseAdmin();
   if (!admin) return res.status(500).json({ error: 'Falta SUPABASE_SERVICE_ROLE_KEY' });
 
-  const auth = await requireSuperAdmin(req, admin);
+  const auth = await requireWaStaff(req, admin);
   if (auth.error) return res.status(auth.status).json({ error: auth.error });
 
   const body = parseBody(req);
   const action = body.action;
-  const branchId = body.branchId || body.branch_id;
+  let branchId = body.branchId || body.branch_id;
+  if (!auth.isSuper) {
+    branchId = auth.branchId;
+    if (['qr', 'logout', 'restart', 'ping_ollama'].includes(action)) {
+      return res.status(403).json({ error: 'Solo super admin puede conectar Evolution / Ollama' });
+    }
+  }
   if (!action) return res.status(400).json({ error: 'action requerida' });
 
   try {

@@ -58,6 +58,9 @@ function rowToOrder(row) {
     trackingMode: datos.tracking_mode === 'live_map' || datos.tracking_mode === 'status_line'
       ? datos.tracking_mode
       : null,
+    /** Fase 3: el cliente activó avisos WhatsApp (confirmación enviada). */
+    waAvisos: datos.wa_avisos === true,
+    waAvisosAt: datos.wa_avisos_at || null,
     branchId: row.branch_id || row.sucursal_id || datos.branchId,
     customerId: row.customer_id || datos.customerId,
     observaciones: row.observaciones,
@@ -103,6 +106,7 @@ function orderToRow(order) {
       driver_accepted_at: order.driverAcceptedAt || undefined,
       picked_up_at: order.pickedUpAt || undefined,
       comision_repartidor_pago: order.comisionRepartidorPago || undefined,
+      ...(order.waAvisos ? { wa_avisos: true, wa_avisos_at: order.waAvisosAt || undefined } : {}),
     },
   });
 }
@@ -482,7 +486,17 @@ export async function updateOrder(order) {
     saveLocal();
     return order;
   }
-  const row = orderToRow(order);
+  const row = orderToRow({ ...order, waAvisos: order.waAvisos || prev?.waAvisos, waAvisosAt: order.waAvisosAt || prev?.waAvisosAt });
+  try {
+    const { data: existing } = await sb.from('pedidos').select('datos_json').eq('id', String(order.id)).maybeSingle();
+    if (existing?.datos_json?.wa_avisos) {
+      row.datos_json = {
+        ...row.datos_json,
+        wa_avisos: true,
+        wa_avisos_at: existing.datos_json.wa_avisos_at || row.datos_json.wa_avisos_at,
+      };
+    }
+  } catch { /* no bloquear update */ }
   const { error } = await sb.from('pedidos').upsert(row, { onConflict: 'id' });
   if (error) throw error;
   if (order.estado && order.estado !== prev?.estado) {

@@ -50,6 +50,8 @@ export async function ensureWaSettings(branchId) {
     modo_proactivo: false,
     avisos_en_modo_humano: true,
     enviar_foto_plato: false,
+    ab_welcome_enabled: false,
+    avisos_si_opt_out: true,
     ollama_enabled: false,
     ollama_model: 'llama3.2',
     usar_horario_sucursal: true,
@@ -69,7 +71,7 @@ export async function ensureWaSettings(branchId) {
     .upsert(insert, { onConflict: 'branch_id' })
     .select('*')
     .maybeSingle();
-  if (error) throw error;
+  if (error) return mergeSettings(null, branchId);
   return mergeSettings(created || insert, branchId);
 }
 

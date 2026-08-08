@@ -1,4 +1,4 @@
-# WhatsApp Inteligente El Pollón — instalación (Fase 1 + Fase 2)
+# WhatsApp Inteligente El Pollón — instalación (Fase 1 + 2 + 3)
 
 Concierge + avisos + FAQ + quejas. **No cobra ni arma carrito en el chat.**  
 La venta sigue en [https://www.el-pollon.cl/](https://www.el-pollon.cl/).  
@@ -10,7 +10,7 @@ La venta sigue en [https://www.el-pollon.cl/](https://www.el-pollon.cl/).
 
 | Pieza | Dónde corre | Por qué |
 |---|---|---|
-| Panel admin `/admin/whatsapp` | Vercel (El Pollón) | Solo **super_admin** |
+| Panel admin `/admin/whatsapp` | Vercel (El Pollón) | Super admin: todo · admin sucursal: live/KB/métricas de SU local |
 | Webhooks + motor | `api/wa-*.js` en Vercel | Reciben mensajes y avisos de pedidos |
 | Socket de WhatsApp | **Evolution 24/7** (PC del local u Oracle Cloud Always Free) | Vercel **no** puede mantener el QR conectado |
 
@@ -24,9 +24,10 @@ En Supabase → **SQL Editor** → pega y ejecuta **en orden**:
 
 1. `el-pollon/supabase/fix-whatsapp-inteligente.sql` (si aún no lo corriste)
 2. `el-pollon/supabase/fix-whatsapp-inteligente-fase2.sql` (Ollama OFF + anti-spam foto)
+3. `el-pollon/supabase/fix-whatsapp-inteligente-fase3.sql` (A/B, opt-out, RLS admin sucursal)
 
 Crea: `ep_wa_settings`, `ep_wa_kb`, `ep_wa_sessions`, `ep_wa_messages`, `ep_wa_outbox`, `ep_wa_alerts`  
-RLS: solo `super_admin`.
+RLS: `super_admin` todo; `admin_sucursal` solo su sucursal (KB / live / métricas).
 
 ---
 
@@ -140,7 +141,7 @@ No hagas campañas masivas por este canal.
 | QR no sale | `EVOLUTION_API_URL` / `KEY` en Vercel · Evolution arriba · firewall |
 | “hola” no responde | Toggle activado · webhook URL+secret · instancia `ep_…` de ESA sucursal |
 | No llegan avisos de estado | SQL ejecutado · pedido con teléfono 56 9… · outbox en Live · Evolution conectado |
-| Cajera ve el menú | No debe: solo `super_admin` tiene `whatsapp_ai` |
+| Cajera ve el menú | No debe: cajera no tiene `whatsapp_ai`. Admin sucursal sí, pero sin QR |
 
 ---
 
@@ -185,5 +186,39 @@ En el admin: **Probar Ollama** → luego activa el toggle por sucursal.
 
 - Cobrar o armar carrito en WhatsApp  
 - LLM de pago (ChatGPT, OpenAI, Anthropic, etc.)  
-- Acceso para admin de sucursal / cajera  
+- Acceso QR / Evolution para admin de sucursal o cajera  
 - Campañas masivas por WhatsApp
+
+---
+
+## 12. Fase 3 — Dashboard, A/B, opt-out, admin sucursal
+
+Ejecuta `fix-whatsapp-inteligente-fase3.sql` y vuelve a desplegar.
+
+### Dashboard
+
+Bajo los 7 KPIs aparece una franja: **% de pedidos del periodo con avisos WhatsApp** (`pedidos.datos_json.wa_avisos`). Se marca cuando el bot envía la confirmación (checkout “Activar avisos” o `AVISOS #codigo`).
+
+### A/B bienvenida (OFF por defecto)
+
+En **Configurar**: toggle A/B. Variante A = plantilla Bienvenida; B = Bienvenida B. Se fija por teléfono. Métricas en pestaña **Métricas**.
+
+### Opt-out
+
+El cliente escribe *stop*, *no me escriban*, *darme de baja*, etc.  
+Se guarda en la sesión. **Los avisos de pedido siguen** si `avisos_si_opt_out` está ON (recomendado). No es baja de WhatsApp Business masiva.
+
+### Admin sucursal
+
+- Ve **WhatsApp inteligente** en el menú (solo su sucursal).
+- Pestañas: **Entrenar + Live** y **Métricas**.
+- Puede importar/exportar KB JSON, simulador, pasar chats a humano.
+- **No** ve QR, logout, restart, Ollama ping ni el toggle de activar sucursal.
+
+### Probar Fase 3
+
+1. Corre el SQL F3 en Supabase.
+2. Dashboard: pedido de prueba + avisos → la franja % debe subir.
+3. Escribe *hola* con A/B ON → mitad A / mitad B (según teléfono).
+4. Escribe *stop* → respuesta de baja; en Live aparece badge opt-out.
+5. Entra con un **admin de sucursal**: solo Entrenar + Métricas, sucursal bloqueada.

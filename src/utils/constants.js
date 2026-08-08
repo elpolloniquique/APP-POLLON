@@ -150,8 +150,8 @@ const DELIVERY_MODULE_PERMS = [
 
 export const ROLE_PERMISSIONS = {
   super_admin: ['dashboard', 'menu', 'orders', 'kitchen', 'products', 'categories', 'branches', 'cash', 'inventory', 'reports', 'users', 'settings', 'customers', 'campaigns', 'whatsapp_ai', ...DELIVERY_MODULE_PERMS],
-  admin_sucursal: ['dashboard', 'menu', 'orders', 'kitchen', 'customers', 'branches', 'cash', 'inventory', 'reports', 'users', 'settings', ...DELIVERY_MODULE_PERMS],
-  administrador: ['dashboard', 'menu', 'orders', 'kitchen', 'customers', 'branches', 'cash', 'inventory', 'reports', 'users', 'settings', ...DELIVERY_MODULE_PERMS],
+  admin_sucursal: ['dashboard', 'menu', 'orders', 'kitchen', 'customers', 'branches', 'cash', 'inventory', 'reports', 'users', 'settings', 'whatsapp_ai', ...DELIVERY_MODULE_PERMS],
+  administrador: ['dashboard', 'menu', 'orders', 'kitchen', 'customers', 'branches', 'cash', 'inventory', 'reports', 'users', 'settings', 'whatsapp_ai', ...DELIVERY_MODULE_PERMS],
   cajera: ['dashboard', 'orders', 'kitchen', 'dispatch', 'live_map'],
   cajero: ['dashboard', 'orders', 'kitchen', 'dispatch', 'live_map'],
   despachador: ['dashboard', 'orders', 'kitchen', 'dispatch', 'live_map'],
