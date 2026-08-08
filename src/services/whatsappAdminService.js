@@ -50,6 +50,8 @@ export async function ensureWaSettings(branchId) {
     modo_proactivo: false,
     avisos_en_modo_humano: true,
     enviar_foto_plato: false,
+    ollama_enabled: false,
+    ollama_model: 'llama3.2',
     usar_horario_sucursal: true,
     bot_24_7: false,
     human_timeout_min: 120,

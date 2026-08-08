@@ -3,6 +3,7 @@
  * POST /api/wa-evolution-webhook
  * Auth: X-EP-WA-SECRET o ?secret=  (EP_WA_WEBHOOK_SECRET)
  */
+export const config = { maxDuration: 20 };
 import { cors, parseBody, getSupabaseAdmin, env } from '../lib/whatsapp/supabaseAdmin.js';
 import { parseInboundWebhook } from '../lib/whatsapp/evolution.js';
 import { handleInbound } from '../lib/whatsapp/engine.js';

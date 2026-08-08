@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   MessageCircle, QrCode, RefreshCw, Unplug, Save, Plus, Trash2,
   Play, UserRound, Bot, Bell, BookOpen, Wifi, WifiOff, AlertTriangle,
+  BarChart3, Image as ImageIcon, Cpu,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { normalizeRole } from '../../services/authService';
@@ -26,6 +27,7 @@ const TABS = [
   { id: 'conexion', label: 'Conexión' },
   { id: 'configurar', label: 'Configurar' },
   { id: 'entrenar', label: 'Entrenar + Live' },
+  { id: 'metricas', label: 'Métricas' },
 ];
 
 const TEMPLATE_KEYS = [
@@ -77,6 +79,8 @@ export function AdminWhatsApp() {
   const [simText, setSimText] = useState('hola');
   const [simResult, setSimResult] = useState(null);
   const [simLoading, setSimLoading] = useState(false);
+  const [metrics, setMetrics] = useState(null);
+  const [ollamaPing, setOllamaPing] = useState(null);
 
   const branch = useMemo(() => branches.find((b) => b.id === branchId) || null, [branches, branchId]);
 
@@ -103,17 +107,19 @@ export function AdminWhatsApp() {
     try {
       const s = await ensureWaSettings(id);
       setSettings(s);
-      const [k, sess, al, ob, st] = await Promise.all([
+      const [k, sess, al, ob, st, met] = await Promise.all([
         listWaKb(id).catch(() => []),
         listWaSessions(id).catch(() => []),
         listWaAlerts(id).catch(() => []),
         listWaOutbox().catch(() => []),
         waAdmin('status', { branchId: id }).catch(() => ({ configured: false, connected: false })),
+        waAdmin('metrics', { branchId: id, days: 7 }).catch(() => null),
       ]);
       setKb(k);
       setSessions(sess);
       setAlerts(al);
       setOutbox(ob);
+      setMetrics(met?.metrics || null);
       setEvo((prev) => ({ ...prev, ...st, qr: prev.qr && !st.connected ? prev.qr : null }));
     } catch (e) {
       setErr(e.message || 'No se pudo cargar WhatsApp inteligente. ¿Ejecutaste fix-whatsapp-inteligente.sql?');
@@ -141,6 +147,8 @@ export function AdminWhatsApp() {
         modo_proactivo: settings.modo_proactivo,
         avisos_en_modo_humano: settings.avisos_en_modo_humano,
         enviar_foto_plato: settings.enviar_foto_plato,
+        ollama_enabled: settings.ollama_enabled === true,
+        ollama_model: settings.ollama_model || 'llama3.2',
         usar_horario_sucursal: settings.usar_horario_sucursal,
         bot_24_7: settings.bot_24_7,
         bot_from: settings.bot_from,
@@ -274,6 +282,27 @@ export function AdminWhatsApp() {
         </div>
       </header>
 
+      {metrics && (
+        <div className="awa-kpis">
+          <div className="awa-kpi">
+            <span className="awa-kpi__n">{metrics.today?.avisosEnviados ?? 0}</span>
+            <span className="awa-kpi__l">Avisos hoy</span>
+          </div>
+          <div className="awa-kpi">
+            <span className="awa-kpi__n">{metrics.unreadQuejas ?? 0}</span>
+            <span className="awa-kpi__l">Quejas sin leer</span>
+          </div>
+          <div className="awa-kpi">
+            <span className="awa-kpi__n">{metrics.period?.pctConWa ?? 0}%</span>
+            <span className="awa-kpi__l">Pedidos con WA (7d)</span>
+          </div>
+          <div className="awa-kpi">
+            <span className="awa-kpi__n">{metrics.period?.confirmaciones ?? 0}</span>
+            <span className="awa-kpi__l">Confirmaciones 7d</span>
+          </div>
+        </div>
+      )}
+
       {(msg || err) && (
         <div className={`awa-flash ${err ? 'awa-flash--err' : 'awa-flash--ok'}`}>{err || msg}</div>
       )}
@@ -365,6 +394,10 @@ export function AdminWhatsApp() {
                   <input type="checkbox" checked={settings.contar_compras_solo_sucursal !== false} onChange={(e) => patch('contar_compras_solo_sucursal', e.target.checked)} />
                   Fidelización: contar compras solo de esta sucursal
                 </label>
+                <label className="awa-check">
+                  <input type="checkbox" checked={!!settings.enviar_foto_plato} onChange={(e) => patch('enviar_foto_plato', e.target.checked)} />
+                  <ImageIcon className="h-4 w-4" /> Enviar 1 foto del plato (solo URL pública, sin spam)
+                </label>
                 <div className="awa-row">
                   <label>Timeout humano (min)
                     <input type="number" min={15} max={720} value={settings.human_timeout_min} onChange={(e) => patch('human_timeout_min', e.target.value)} />
@@ -379,6 +412,41 @@ export function AdminWhatsApp() {
                 <label>Link web
                   <input type="url" value={settings.link_web || ''} onChange={(e) => patch('link_web', e.target.value)} />
                 </label>
+              </article>
+
+              <article className="awa-card">
+                <h2><Cpu className="h-4 w-4" /> Ollama local (opcional, OFF)</h2>
+                <p className="awa-help">100% gratis y local. Solo suaviza el fallback cuando el motor no reconoce la intención. Nunca inventa precios. Vercel no alcanza localhost: usa la misma VM que Evolution.</p>
+                <label className="awa-check">
+                  <input type="checkbox" checked={!!settings.ollama_enabled} onChange={(e) => patch('ollama_enabled', e.target.checked)} />
+                  Activar Ollama en esta sucursal
+                </label>
+                {settings.ollama_enabled && (
+                  <p className="awa-warn"><AlertTriangle className="h-4 w-4" /> Si Ollama no responde en ~6 s, se usa la plantilla fallback. No uses ChatGPT ni ninguna API de pago.</p>
+                )}
+                <label>Modelo
+                  <input value={settings.ollama_model || 'llama3.2'} onChange={(e) => patch('ollama_model', e.target.value)} placeholder="llama3.2" />
+                </label>
+                <div className="awa-row">
+                  <button
+                    type="button"
+                    className="awa-btn"
+                    onClick={async () => {
+                      try {
+                        const r = await waAdmin('ping_ollama', { model: settings.ollama_model });
+                        setOllamaPing(r);
+                        flash(r.ok, r.ok ? `Ollama OK (${r.model || ''})` : (r.error || 'Ollama no responde'));
+                      } catch (e) {
+                        flash(false, e.message);
+                      }
+                    }}
+                  >
+                    Probar Ollama
+                  </button>
+                  {ollamaPing && (
+                    <span className="awa-meta">{ollamaPing.configured === false ? 'Falta OLLAMA_URL' : (ollamaPing.ok ? `Host ${ollamaPing.urlHost || ''}` : ollamaPing.error)}</span>
+                  )}
+                </div>
               </article>
 
               <article className="awa-card">
@@ -504,6 +572,8 @@ export function AdminWhatsApp() {
                   <div className="awa-sim-out">
                     <p><strong>Intención:</strong> {simResult.intent || '—'}</p>
                     {simResult.loyalty?.count != null && <p><strong>Compras:</strong> {simResult.loyalty.count}</p>}
+                    {simResult.ollama && <p><strong>Ollama:</strong> {simResult.ollama.used ? `sí (${simResult.ollama.model || ''})` : `no (${simResult.ollama.error || 'off'})`}</p>}
+                    {simResult.photo && <p><strong>Foto:</strong> {simResult.photo}</p>}
                     <pre>{simResult.reply || simResult.error || JSON.stringify(simResult, null, 2)}</pre>
                   </div>
                 )}
@@ -572,6 +642,66 @@ export function AdminWhatsApp() {
                 </div>
                 <button type="button" className="awa-btn" onClick={async () => { await waAdmin('retry_outbox', { branchId }); setOutbox(await listWaOutbox()); flash(true, 'Reintento enviado.'); }}>
                   Reintentar pendientes
+                </button>
+              </article>
+            </section>
+          )}
+
+          {tab === 'metricas' && (
+            <section className="awa-metrics">
+              <article className="awa-card">
+                <h2><BarChart3 className="h-4 w-4" /> Hoy</h2>
+                <div className="awa-metrics__grid">
+                  <div><b>{metrics?.today?.avisosEnviados ?? 0}</b><span>Avisos enviados</span></div>
+                  <div><b>{metrics?.today?.avisosError ?? 0}</b><span>Avisos con error</span></div>
+                  <div><b>{metrics?.today?.quejas ?? 0}</b><span>Quejas</span></div>
+                  <div><b>{metrics?.today?.pedidos ?? 0}</b><span>Pedidos</span></div>
+                  <div><b>{metrics?.today?.pctConWa ?? 0}%</b><span>Con WhatsApp válido</span></div>
+                  <div><b>{metrics?.today?.confirmaciones ?? 0}</b><span>Confirmaciones WA</span></div>
+                  <div><b>{metrics?.today?.msgsIn ?? 0}</b><span>Msgs recibidos</span></div>
+                  <div><b>{metrics?.today?.msgsOut ?? 0}</b><span>Msgs enviados</span></div>
+                </div>
+              </article>
+              <article className="awa-card">
+                <h2>Últimos 7 días</h2>
+                <div className="awa-metrics__grid">
+                  <div><b>{metrics?.period?.avisosEnviados ?? 0}</b><span>Avisos enviados</span></div>
+                  <div><b>{metrics?.period?.pctConWa ?? 0}%</b><span>Pedidos con WA</span></div>
+                  <div><b>{metrics?.period?.pctConfirmados ?? 0}%</b><span>Pedidos confirmados por WA</span></div>
+                  <div><b>{metrics?.period?.quejas ?? 0}</b><span>Quejas</span></div>
+                  <div><b>{metrics?.period?.sinTelefono ?? 0}</b><span>Sin teléfono válido</span></div>
+                  <div><b>{metrics?.period?.desconexiones ?? 0}</b><span>Fallos Evolution</span></div>
+                  <div><b>{metrics?.humanOpen ?? 0}</b><span>Chats en modo humano</span></div>
+                  <div><b>{metrics?.sessions ?? 0}</b><span>Sesiones totales</span></div>
+                </div>
+              </article>
+              <article className="awa-card">
+                <h2>Avisos por evento</h2>
+                <div className="awa-scroll">
+                  <table className="awa-table">
+                    <thead><tr><th>Evento</th><th>Enviados</th><th>Error</th><th>Pendiente</th></tr></thead>
+                    <tbody>
+                      {(metrics?.byEvent || []).map((row) => (
+                        <tr key={row.event}>
+                          <td>{row.event}</td>
+                          <td>{row.sent}</td>
+                          <td>{row.error}</td>
+                          <td>{row.pending}</td>
+                        </tr>
+                      ))}
+                      {!metrics?.byEvent?.length && <tr><td colSpan={4} className="awa-muted">Aún no hay avisos.</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+                <button
+                  type="button"
+                  className="awa-btn"
+                  onClick={async () => {
+                    const met = await waAdmin('metrics', { branchId, days: 7 });
+                    setMetrics(met.metrics || null);
+                  }}
+                >
+                  <RefreshCw className="h-4 w-4" /> Actualizar
                 </button>
               </article>
             </section>

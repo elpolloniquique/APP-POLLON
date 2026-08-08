@@ -4,7 +4,7 @@
  * Body: { action, branchId, ... }
  *
  * actions: status | qr | logout | restart | simulate | retry_outbox |
- *          set_human | set_bot | mark_alerts_read
+ *          set_human | set_bot | mark_alerts_read | metrics | ping_ollama
  */
 import { cors, parseBody, getSupabaseAdmin, getSupabaseUserClient, env } from '../lib/whatsapp/supabaseAdmin.js';
 import {
@@ -18,6 +18,8 @@ import { ensureSettingsRow, updateSession } from '../lib/whatsapp/knowledge.js';
 import { evolutionInstanceName } from '../lib/whatsapp/phone.js';
 import { handleInbound } from '../lib/whatsapp/engine.js';
 import { retryPendingOutbox } from '../lib/whatsapp/notify.js';
+import { loadWaMetrics } from '../lib/whatsapp/metrics.js';
+import { pingOllama, ollamaConfigured, defaultOllamaModel } from '../lib/whatsapp/ollama.js';
 
 async function requireSuperAdmin(req, admin) {
   const authHeader = req.headers.authorization || '';
@@ -61,6 +63,16 @@ export default async function handler(req, res) {
   if (!action) return res.status(400).json({ error: 'action requerida' });
 
   try {
+    if (action === 'metrics') {
+      const metrics = await loadWaMetrics(admin, { branchId: branchId || null, days: Number(body.days) || 7 });
+      return res.status(200).json({ ok: true, metrics });
+    }
+
+    if (action === 'ping_ollama') {
+      const r = await pingOllama(body.model || defaultOllamaModel());
+      return res.status(200).json({ ok: r.ok, configured: ollamaConfigured(), ...r });
+    }
+
     if (action === 'simulate') {
       if (!branchId) return res.status(400).json({ error: 'branchId requerido' });
       const result = await handleInbound({

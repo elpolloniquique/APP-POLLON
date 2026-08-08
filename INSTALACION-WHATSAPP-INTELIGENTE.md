@@ -1,4 +1,4 @@
-# WhatsApp Inteligente El Pollón — instalación (Fase 1)
+# WhatsApp Inteligente El Pollón — instalación (Fase 1 + Fase 2)
 
 Concierge + avisos + FAQ + quejas. **No cobra ni arma carrito en el chat.**  
 La venta sigue en [https://www.el-pollon.cl/](https://www.el-pollon.cl/).  
@@ -20,9 +20,10 @@ Un bot **por sucursal**. Activas Iquique y dejas OFF Alto Hospicio si quieres.
 
 ## 2. SQL (obligatorio)
 
-En Supabase → **SQL Editor** → pega y ejecuta:
+En Supabase → **SQL Editor** → pega y ejecuta **en orden**:
 
-`el-pollon/supabase/fix-whatsapp-inteligente.sql`
+1. `el-pollon/supabase/fix-whatsapp-inteligente.sql` (si aún no lo corriste)
+2. `el-pollon/supabase/fix-whatsapp-inteligente-fase2.sql` (Ollama OFF + anti-spam foto)
 
 Crea: `ep_wa_settings`, `ep_wa_kb`, `ep_wa_sessions`, `ep_wa_messages`, `ep_wa_outbox`, `ep_wa_alerts`  
 RLS: solo `super_admin`.
@@ -143,10 +144,46 @@ No hagas campañas masivas por este canal.
 
 ---
 
-## 10. Qué no hace Fase 1 (a propósito)
+## 10. Fase 2 — métricas, foto de plato, Ollama local
+
+En `/admin/whatsapp`:
+
+- **KPIs** arriba: avisos hoy, quejas sin leer, % pedidos con WhatsApp, confirmaciones 7d.
+- Pestaña **Métricas**: hoy + 7 días + avisos por evento.
+- **Configurar → foto de plato**: OFF por defecto. Si lo activas, al preguntar un plato se envía **1** imagen pública (no spam: no repite el mismo plato en 45 min).
+- **Configurar → Ollama**: OFF por defecto. Solo reescribe el *fallback* con hechos reales (menú + precios). **Cero ChatGPT.**
+
+### Ollama (opcional, misma VM que Evolution)
+
+```bash
+# En el PC / Oracle Always Free (no en Vercel)
+curl -fsSL https://ollama.com/install.sh | sh
+ollama pull llama3.2
+# Escucha en 0.0.0.0:11434 y abre el puerto en el firewall
+```
+
+Variables extra en Vercel:
+
+```
+OLLAMA_URL=http://IP-PUBLICA:11434
+OLLAMA_MODEL=llama3.2
+```
+
+Vercel **no** puede hablar con `localhost`. Si Ollama no responde en ~6 s, el bot usa la plantilla fallback.
+
+En el admin: **Probar Ollama** → luego activa el toggle por sucursal.
+
+### Probar Fase 2
+
+1. Métricas: haz un pedido de prueba + avisos + un `reclamo` → los KPIs deben moverse.
+2. Foto: activa “Enviar 1 foto del plato”, pregunta un plato con imagen en el menú.
+3. Ollama: deja el toggle OFF salvo que Ollama esté arriba. Con ON, escribe algo raro (“me aburro”) → tono más natural, **sin inventar precios**.
+
+---
+
+## 11. Qué no hace (a propósito)
 
 - Cobrar o armar carrito en WhatsApp  
-- LLM de pago (ChatGPT, etc.)  
+- LLM de pago (ChatGPT, OpenAI, Anthropic, etc.)  
 - Acceso para admin de sucursal / cajera  
-- Fotos de plato (flag listo, Fase 2)  
-- Métricas avanzadas (Fase 2)
+- Campañas masivas por WhatsApp

@@ -297,3 +297,13 @@ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 WHEN undefined_object THEN NULL;
 END $$;
+
+-- Fase 2 (idempotente): Ollama OFF + anti-spam foto
+ALTER TABLE public.ep_wa_settings
+  ADD COLUMN IF NOT EXISTS ollama_enabled BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE public.ep_wa_settings
+  ADD COLUMN IF NOT EXISTS ollama_model TEXT NOT NULL DEFAULT 'llama3.2';
+ALTER TABLE public.ep_wa_sessions
+  ADD COLUMN IF NOT EXISTS last_photo_product_id TEXT;
+ALTER TABLE public.ep_wa_sessions
+  ADD COLUMN IF NOT EXISTS last_photo_at TIMESTAMPTZ;

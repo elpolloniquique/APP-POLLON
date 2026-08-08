@@ -397,6 +397,70 @@
 .awa-alert p { margin: 0.2rem 0; font-weight: 600; }
 .awa-alert small { color: #94a3b8; }
 
+.awa-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.45rem;
+  flex-shrink: 0;
+}
+.awa-kpi {
+  background: #fff;
+  border: var(--awa-border);
+  border-radius: var(--awa-radius);
+  box-shadow: var(--awa-shadow);
+  padding: 0.45rem 0.65rem;
+  min-width: 0;
+}
+.awa-kpi__n {
+  display: block;
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #c00000;
+  line-height: 1.1;
+}
+.awa-kpi__l {
+  display: block;
+  margin-top: 0.1rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #64748b;
+}
+
+.awa-metrics {
+  display: grid;
+  gap: 0.7rem;
+}
+@media (min-width: 1100px) {
+  .awa-metrics { grid-template-columns: 1fr 1fr; }
+  .awa-metrics .awa-card:last-child { grid-column: 1 / -1; }
+}
+.awa-metrics__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+.awa-metrics__grid > div {
+  background: #f8fafc;
+  border-radius: 0.55rem;
+  padding: 0.55rem 0.6rem;
+}
+.awa-metrics__grid b {
+  display: block;
+  font-size: 1.15rem;
+  color: #0a0a0a;
+}
+.awa-metrics__grid span {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #64748b;
+}
+
+@media (max-width: 900px) {
+  .awa-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .awa-metrics__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 @media (max-width: 900px) {
   .admin-whatsapp {
     height: auto;
