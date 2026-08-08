@@ -266,6 +266,75 @@
   margin-bottom: 0.7rem;
 }
 
+.awa-link-modes {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 0.55rem;
+}
+.awa-link-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: var(--awa-border);
+  background: #fff;
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #475569;
+  cursor: pointer;
+}
+.awa-link-mode.is-active {
+  background: #0a0a0a;
+  border-color: #0a0a0a;
+  color: #fff;
+}
+.awa-pairing-phone {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #334155;
+  margin-bottom: 0.45rem;
+}
+.awa-pairing-phone input {
+  border: var(--awa-border);
+  border-radius: 0.55rem;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.awa-pairing-box {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.45rem;
+  margin: 0.35rem 0 0.5rem;
+}
+.awa-pairing-code {
+  margin: 0;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 1.85rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-align: center;
+  padding: 0.7rem 0.5rem;
+  border-radius: 0.75rem;
+  background: #0a0a0a;
+  color: #fff;
+}
+.awa-pairing-steps {
+  margin: 0.45rem 0 0;
+  padding-left: 1.2rem;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #475569;
+  line-height: 1.45;
+}
+.awa-pairing-steps li { margin: 0.12rem 0; }
+
 .awa-qr {
   width: min(100%, 240px);
   aspect-ratio: 1;

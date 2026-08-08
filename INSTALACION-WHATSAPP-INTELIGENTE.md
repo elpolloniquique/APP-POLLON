@@ -78,12 +78,17 @@ Oracle Cloud: abre el puerto en Security List + firewall.
 
 1. Entra a **https://www.el-pollon.cl/admin/whatsapp** con super admin.
 2. Elige sucursal (arriba).
-3. Pestaña **Conexión** → **Generar / recargar QR**.
-4. Escanea con el WhatsApp **del local** (o un teléfono dedicado).
-5. Espera badge **Conectado**.
-6. Activa el toggle **Activar en esta sucursal**.
-7. Pestaña **Configurar**: deja **modo proactivo OFF** (recomendado).
-8. Guarda.
+3. Pestaña **Conexión** → modo **Código (recomendado)**.
+4. Confirma el número (el de `branches.whatsapp`) → **Generar código de vinculación**.
+5. En el celular de **ese** WhatsApp: **Dispositivos vinculados** → **Vincular con el número de teléfono** → escribe el código (ABCD-1234). Caduca ~1 min.
+6. Espera badge **Conectado** (el panel refresca solo unos 90 s).
+7. Activa el toggle **Activar en esta sucursal**.
+8. Pestaña **Configurar**: deja **modo proactivo OFF** (recomendado).
+9. Guarda.
+
+Plan B: pestaña **QR** → **Generar / recargar QR** → escanear.
+
+Esto **no** elimina Evolution 24/7. El código solo evita escanear el QR.
 
 Webhook que debe apuntar Evolution (el panel lo intenta configurar solo):
 
@@ -138,7 +143,8 @@ No hagas campañas masivas por este canal.
 
 | Síntoma | Qué revisar |
 |---|---|
-| QR no sale | `EVOLUTION_API_URL` / `KEY` en Vercel · Evolution arriba · firewall |
+| QR / código no sale / `fetch failed` | Evolution **apagado** o puerto **8080 cerrado** a internet. En el navegador debe abrir `http://TU-IP:8080`. Oracle: Security List + firewall Windows. Vercel no puede generar código ni QR si no alcanza el servidor |
+| Código vacío | Evolution sí responde pero no mandó pairing: recarga en 5 s o usa QR |
 | “hola” no responde | Toggle activado · webhook URL+secret · instancia `ep_…` de ESA sucursal |
 | No llegan avisos de estado | SQL ejecutado · pedido con teléfono 56 9… · outbox en Live · Evolution conectado |
 | Cajera ve el menú | No debe: cajera no tiene `whatsapp_ai`. Admin sucursal sí, pero sin QR |

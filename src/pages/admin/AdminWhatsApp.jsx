@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   MessageCircle, QrCode, RefreshCw, Unplug, Save, Plus, Trash2,
   Play, UserRound, Bot, Bell, BookOpen, Wifi, WifiOff, AlertTriangle,
-  BarChart3, Image as ImageIcon, Cpu, Download, Upload,
+  BarChart3, Image as ImageIcon, Cpu, Download, Upload, Copy, KeyRound,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { normalizeRole, getProfileBranchId } from '../../services/authService';
@@ -55,8 +55,19 @@ const TEMPLATE_KEYS = [
   ['opt_out', 'Opt-out / baja'],
 ];
 
-function Badge({ connected, configured }) {
+function formatPairingDisplay(code) {
+  const s = String(code || '').replace(/[\s-]/g, '').toUpperCase();
+  if (s.length === 8) return `${s.slice(0, 4)}-${s.slice(4)}`;
+  return String(code || '').toUpperCase();
+}
+
+function digitsOnly(value) {
+  return String(value || '').replace(/\D/g, '');
+}
+
+function Badge({ connected, configured, reachable }) {
   if (!configured) return <span className="awa-badge awa-badge--off">Sin configurar</span>;
+  if (reachable === false) return <span className="awa-badge awa-badge--off"><WifiOff className="h-3.5 w-3.5" /> Servidor apagado</span>;
   if (connected) return <span className="awa-badge awa-badge--on"><Wifi className="h-3.5 w-3.5" /> Conectado</span>;
   return <span className="awa-badge awa-badge--off"><WifiOff className="h-3.5 w-3.5" /> Desconectado</span>;
 }
@@ -78,8 +89,12 @@ export function AdminWhatsApp() {
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
 
-  const [evo, setEvo] = useState({ configured: false, connected: false, state: '', qr: null, phone: null });
+  const [evo, setEvo] = useState({ configured: false, connected: false, state: '', qr: null, pairingCode: null, phone: null });
   const [qrLoading, setQrLoading] = useState(false);
+  const [pairingLoading, setPairingLoading] = useState(false);
+  const [linkMode, setLinkMode] = useState('pairing');
+  const [pairingPhone, setPairingPhone] = useState('');
+  const statusPollRef = useRef(null);
 
   const [kb, setKb] = useState([]);
   const [kbForm, setKbForm] = useState({ title: '', keywords: '', pregunta: '', respuesta: '', prioridad: 10, activa: true });
@@ -143,7 +158,12 @@ export function AdminWhatsApp() {
       setAlerts(al);
       setOutbox(ob);
       setMetrics(met?.metrics || null);
-      setEvo((prev) => ({ ...prev, ...st, qr: prev.qr && !st.connected ? prev.qr : null }));
+      setEvo((prev) => ({
+        ...prev,
+        ...st,
+        qr: prev.qr && !st.connected ? prev.qr : null,
+        pairingCode: prev.pairingCode && !st.connected ? prev.pairingCode : null,
+      }));
     } catch (e) {
       setErr(e.message || 'No se pudo cargar WhatsApp inteligente. ¿Ejecutaste fix-whatsapp-inteligente.sql?');
     } finally {
@@ -152,6 +172,14 @@ export function AdminWhatsApp() {
   }, []);
 
   useEffect(() => { if (branchId) loadAll(branchId); }, [branchId, loadAll]);
+
+  useEffect(() => {
+    setPairingPhone(digitsOnly(branch?.whatsapp || ''));
+  }, [branchId, branch?.whatsapp]);
+
+  useEffect(() => () => {
+    if (statusPollRef.current) clearInterval(statusPollRef.current);
+  }, []);
 
   function patch(field, value) {
     setSettings((s) => (s ? { ...s, [field]: value } : s));
@@ -207,6 +235,39 @@ export function AdminWhatsApp() {
     }
   }
 
+  function stopStatusPoll() {
+    if (statusPollRef.current) {
+      clearInterval(statusPollRef.current);
+      statusPollRef.current = null;
+    }
+  }
+
+  function startStatusPoll() {
+    stopStatusPoll();
+    const started = Date.now();
+    statusPollRef.current = setInterval(async () => {
+      if (Date.now() - started > 90000) {
+        stopStatusPoll();
+        return;
+      }
+      try {
+        const r = await waAdmin('status', { branchId });
+        setEvo((p) => ({
+          ...p,
+          ...r,
+          pairingCode: r.connected ? null : p.pairingCode,
+          qr: r.connected ? null : p.qr,
+        }));
+        if (r.connected) {
+          stopStatusPoll();
+          flash(true, 'WhatsApp vinculado.');
+        }
+      } catch {
+        /* poll silencioso */
+      }
+    }, 5000);
+  }
+
   async function handleQr() {
     setQrLoading(true);
     setErr('');
@@ -214,16 +275,60 @@ export function AdminWhatsApp() {
       const r = await waAdmin('qr', { branchId });
       setEvo({
         configured: true,
+        reachable: r.reachable !== false,
         connected: r.connected,
         state: r.state,
         qr: r.qr,
+        pairingCode: r.pairingCode || null,
         phone: r.phone,
+        host: r.host,
       });
       if (r.connected) flash(true, 'Ya está conectado.');
+      else if (!r.qr) flash(false, 'Evolution respondió pero no mandó QR. Pulsa de nuevo en 5 s o revisa la instancia en el panel de Evolution.');
+      else startStatusPoll();
     } catch (e) {
       flash(false, e.message);
     } finally {
       setQrLoading(false);
+    }
+  }
+
+  async function handlePairing() {
+    setPairingLoading(true);
+    setErr('');
+    try {
+      const r = await waAdmin('pairing', { branchId, phone: pairingPhone });
+      setEvo({
+        configured: true,
+        reachable: r.reachable !== false,
+        connected: r.connected,
+        state: r.state,
+        qr: r.qr || null,
+        pairingCode: r.pairingCode || null,
+        phone: r.phone,
+        host: r.host,
+      });
+      if (r.connected) flash(true, 'Ya está conectado.');
+      else if (!r.pairingCode) flash(false, 'Evolution no mandó código. Prueba QR o recarga en 5 s.');
+      else {
+        flash(true, 'Código listo. Ingrésalo en el WhatsApp del local (caduca ~1 min).');
+        startStatusPoll();
+      }
+    } catch (e) {
+      flash(false, e.message);
+    } finally {
+      setPairingLoading(false);
+    }
+  }
+
+  async function copyPairingCode() {
+    const code = String(evo.pairingCode || '').replace(/[\s-]/g, '').toUpperCase();
+    if (!code) return;
+    try {
+      await navigator.clipboard.writeText(code);
+      flash(true, 'Código copiado.');
+    } catch {
+      flash(false, 'No se pudo copiar.');
     }
   }
 
@@ -238,9 +343,10 @@ export function AdminWhatsApp() {
 
   async function handleLogout() {
     if (!confirm('¿Desconectar el WhatsApp de esta sucursal?')) return;
+    stopStatusPoll();
     try {
       await waAdmin('logout', { branchId });
-      setEvo({ configured: true, connected: false, state: 'close', qr: null, phone: null });
+      setEvo({ configured: true, connected: false, state: 'close', qr: null, pairingCode: null, phone: null });
       flash(true, 'Desconectado.');
     } catch (e) {
       flash(false, e.message);
@@ -351,7 +457,7 @@ export function AdminWhatsApp() {
           ) : (
             <span className="awa-select awa-select--locked">{branch?.name || 'Tu sucursal'}</span>
           )}
-          <Badge connected={evo.connected} configured={evo.configured !== false && (evo.configured || settings)} />
+          <Badge connected={evo.connected} configured={evo.configured !== false && (evo.configured || settings)} reachable={evo.reachable} />
           {isSuper && (
             <label className="awa-toggle">
               <input
@@ -425,11 +531,34 @@ export function AdminWhatsApp() {
               </article>
 
               <article className="awa-card">
-                <h2>QR Evolution</h2>
-                <div className="awa-qr-actions">
-                  <button type="button" className="awa-btn awa-btn--red" onClick={handleQr} disabled={qrLoading}>
-                    <QrCode className="h-4 w-4" /> {qrLoading ? 'Generando…' : 'Generar / recargar QR'}
+                <h2>Vincular WhatsApp</h2>
+                <div className="awa-link-modes" role="tablist" aria-label="Modo de vinculación">
+                  <button
+                    type="button"
+                    className={`awa-link-mode ${linkMode === 'pairing' ? 'is-active' : ''}`}
+                    onClick={() => setLinkMode('pairing')}
+                  >
+                    <KeyRound className="h-3.5 w-3.5" /> Código (recomendado)
                   </button>
+                  <button
+                    type="button"
+                    className={`awa-link-mode ${linkMode === 'qr' ? 'is-active' : ''}`}
+                    onClick={() => setLinkMode('qr')}
+                  >
+                    <QrCode className="h-3.5 w-3.5" /> QR
+                  </button>
+                </div>
+
+                <div className="awa-qr-actions">
+                  {linkMode === 'pairing' ? (
+                    <button type="button" className="awa-btn awa-btn--red" onClick={handlePairing} disabled={pairingLoading || evo.connected}>
+                      <KeyRound className="h-4 w-4" /> {pairingLoading ? 'Generando…' : 'Generar código de vinculación'}
+                    </button>
+                  ) : (
+                    <button type="button" className="awa-btn awa-btn--red" onClick={handleQr} disabled={qrLoading || evo.connected}>
+                      <QrCode className="h-4 w-4" /> {qrLoading ? 'Generando…' : 'Generar / recargar QR'}
+                    </button>
+                  )}
                   <button type="button" className="awa-btn" onClick={handleStatus}>
                     <RefreshCw className="h-4 w-4" /> Estado
                   </button>
@@ -437,16 +566,63 @@ export function AdminWhatsApp() {
                     <Unplug className="h-4 w-4" /> Desconectar
                   </button>
                 </div>
-                {evo.qr ? (
-                  <img
-                    className="awa-qr"
-                    alt="QR WhatsApp"
-                    src={evo.qr.startsWith('data:') ? evo.qr : `data:image/png;base64,${evo.qr.replace(/^data:image\/png;base64,/, '')}`}
-                  />
+
+                {evo.connected ? (
+                  <div className="awa-qr awa-qr--empty">Ya vinculado — no hace falta código ni QR.</div>
+                ) : linkMode === 'pairing' ? (
+                  <>
+                    <label className="awa-pairing-phone">Número a vincular
+                      <input
+                        inputMode="numeric"
+                        value={pairingPhone}
+                        onChange={(e) => setPairingPhone(digitsOnly(e.target.value))}
+                        placeholder="569XXXXXXXX"
+                      />
+                    </label>
+                    {digitsOnly(branch?.whatsapp) && digitsOnly(pairingPhone) && digitsOnly(pairingPhone) !== digitsOnly(branch?.whatsapp) && (
+                      <p className="awa-warn"><AlertTriangle className="h-4 w-4" /> Este número no coincide con el WhatsApp de la sucursal ({branch?.whatsapp}).</p>
+                    )}
+                    {evo.pairingCode ? (
+                      <div className="awa-pairing-box">
+                        <p className="awa-pairing-code" aria-live="polite">{formatPairingDisplay(evo.pairingCode)}</p>
+                        <button type="button" className="awa-btn" onClick={copyPairingCode}>
+                          <Copy className="h-4 w-4" /> Copiar
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="awa-qr awa-qr--empty">Pulsa generar código.</div>
+                    )}
+                    <ol className="awa-pairing-steps">
+                      <li>En el celular de <strong>ESE número</strong> abre WhatsApp.</li>
+                      <li>Menú → <strong>Dispositivos vinculados</strong>.</li>
+                      <li>Vincular un dispositivo → <strong>Vincular con el número de teléfono</strong>.</li>
+                      <li>Escribe el código de 8 dígitos (sin espacios).</li>
+                      <li>Espera el badge <strong>Conectado</strong> aquí (se actualiza solo ~90 s).</li>
+                    </ol>
+                    <p className="awa-help">El código caduca en ~1 minuto. Si falla, genera otro.</p>
+                  </>
                 ) : (
-                  <div className="awa-qr awa-qr--empty">{evo.connected ? 'Conectado — no hace falta QR.' : 'Pulsa generar QR.'}</div>
+                  evo.qr ? (
+                    <img
+                      className="awa-qr"
+                      alt="QR WhatsApp"
+                      src={evo.qr.startsWith('data:') ? evo.qr : `data:image/png;base64,${evo.qr.replace(/^data:image\/png;base64,/, '')}`}
+                    />
+                  ) : (
+                    <div className="awa-qr awa-qr--empty">Pulsa generar QR.</div>
+                  )
                 )}
-                <p className="awa-meta">Estado: {evo.state || '—'} · {evo.configured === false ? 'Faltan vars EVOLUTION_* en Vercel' : 'API configurada'}</p>
+
+                <p className="awa-meta">
+                  Estado: {evo.state || '—'}
+                  {' · '}
+                  {evo.configured === false
+                    ? 'Faltan vars EVOLUTION_* en Vercel'
+                    : (evo.reachable === false ? `Evolution NO responde (${evo.host || 'revisa IP:puerto'})` : `API configurada${evo.host ? ` · ${evo.host}` : ''}`)}
+                </p>
+                {evo.reachable === false && (
+                  <p className="awa-warn"><AlertTriangle className="h-4 w-4" /> Abre el puerto 8080 a internet y deja Evolution encendido 24/7. El código/QR no puede salir si Vercel no alcanza el servidor.</p>
+                )}
               </article>
             </section>
           )}

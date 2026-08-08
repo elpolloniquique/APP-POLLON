@@ -3,19 +3,23 @@
  * POST /api/wa-evolution-admin
  * Super admin: todo. Admin sucursal: live/métricas/simulador de SU sucursal.
  *
- * actions: status | qr | logout | restart | simulate | retry_outbox |
+ * actions: status | qr | pairing | logout | restart | simulate | retry_outbox |
  *          set_human | set_bot | mark_alerts_read | metrics | ping_ollama
  */
 import { cors, parseBody, getSupabaseAdmin, getSupabaseUserClient, env } from '../lib/whatsapp/supabaseAdmin.js';
 import {
   evolutionConfigured,
   ensureInstance,
+  ensureInstanceReady,
   connectInstance,
+  connectWithPairingCode,
   connectionState,
   logoutInstance,
+  pingEvolution,
+  evolutionHostLabel,
 } from '../lib/whatsapp/evolution.js';
-import { ensureSettingsRow, updateSession } from '../lib/whatsapp/knowledge.js';
-import { evolutionInstanceName } from '../lib/whatsapp/phone.js';
+import { ensureSettingsRow, updateSession, loadBranch } from '../lib/whatsapp/knowledge.js';
+import { evolutionInstanceName, normalizeWhatsappPhone } from '../lib/whatsapp/phone.js';
 import { handleInbound } from '../lib/whatsapp/engine.js';
 import { retryPendingOutbox } from '../lib/whatsapp/notify.js';
 import { loadWaMetrics } from '../lib/whatsapp/metrics.js';
@@ -67,7 +71,7 @@ export default async function handler(req, res) {
   let branchId = body.branchId || body.branch_id;
   if (!auth.isSuper) {
     branchId = auth.branchId;
-    if (['qr', 'logout', 'restart', 'ping_ollama'].includes(action)) {
+    if (['qr', 'pairing', 'logout', 'restart', 'ping_ollama', 'ping_evolution'].includes(action)) {
       return res.status(403).json({ error: 'Solo super admin puede conectar Evolution / Ollama' });
     }
   }
@@ -131,9 +135,11 @@ export default async function handler(req, res) {
         return res.status(200).json({
           ok: true,
           configured: false,
+          reachable: false,
           connected: false,
           state: 'unconfigured',
           instance,
+          host: evolutionHostLabel(),
           phone: settings.connected_phone,
         });
       }
@@ -147,16 +153,28 @@ export default async function handler(req, res) {
       return res.status(200).json({
         ok: true,
         configured: true,
+        reachable: st.reachable !== false,
         connected: st.connected,
         state: st.state,
         instance,
+        host: evolutionHostLabel(),
         phone: st.phone || settings.connected_phone,
+        error: st.error || null,
       });
+    }
+
+    if (action === 'ping_evolution') {
+      const r = await pingEvolution();
+      return res.status(200).json(r);
     }
 
     if (action === 'qr') {
       if (!evolutionConfigured()) {
         return res.status(400).json({ error: 'Faltan EVOLUTION_API_URL / EVOLUTION_API_KEY en Vercel' });
+      }
+      const ping = await pingEvolution();
+      if (!ping.ok) {
+        return res.status(502).json({ error: ping.error || `Evolution no responde en ${ping.host}` });
       }
       const qr = await ensureInstance(instance, webhookPublicUrl());
       const st = await connectionState(instance);
@@ -175,6 +193,44 @@ export default async function handler(req, res) {
         phone: st.phone,
         qr: qr.qr,
         pairingCode: qr.pairingCode,
+        host: evolutionHostLabel(),
+        reachable: true,
+      });
+    }
+
+    if (action === 'pairing') {
+      if (!evolutionConfigured()) {
+        return res.status(400).json({ error: 'Faltan EVOLUTION_API_URL / EVOLUTION_API_KEY en Vercel' });
+      }
+      const ping = await pingEvolution();
+      if (!ping.ok) {
+        return res.status(502).json({ error: ping.error || `Evolution no responde en ${ping.host}` });
+      }
+      const branch = await loadBranch(admin, branchId);
+      const phone = normalizeWhatsappPhone(body.phone || branch?.whatsapp || '');
+      if (!phone) {
+        return res.status(400).json({ error: 'Falta el WhatsApp de la sucursal' });
+      }
+      await ensureInstanceReady(instance, webhookPublicUrl());
+      const linked = await connectWithPairingCode(instance, phone);
+      const st = await connectionState(instance);
+      await admin.from('ep_wa_settings').update({
+        evolution_instance: instance,
+        connected: st.connected,
+        connected_phone: st.phone || phone,
+        last_qr_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq('branch_id', branchId);
+      return res.status(200).json({
+        ok: true,
+        instance,
+        connected: st.connected,
+        state: st.state,
+        phone: st.phone || phone,
+        pairingCode: linked.pairingCode || null,
+        qr: linked.qr || null,
+        host: evolutionHostLabel(),
+        reachable: true,
       });
     }
 
