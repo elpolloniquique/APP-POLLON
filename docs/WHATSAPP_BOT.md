@@ -54,6 +54,34 @@ Internamente comparar también `569XXXXXXXX` (formato actual).
 
 ---
 
+## BotEngine (FASE 5)
+
+Código: `lib/bot/` — **sin IA**.
+
+```
+processInbound({ phone, message, profileName, branchId, messageId })
+  → normalizeChilePhone
+  → dedupe / rate-limit
+  → cliente + conversación
+  → intención (reglas + bot_intents)
+  → productos / pedidos / sucursal (Supabase)
+  → memoria bot_knowledge
+  → plantilla
+  → guardar bot_messages
+```
+
+Si no entiende: guarda `bot_unanswered_questions` (no inventa).  
+Si pide humano/queja: `conversation.mode = human_required` y el bot deja de responder.
+
+Simulador (no WhatsApp): `POST /api/bot-simulate`  
+Auth: `X-EP-WA-SECRET` o JWT staff (`super_admin` / `admin_sucursal`).
+
+```json
+{ "phone": "+56912345678", "message": "hola", "branchId": "uuid-opcional" }
+```
+
+---
+
 ## Conector WhatsApp
 
 `WhatsAppProvider` (adapter). Implementación inicial prevista: **Evolution API** (open source).

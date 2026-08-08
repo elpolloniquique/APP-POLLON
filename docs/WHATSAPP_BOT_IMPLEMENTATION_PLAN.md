@@ -52,20 +52,23 @@ Leyenda: `[ ]` pendiente · `[~]` en curso · `[x]` hecha
 
 ## FASE 5 — BotEngine
 
-- [ ] `lib/bot/engine.js` — pipeline determinista
-- [ ] Sin imports a Ollama / OpenAI / Gemini
+- [x] `lib/bot/engine.js` — pipeline determinista
+- [x] Sin imports a Ollama / OpenAI / Gemini
+- [x] Handlers: saludo, compra, precio, delivery, horario, sucursal, pedido, queja, humano, memoria, unknown
+- [x] API simulador `POST /api/bot-simulate` (no envía WhatsApp)
 
 ---
 
 ## FASE 6 — Teléfono
 
-- [ ] `normalizeChilePhone()` → `+569…` + match dual con `569…`
+- [x] `normalizeChilePhone()` → `+569…` + match dual con `569…` (`lib/bot/phone.js`)
 
 ---
 
 ## FASE 7 — Intenciones
 
-- [ ] Tabla `bot_intents` + seed + detector por keywords/patrones
+- [x] Detector por keywords + `bot_intents` + sinónimos (`lib/bot/intents.js`)
+- [ ] Ajustes finos de umbral en panel (FASE 18)
 
 ---
 
