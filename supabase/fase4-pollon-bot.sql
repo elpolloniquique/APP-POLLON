@@ -55,13 +55,16 @@ BEGIN
   IF left(digits, 1) = '0' AND length(digits) >= 9 THEN
     digits := substr(digits, 2);
   END IF;
-  IF digits LIKE '56%' AND length(digits) >= 11 THEN
-    RETURN '+' || digits;
-  END IF;
-  IF left(digits, 1) = '9' AND length(digits) = 9 THEN
+  IF digits ~ '^9[0-9]{8}$' THEN
     RETURN '+56' || digits;
   END IF;
-  IF trimmed LIKE '+%' AND left(digits, 2) <> '56' AND length(digits) >= 8 THEN
+  IF digits ~ '^569[0-9]{8}$' THEN
+    RETURN '+' || digits;
+  END IF;
+  IF digits LIKE '56%' AND length(digits) BETWEEN 10 AND 12 THEN
+    RETURN '+' || digits;
+  END IF;
+  IF trimmed LIKE '+%' AND left(digits, 2) <> '56' AND length(digits) BETWEEN 8 AND 15 THEN
     RETURN '+' || digits;
   END IF;
   RETURN NULL;

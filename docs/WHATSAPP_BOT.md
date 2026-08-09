@@ -46,11 +46,50 @@ En mensajes, `en_delivery` se muestra como “en camino / en reparto”.
 
 ---
 
-## Teléfono
+## Teléfono (FASE 6)
 
-Función única `normalizeChilePhone()` → `+569XXXXXXXX` para Chile.  
-No forzar +56 en números internacionales.  
-Internamente comparar también `569XXXXXXXX` (formato actual).
+Función única: `lib/bot/phone.js` → `normalizeChilePhone()`.
+
+| Entrada | Salida |
+|---------|--------|
+| `925586256` | `+56925586256` |
+| `09 2558 6256` | `+56925586256` |
+| `56925586256` | `+56925586256` |
+| `+56 9 2558 6256` | `+56925586256` |
+| `+51987654321` | `+51987654321` (no se convierte a Chile) |
+
+- Pedidos nuevos: `cliente_telefono` se guarda en E.164 (`+569…`).
+- `wa.me` / Evolution: `toWhatsappDigits()` → `569…` (sin +).
+- Match: `phonesMatch()` trata `569` y `+569` como el mismo número.
+- SQL: `public.normalize_chile_phone()` (`fase6-normalize-chile-phone.sql`).
+- Tests: `npm run test:phone`
+
+---
+
+## Intenciones (FASE 7)
+
+Detector determinista (`lib/bot/intents.js`), sin IA.
+
+Orden: código de pedido → queja → humano → delivery+precio → score de `bot_intents` (keywords/patrones/ejemplos) → productos del menú → saludo corto → UNKNOWN.
+
+Un “hola ¿cuánto sale el cuarto?” **no** se trata solo como saludo.
+
+Tests: `npm run test:bot`
+
+---
+
+## Búsqueda PostgreSQL (FASE 8)
+
+Ejecutar: `supabase/fase7-8-intents-search.sql`
+
+| Función | Uso |
+|---------|-----|
+| `bot_expand_query(text)` | Expande sinónimos |
+| `bot_search_knowledge(query, branch_id, limit, min_score)` | FTS `tsvector` + `pg_trgm` |
+| `bot_search_chunks(...)` | Fragmentos de documentos |
+| `bot_find_similar_unanswered(...)` | Agrupa preguntas parecidas |
+
+El motor llama estas RPC; si aún no existen, usa el score en JavaScript.
 
 ---
 

@@ -62,19 +62,27 @@ Leyenda: `[ ]` pendiente · `[~]` en curso · `[x]` hecha
 ## FASE 6 — Teléfono
 
 - [x] `normalizeChilePhone()` → `+569…` + match dual con `569…` (`lib/bot/phone.js`)
+- [x] Misma lógica en checkout, `orderService`, `format.js`, Evolution wrapper y SQL
+- [x] Tests: `npm run test:phone`
+- [ ] Opcional: ejecutar `supabase/fase6-normalize-chile-phone.sql`
 
 ---
 
 ## FASE 7 — Intenciones
 
-- [x] Detector por keywords + `bot_intents` + sinónimos (`lib/bot/intents.js`)
+- [x] Detector por keywords + patrones + ejemplos + score (`lib/bot/intents.js`)
+- [x] Sinónimos + reglas delivery/precio, queja, humano
+- [x] Tests: `npm run test:bot`
 - [ ] Ajustes finos de umbral en panel (FASE 18)
 
 ---
 
 ## FASE 8 — Búsqueda PostgreSQL
 
-- [ ] FTS + `similarity()` + funciones SQL `bot_search_knowledge`
+- [x] SQL `bot_search_knowledge` (FTS + `similarity` + `word_similarity` + sinónimos)
+- [x] `bot_search_chunks` + `bot_find_similar_unanswered`
+- [x] `memory.js` usa RPC y fallback JS si no está la función
+- [ ] Usuario: ejecutar `supabase/fase7-8-intents-search.sql`
 
 ---
 

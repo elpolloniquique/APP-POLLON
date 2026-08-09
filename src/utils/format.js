@@ -1,4 +1,7 @@
 import { buildOrderReceiptText } from './orderReceipt';
+import { normalizeChilePhone, toWhatsappDigits, phonesMatch } from '../../lib/bot/phone.js';
+
+export { normalizeChilePhone, toWhatsappDigits, phonesMatch };
 
 const CURRENCY = new Intl.NumberFormat('es-CL', {
   style: 'currency',
@@ -172,14 +175,9 @@ export function buildWhatsappMessage(order, branch) {
   return buildOrderReceiptText(order, branch);
 }
 
-/** Normaliza teléfono chileno para wa.me / WhatsApp Web */
+/** Dígitos para wa.me / WhatsApp Web (569…). Canónico: normalizeChilePhone → +569… */
 export function normalizeWhatsappPhone(phone) {
-  const digits = String(phone || '').replace(/\D/g, '');
-  if (digits.length < 8) return null;
-  if (digits.startsWith('56') && digits.length >= 11) return digits;
-  if (digits.startsWith('9') && digits.length === 9) return `56${digits}`;
-  if (digits.length >= 10) return digits.startsWith('56') ? digits : `56${digits}`;
-  return null;
+  return toWhatsappDigits(phone);
 }
 
 const WHATSAPP_WINDOW_NAME = 'pollon_whatsapp_confirm';

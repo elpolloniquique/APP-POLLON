@@ -1,5 +1,6 @@
 import { getSupabase, isSupabaseConfigured } from './supabaseClient';
 import { ORDERS_KEY } from '../utils/constants';
+import { normalizeChilePhone } from '../utils/format';
 import { filterOrdersInRange, getPeriodRange } from '../utils/dashboardAnalytics';
 
 let orders = [];
@@ -69,12 +70,13 @@ function rowToOrder(row) {
 
 function orderToRow(order) {
   const cust = order.customer || {};
+  const phoneE164 = normalizeChilePhone(cust.phone) || String(cust.phone || '').trim();
   const codigo = order.codigo_pedido || order.ticketNumber || String(order.id).slice(-6);
   return sanitize({
     id: order.id,
     codigo_pedido: String(codigo).padStart(6, '0'),
     cliente_nombre: cust.name || '',
-    cliente_telefono: cust.phone || '',
+    cliente_telefono: phoneE164,
     cliente_direccion: cust.address || '',
     cliente_lat: cust.addressLat ?? null,
     cliente_lng: cust.addressLng ?? null,
@@ -88,7 +90,7 @@ function orderToRow(order) {
     creado_en: order.createdAt || new Date().toISOString(),
     entregado_en: order.deliveredAt || null,
     datos_json: {
-      customer: cust,
+      customer: { ...cust, phone: phoneE164 },
       items: order.items || [],
       ticketNumber: order.ticketNumber,
       deliveryFee: order.deliveryFee || 0,

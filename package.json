@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "test:phone": "node --test lib/bot/phone.test.js",
+    "test:bot": "node --test lib/bot/*.test.js",
     "lint": "eslint .",
     "preview": "vite preview",
     "cap:sync": "npm run build && npx cap sync",

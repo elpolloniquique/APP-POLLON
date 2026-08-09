@@ -6,7 +6,7 @@ import { WhatsAppIcon } from '../ui/WhatsAppIcon';
 import { useCart } from '../../context/CartContext';
 import { useBranch } from '../../context/BranchContext';
 import { useAuth } from '../../context/AuthContext';
-import { money, formatDateTime } from '../../utils/format';
+import { money, formatDateTime, normalizeChilePhone } from '../../utils/format';
 import { PAYMENT_METHODS, ORDER_TYPE_LABELS } from '../../utils/constants';
 import {
   getAvailableOrderTypes,
@@ -195,7 +195,7 @@ export function CheckoutModal() {
 
   const validate = () => {
     if (!form.name.trim()) return 'Ingresa tu nombre';
-    if (!form.phone.trim() || form.phone.length < 8) return 'Ingresa un teléfono válido';
+    if (!normalizeChilePhone(form.phone)) return 'Ingresa un teléfono válido (ej. 9 2558 6256)';
     if (form.orderType === 'delivery') {
       if (!form.address.trim()) return 'Ingresa tu dirección de entrega';
       if (!form.addressLat || !form.addressLng) return 'Selecciona una dirección de la lista para calcular el delivery';
