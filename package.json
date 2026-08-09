@@ -8,6 +8,7 @@
     "build": "vite build",
     "test:phone": "node --test lib/bot/phone.test.js",
     "test:bot": "node --test lib/bot/*.test.js",
+    "test": "node --test lib/bot/*.test.js",
     "lint": "eslint .",
     "preview": "vite preview",
     "cap:sync": "npm run build && npx cap sync",
@@ -23,12 +24,14 @@
     "chart.js": "^4.5.1",
     "leaflet": "^1.9.4",
     "lucide-react": "^1.16.0",
+    "mammoth": "^1.12.0",
     "maplibre-gl": "^6.0.0",
     "react": "^19.2.6",
     "react-chartjs-2": "^5.3.1",
     "react-dom": "^19.2.6",
     "react-leaflet": "^5.0.0",
     "react-router-dom": "^7.15.1",
+    "unpdf": "^1.8.0",
     "web-push": "^3.6.7"
   },
   "devDependencies": {

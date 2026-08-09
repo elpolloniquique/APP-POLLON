@@ -174,7 +174,7 @@ export const ADMIN_NAV = [
   { id: 'stock', path: '/admin/stock', label: 'Stock', perm: 'inventory', icon: 'Package' },
   { id: 'reportes', path: '/admin/reportes', label: 'Reportes', perm: 'reports', icon: 'BarChart3' },
   { id: 'usuarios', path: '/admin/usuarios', label: 'Usuarios', perm: 'users', icon: 'Users' },
-  { id: 'whatsapp', path: '/admin/whatsapp', label: 'WhatsApp inteligente', perm: 'whatsapp_ai', icon: 'MessageCircle' },
+  { id: 'whatsapp', path: '/admin/whatsapp', label: 'WhatsApp Bot', perm: 'whatsapp_ai', icon: 'MessageCircle' },
   { id: 'config', path: '/admin/config', label: 'Configuración', perm: 'settings', icon: 'Settings' },
   { id: 'drivers', path: '/admin/repartidores', label: 'Repartidores', perm: 'drivers', group: 'delivery', icon: 'Bike' },
   { id: 'driver_config', path: '/admin/repartidores/config', label: 'Config. despacho', perm: 'driver_config', group: 'delivery', icon: 'SlidersHorizontal' },

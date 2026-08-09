@@ -465,7 +465,7 @@ function pingWaOrderNotify(payload) {
       } catch {
         /* checkout anónimo */
       }
-      await fetch('/api/wa-order-notify', {
+      await fetch('/api/bot-order-hook', {
         method: 'POST',
         headers,
         body: JSON.stringify(payload),

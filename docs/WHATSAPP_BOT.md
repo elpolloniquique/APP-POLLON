@@ -6,6 +6,8 @@ Documentos relacionados:
 
 - Diagnóstico: `docs/WHATSAPP_BOT_FASE0_DIAGNOSTICO.md`
 - Plan por fases: `docs/WHATSAPP_BOT_IMPLEMENTATION_PLAN.md`
+- Host Evolution $0: `docs/WHATSAPP_BOT_FASE15_HOST.md`
+- Producción: `docs/WHATSAPP_BOT_PRODUCCION.md`
 
 ---
 
@@ -121,12 +123,61 @@ Auth: `X-EP-WA-SECRET` o JWT staff (`super_admin` / `admin_sucursal`).
 
 ---
 
-## Conector WhatsApp
+## Panel admin (FASE 16–18)
 
-`WhatsAppProvider` (adapter). Implementación inicial prevista: **Evolution API** (open source).
+Ruta: **`/admin/whatsapp`** (nav: “WhatsApp Bot”, perm `whatsapp_ai`).  
+Subrutas: dashboard, inbox, memoria, sin-respuesta, documentos, sinonimos, intenciones, config, eventos, logs, probar, conexion.
 
-Requisito: proceso persistente. **No** trycloudflare. **No** Vercel como socket.  
-Detalle y costos: FASE 0 diagnóstico + FASE 15 del plan.
+| Ruta | Qué hace |
+|------|----------|
+| `/dashboard` | Métricas 24 h, humanos abiertos, cola, logs |
+| `/inbox` | CRM Realtime (`bot_conversations` + `bot_messages`). Tomar / devolver / responder humano |
+| `/memoria` | CRUD `bot_knowledge` |
+| `/sin-respuesta` | Cola Realtime. **Guardar y entrenar** |
+| `/documentos` | PDF / TXT / DOCX OSS |
+| `/sinonimos` | Diccionario `bot_synonyms` |
+| `/intenciones` | `bot_intents` (keywords, patrones, handler, prioridad) |
+| `/config` | `bot_settings` key/value (nada crítico hardcodeado) |
+| `/eventos` | `bot_events` + cola de avisos |
+| `/logs` | `bot_logs` |
+| `/probar` | `/api/bot-simulate` |
+| `/conexion` | Evolution legado (no se borra) |
+
+Inbox humano: `POST /api/bot-human-reply`. Si el modo es `human` / `human_required`, el BotEngine no responde.
+
+Al guardar memoria, config, sinónimos o intenciones **no hace falta redeploy**.
+
+---
+
+## Avisos de pedido (FASE 13–14)
+
+Fuente de verdad: **trigger SQL** en `pedidos` → `bot_events` (idempotencia) → `bot_notification_queue`.  
+El checkout/admin solo hacen ping de respaldo a `/api/bot-order-hook` (no envían WhatsApp desde el browser).
+
+| Evento | `event_key` | Plantilla |
+|--------|-------------|-----------|
+| Pedido nuevo | `order:{id}:created` | `templates.order_created` (ítems + `#codigo_pedido`) |
+| Cambio de estado | `order:{id}:status:{estado}` | `pendiente` … `en_delivery` … `entregado` / `cancelado` |
+
+Estados reales: `pendiente` → `aceptado` → `confirmado` → `preparando` → `en_delivery` → `entregado`.  
+`en_delivery` se muestra como “en camino”. `listo` es legacy.
+
+SQL: `supabase/fase13-15-order-notify.sql`  
+APIs: `/api/bot-order-hook`, `/api/bot-dispatch-queue`
+
+Si tenías Database Webhook a `/api/wa-order-notify`, desactívalo para no duplicar.
+
+---
+
+## Conector WhatsApp (FASE 15)
+
+`WhatsAppProvider` (`lib/bot/provider.js`): Evolution OSS o *noop* si no hay host.
+
+- Inbound: `POST /api/bot-wa-inbound` → BotEngine → `provider.sendText`
+- Outbound avisos: cola → `provider.sendText`
+- **No** Meta Cloud API · **No** trycloudflare en producción
+
+Host persistente $0 (Oracle Always Free, etc.): `docs/WHATSAPP_BOT_FASE15_HOST.md`
 
 ---
 
@@ -153,11 +204,42 @@ Storage: bucket privado `bot-documents`.
 
 ---
 
-## Seguridad
+## Seguridad (FASE 19)
 
-- `SUPABASE_SERVICE_ROLE_KEY` y tokens WA solo en backend / secrets.
-- RLS por `super_admin` / `admin_sucursal`.
+SQL: `supabase/fase19-bot-security.sql`
+
+- `SUPABASE_SERVICE_ROLE_KEY`, `EVOLUTION_API_KEY`, `EP_WA_WEBHOOK_SECRET` **solo backend**. Nunca `VITE_*`.
+- RLS: `anon` sin `bot_*`. Super admin todo; admin sucursal su sucursal (settings global = solo lectura).
+- Webhooks: secret obligatorio en producción. Cron no se autentica solo con `x-vercel-cron`.
+- Rate limit: inbound, simulador, order-hook, dispatch, human-reply.
 - Idempotencia: `bot_events.event_key` UNIQUE.
-- Cola: `bot_notification_queue` + reintentos limitados.
+- Cola: `bot_notification_queue` + reintentos (no quema intentos si Evolution no está).
+- Auditoría: `bot_logs` (textos sanitizados, sin JWT/keys) + triggers en settings/knowledge.
+- Auth APIs: `lib/bot/auth.js`.
 
-Este archivo se irá completando en FASE 21 (tablas finales, env, troubleshooting).
+## APIs
+
+| Ruta | Uso |
+|------|-----|
+| `POST /api/bot-simulate` | Probar motor (no WA) |
+| `POST /api/bot-wa-inbound` | Evolution → BotEngine |
+| `POST /api/bot-order-hook` | Pedidos INSERT/UPDATE |
+| `GET/POST /api/bot-dispatch-queue` | Drenar cola de avisos |
+| `POST /api/bot-human-reply` | Inbox humano |
+| `POST /api/bot-process-document` | Parser OSS documentos |
+
+## Tests (FASE 20)
+
+```
+npm run test:bot
+npm run build
+```
+
+Casos: saludo, precio, delivery, pedido `#codigo`, estados, webhook duplicado (`event_key`), humano (bot no responde), desconocido → entrenar → similar, rate limit, sanitize logs.
+
+## Producción (FASE 21)
+
+Checklist completo: **`docs/WHATSAPP_BOT_PRODUCCION.md`**.  
+Env vacío: `.env.example`. Host WA: `docs/WHATSAPP_BOT_FASE15_HOST.md`.
+
+El deploy a Vercel lo haces tú (push / dashboard). Sin Evolution el panel y el simulador ya sirven.

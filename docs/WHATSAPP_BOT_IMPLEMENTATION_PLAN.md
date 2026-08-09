@@ -88,87 +88,105 @@ Leyenda: `[ ]` pendiente · `[~]` en curso · `[x]` hecha
 
 ## FASE 9 — Memoria
 
-- [ ] CRUD `bot_knowledge` + variantes + keywords
+- [x] CRUD `bot_knowledge` + variantes + keywords (`src/services/botAdminService.js`)
+- [x] Panel admin `/admin/whatsapp` pestaña Memoria
 
 ---
 
 ## FASE 10 — Documentos
 
-- [ ] Upload Storage + parser OSS (pdf/txt/docx) + chunks
-- [ ] Si un formato exige API de pago → no usarlo
+- [x] Upload Storage bucket `bot-documents`
+- [x] Parser OSS: TXT / PDF (`unpdf`) / DOCX (`mammoth`) — sin APIs de pago
+- [x] Chunks → `bot_knowledge_chunks` + fila en `bot_knowledge`
+- [x] API `POST /api/bot-process-document`
 
 ---
 
 ## FASE 11 — Preguntas sin respuesta
 
-- [ ] `bot_unanswered_questions` + deduplicación por similitud
+- [x] Cola `bot_unanswered_questions` en panel (Realtime)
+- [x] Deduplicación por similitud (FASE 8 `bot_find_similar_unanswered` + JS)
+- [x] Ignorar / entrenar
 
 ---
 
 ## FASE 12 — Guardar y entrenar
 
-- [ ] De unanswered → knowledge, activo al instante (sin redeploy)
+- [x] Unanswered → `bot_knowledge` activo al instante (sin redeploy)
+- [x] Simulador en panel (`/api/bot-simulate`)
 
 ---
 
 ## FASE 13 — Pedidos nuevos
 
-- [ ] Database Webhook / trigger → cola (no el frontend)
-- [ ] Mensaje con ítems reales + `codigo_pedido`
+- [x] Trigger SQL `pedidos` INSERT → `bot_events` + `bot_notification_queue`
+- [x] Mensaje con ítems reales (`datos_json.items`) + `codigo_pedido`
+- [x] API `POST /api/bot-order-hook` (Database Webhook + ping checkout de respaldo)
+- [x] SQL `supabase/fase13-15-order-notify.sql`
 
 ---
 
 ## FASE 14 — Estados
 
-- [ ] Mapa estados reales → plantillas editables + idempotencia
+- [x] Mapa `pendiente`→`aceptado`→`confirmado`→`preparando`→`en_delivery`→`entregado` (+ `listo`/`cancelado`)
+- [x] Plantillas editables en `bot_settings.templates`
+- [x] Idempotencia `bot_events.event_key` UNIQUE (`order:{id}:status:{estado}`)
 
 ---
 
 ## FASE 15 — WhatsAppProvider
 
-- [ ] Interface + Evolution adapter
-- [ ] Documentar host persistente $0 (Oracle Always Free u otro)
-- [ ] **No** trycloudflare producción · **No** Meta Cloud API
+- [x] Interface `lib/bot/provider.js` + adapter Evolution (no Meta)
+- [x] Inbound `POST /api/bot-wa-inbound` → BotEngine → `sendText`
+- [x] Cola `POST /api/bot-dispatch-queue` + cron horario
+- [x] Doc host persistente $0: `docs/WHATSAPP_BOT_FASE15_HOST.md`
+- [x] **No** trycloudflare producción · **No** Meta Cloud API
 
 ---
 
 ## FASE 16 — Conversaciones CRM (Realtime)
 
-- [ ] `bot_conversations` + `bot_messages` + contexto
+- [x] Inbox `/admin/whatsapp/inbox` (`bot_conversations` + `bot_messages`)
+- [x] Realtime + contexto (intent, pedido, modo)
+- [x] Tomar / devolver al bot + reply humano (`/api/bot-human-reply`)
 
 ---
 
 ## FASE 17 — Panel
 
-- [ ] Renombrar nav a **WhatsApp Bot** (mismo perm `whatsapp_ai`)
-- [ ] Subrutas: dashboard, inbox, memoria, sin respuesta, documentos, sinónimos, intenciones, config, eventos, logs, conexión
+- [x] Nav **WhatsApp Bot** (perm `whatsapp_ai`)
+- [x] Subrutas: dashboard, inbox, memoria, sin-respuesta, documentos, sinonimos, intenciones, config, eventos, logs, probar, conexion
 
 ---
 
 ## FASE 18 — Configuración
 
-- [ ] `bot_settings` key/value en Supabase (nada hardcodeado crítico)
+- [x] UI `bot_settings` key/value (bot on/off, umbral, plantillas, Evolution instance, avisos)
+- [x] Sinónimos + intenciones editables en panel (sin redeploy)
 
 ---
 
 ## FASE 19 — Seguridad
 
-- [ ] RLS, secrets solo backend, rate limit, auditoría
+- [x] RLS endurecido (`fase19-bot-security.sql`): anon sin `bot_*`; AS no escribe settings global
+- [x] Secrets solo backend (`lib/bot/auth.js`); cron no spoofea `x-vercel-cron`
+- [x] Rate limit APIs (`lib/bot/rateLimit.js`)
+- [x] Auditoría `bot_logs` + sanitize (sin JWT/keys)
 
 ---
 
 ## FASE 20 — Testing
 
-- [ ] Casos: hola, precio, delivery, pedido, estados, duplicado webhook, humano, desconocido → entrenar → similar responde
-- [ ] `npm run build`
+- [x] Casos: hola, precio, delivery, pedido, estados, duplicado webhook, humano, desconocido → entrenar → similar
+- [x] `npm run test:bot` / `npm run build`
 
 ---
 
 ## FASE 21 — Producción
 
-- [ ] Completar `docs/WHATSAPP_BOT.md`
-- [ ] `.env.example` sin secretos
-- [ ] Deploy Vercel + SQL + (si hay) Evolution en host estable
+- [x] Completar `docs/WHATSAPP_BOT.md` + `docs/WHATSAPP_BOT_PRODUCCION.md`
+- [x] `.env.example` sin secretos reales
+- [x] Checklist deploy Vercel + SQL + Evolution (host estable); **no trycloudflare / no Meta**
 
 ---
 
