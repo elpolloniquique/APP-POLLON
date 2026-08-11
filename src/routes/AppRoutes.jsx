@@ -13,19 +13,6 @@ import { AdminCash } from '../pages/admin/AdminCash';
 import { AdminInventory } from '../pages/admin/AdminInventory';
 import { AdminReports } from '../pages/admin/AdminReports';
 import { AdminUsers } from '../pages/admin/AdminUsers';
-import { AdminWhatsApp } from '../pages/admin/AdminWhatsApp';
-import { PollonBotLayout } from '../pages/admin/pollon-bot/PollonBotLayout';
-import { BotDashboard } from '../pages/admin/pollon-bot/BotDashboard';
-import { BotInbox } from '../pages/admin/pollon-bot/BotInbox';
-import { BotMemoria } from '../pages/admin/pollon-bot/BotMemoria';
-import { BotUnanswered } from '../pages/admin/pollon-bot/BotUnanswered';
-import { BotDocuments } from '../pages/admin/pollon-bot/BotDocuments';
-import { BotSynonyms } from '../pages/admin/pollon-bot/BotSynonyms';
-import { BotIntents } from '../pages/admin/pollon-bot/BotIntents';
-import { BotConfig } from '../pages/admin/pollon-bot/BotConfig';
-import { BotEvents } from '../pages/admin/pollon-bot/BotEvents';
-import { BotLogs } from '../pages/admin/pollon-bot/BotLogs';
-import { BotSimulate } from '../pages/admin/pollon-bot/BotSimulate';
 import { AdminConfig } from '../pages/admin/AdminConfig';
 import { AdminCustomers } from '../pages/admin/AdminCustomers';
 import { AdminCampaigns } from '../pages/admin/AdminCampaigns';
@@ -117,21 +104,7 @@ export function AppRoutes() {
         <Route path="stock" element={<ProtectedRoute perm="inventory"><AdminInventory /></ProtectedRoute>} />
         <Route path="reportes" element={<ProtectedRoute perm="reports"><AdminReports /></ProtectedRoute>} />
         <Route path="usuarios" element={<ProtectedRoute perm="users"><AdminUsers /></ProtectedRoute>} />
-        <Route path="whatsapp" element={<ProtectedRoute perm="whatsapp_ai"><PollonBotLayout /></ProtectedRoute>}>
-          <Route index element={<Navigate to="dashboard" replace />} />
-          <Route path="dashboard" element={<BotDashboard />} />
-          <Route path="inbox" element={<BotInbox />} />
-          <Route path="memoria" element={<BotMemoria />} />
-          <Route path="sin-respuesta" element={<BotUnanswered />} />
-          <Route path="documentos" element={<BotDocuments />} />
-          <Route path="sinonimos" element={<BotSynonyms />} />
-          <Route path="intenciones" element={<BotIntents />} />
-          <Route path="config" element={<BotConfig />} />
-          <Route path="eventos" element={<BotEvents />} />
-          <Route path="logs" element={<BotLogs />} />
-          <Route path="probar" element={<BotSimulate />} />
-          <Route path="conexion" element={<AdminWhatsApp />} />
-        </Route>
+        <Route path="whatsapp/*" element={<Navigate to="/admin/pedidos" replace />} />
         <Route path="config" element={<ProtectedRoute perm="settings"><AdminConfig /></ProtectedRoute>} />
 
         {/* Módulo delivery GPS — aditivo */}
