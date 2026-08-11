@@ -62,8 +62,8 @@ Eventos: `MESSAGES_UPSERT` (como mínimo).
 
 ### 3. Cola (reintentos)
 
-Cron Vercel horario: `GET /api/bot-dispatch-queue`  
-(Hobby suele limitar a 1 cron/día; el webhook de pedidos es lo que importa en vivo.)
+Cron Vercel diario (Hobby): `GET /api/bot-dispatch-queue`  
+El webhook de pedidos es lo que importa en vivo.
 
 ## Flujo
 

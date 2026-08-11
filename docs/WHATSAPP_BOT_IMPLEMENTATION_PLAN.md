@@ -138,7 +138,7 @@ Leyenda: `[ ]` pendiente · `[~]` en curso · `[x]` hecha
 
 - [x] Interface `lib/bot/provider.js` + adapter Evolution (no Meta)
 - [x] Inbound `POST /api/bot-wa-inbound` → BotEngine → `sendText`
-- [x] Cola `POST /api/bot-dispatch-queue` + cron horario
+- [x] Cola `POST /api/bot-dispatch-queue` + cron diario (Hobby)
 - [x] Doc host persistente $0: `docs/WHATSAPP_BOT_FASE15_HOST.md`
 - [x] **No** trycloudflare producción · **No** Meta Cloud API
 

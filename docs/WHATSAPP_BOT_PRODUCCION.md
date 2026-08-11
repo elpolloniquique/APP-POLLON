@@ -57,8 +57,8 @@ Evolution (instancia) →
 
 ### Cola
 
-Cron Vercel (ya en `vercel.json`, horario): `/api/bot-dispatch-queue`  
-En Hobby el cron frecuente puede no correr: el webhook de pedidos es lo importante.
+Cron Vercel (Hobby: 1×/día, `0 15 * * *` UTC): `/api/bot-dispatch-queue`  
+El webhook de pedidos es lo que importa en vivo.
 
 ---
 

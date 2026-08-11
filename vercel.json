@@ -6,7 +6,7 @@
     },
     {
       "path": "/api/bot-dispatch-queue",
-      "schedule": "0 * * * *"
+      "schedule": "0 15 * * *"
     }
   ],
   "rewrites": [{ "source": "/((?!api/|robots\\.txt|sitemap\\.xml|sitemap-vercel\\.xml|manifest\\.json|sw\\.js|workbox-.*\\.js|.*\\..*).*)", "destination": "/index.html" }],
