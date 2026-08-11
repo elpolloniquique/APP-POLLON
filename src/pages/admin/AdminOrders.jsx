@@ -452,27 +452,25 @@ export function AdminOrders() {
   return (
     <div className="orders-panel">
       <div className="orders-panel__top">
-        <div className="orders-panel__title-wrap">
-          <p className="orders-panel__eyebrow">Administración</p>
-          <h1 className="orders-panel__title">Pedidos</h1>
-          <div className="orders-panel__live">
+        <div className="orders-panel__status">
+          <div className={`orders-panel__live ${liveOk ? 'is-live' : ready && !isBackendReady ? 'is-local' : 'is-wait'}`}>
             {liveOk ? (
               <>
                 <span className="orders-panel__live-dot" aria-hidden />
-                Pedidos en tiempo real
+                En tiempo real
               </>
             ) : ready && !isBackendReady ? (
-              <span style={{ color: '#b45309' }}>Modo local</span>
+              <span className="orders-panel__live-local">Modo local</span>
             ) : (
               <>
-                <span className="orders-panel__live-dot" style={{ background: '#9ca3af', boxShadow: 'none', animation: 'none' }} aria-hidden />
+                <span className="orders-panel__live-dot is-muted" aria-hidden />
                 Conectando…
               </>
             )}
-            {(isBranchScoped || selectedBranchId) && headerBranchLabel ? (
-              <span style={{ color: '#6b7280', fontWeight: 600 }}> · {headerBranchLabel}</span>
-            ) : null}
           </div>
+          {(isBranchScoped || selectedBranchId) && headerBranchLabel ? (
+            <span className="orders-panel__branch-note">{headerBranchLabel}</span>
+          ) : null}
         </div>
 
         <div className="orders-panel__actions">

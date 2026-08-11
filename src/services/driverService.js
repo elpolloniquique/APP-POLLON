@@ -90,6 +90,15 @@ export async function updateDriverProfile(driverId, updates) {
   return attachProfiles(data);
 }
 
+/** Cupo operativo por repartidor (solo admin). 2 | 3 | 4 */
+export async function updateDriverMaxOrders(driverId, maxOrders) {
+  const n = Number(maxOrders);
+  if (![2, 3, 4].includes(n)) {
+    throw new Error('El máximo de pedidos debe ser 2, 3 o 4');
+  }
+  return updateDriverProfile(driverId, { max_orders: n });
+}
+
 export async function ensureMyDriverProfile() {
   if (!isSupabaseConfigured()) return DEMO_DRIVERS[0];
   const sb = getSupabase();

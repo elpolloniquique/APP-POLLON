@@ -2,7 +2,12 @@ import { useEffect, useState } from 'react';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { AdminBranchFilter } from '../../components/admin/AdminBranchFilter';
 import { useAdminBranchFilter } from '../../hooks/useAdminBranchFilter';
-import { listDrivers, updateDriverAdminStatus, updateDriverProfile } from '../../services/driverService';
+import {
+  listDrivers,
+  updateDriverAdminStatus,
+  updateDriverProfile,
+  updateDriverMaxOrders,
+} from '../../services/driverService';
 import { adminListAllBranches } from '../../services/branchService';
 import { Loader } from '../../components/ui/Loader';
 import { Button } from '../../components/ui/Button';
@@ -14,6 +19,14 @@ const STATUS_LABELS = {
   suspended: { label: 'Suspendido', cls: 'bg-orange-100 text-orange-800' },
   blocked: { label: 'Bloqueado', cls: 'bg-red-100 text-red-800' },
 };
+
+const MAX_ORDER_OPTIONS = [2, 3, 4];
+
+function normalizeMaxOrders(value) {
+  const n = Number(value);
+  if (MAX_ORDER_OPTIONS.includes(n)) return n;
+  return 2;
+}
 
 export function AdminDrivers() {
   const {
@@ -28,6 +41,7 @@ export function AdminDrivers() {
   const [allBranches, setAllBranches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [flash, setFlash] = useState('');
   const [busyId, setBusyId] = useState(null);
 
   const filterId = isSuperAdmin ? selectedBranchId || null : staffBranchId;
@@ -53,6 +67,7 @@ export function AdminDrivers() {
 
   const setStatus = async (id, status) => {
     setBusyId(id);
+    setFlash('');
     try {
       await updateDriverAdminStatus(id, status);
       await load();
@@ -65,6 +80,7 @@ export function AdminDrivers() {
 
   const setBranch = async (id, preferredBranchId) => {
     setBusyId(id);
+    setFlash('');
     try {
       await updateDriverProfile(id, { preferred_branch_id: preferredBranchId || null });
       await load();
@@ -75,17 +91,48 @@ export function AdminDrivers() {
     }
   };
 
+  const setMaxOrders = async (id, maxOrders) => {
+    const next = normalizeMaxOrders(maxOrders);
+    const prev = drivers.find((d) => d.id === id);
+    if (prev && normalizeMaxOrders(prev.max_orders) === next) return;
+
+    setBusyId(id);
+    setError('');
+    setFlash('');
+    // Optimistic UI
+    setDrivers((list) => list.map((d) => (d.id === id ? { ...d, max_orders: next } : d)));
+    try {
+      await updateDriverMaxOrders(id, next);
+      setFlash(`Cupo actualizado: máximo ${next} pedido${next === 1 ? '' : 's'} simultáneos.`);
+    } catch (err) {
+      setError(err.message);
+      await load();
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   return (
     <div className="space-y-4 p-3 sm:p-4 lg:p-6">
       <AdminPageHeader
         title="Repartidores"
-        subtitle="Aprueba, suspende y asigna sucursal. El rol se autoriza en Supabase (delivery / repartidor)."
+        subtitle="Aprueba, suspende, asigna sucursal y define cuántos pedidos puede llevar cada uno en ruta al local."
         actions={showBranchFilter ? (
           <AdminBranchFilter value={selectedBranchId} onChange={setSelectedBranchId} branches={filterBranches} />
         ) : null}
       />
 
+      <div className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm text-slate-700">
+        <p className="font-semibold text-slate-900">Cómo funciona el cupo máximo</p>
+        <ul className="mt-1.5 list-disc space-y-1 pl-5 text-xs sm:text-sm">
+          <li>Mientras va a la sucursal (pedidos aún no recogidos), puede aceptar hasta su máximo (2, 3 o 4).</li>
+          <li>En cuanto marca <strong>pedido recogido</strong>, ya no recibe ofertas nuevas.</li>
+          <li>Solo cuando entrega <strong>todos</strong> sus pedidos activos vuelve a recibir ofertas.</li>
+        </ul>
+      </div>
+
       {error && <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+      {flash && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{flash}</div>}
 
       {loading ? (
         <Loader text="Cargando repartidores…" />
@@ -99,6 +146,12 @@ export function AdminDrivers() {
                   <th className="px-4 py-3">Vehículo</th>
                   <th className="px-4 py-3">Estado</th>
                   <th className="px-4 py-3">Operativo</th>
+                  <th className="px-4 py-3">
+                    Máx. pedidos
+                    <span className="mt-0.5 block font-normal normal-case text-[11px] text-gray-400">
+                      Cupo simultáneo
+                    </span>
+                  </th>
                   <th className="px-4 py-3">Sucursal</th>
                   <th className="px-4 py-3 text-right">Acciones</th>
                 </tr>
@@ -107,6 +160,7 @@ export function AdminDrivers() {
                 {drivers.map((d) => {
                   const st = STATUS_LABELS[d.admin_status] || STATUS_LABELS.pending;
                   const name = d.profiles?.full_name || d.profiles?.email || 'Sin nombre';
+                  const maxOrders = normalizeMaxOrders(d.max_orders);
                   return (
                     <tr key={d.id} className="border-t">
                       <td className="px-4 py-3">
@@ -120,6 +174,23 @@ export function AdminDrivers() {
                         <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${st.cls}`}>{st.label}</span>
                       </td>
                       <td className="px-4 py-3 capitalize text-gray-600">{d.operational_status}</td>
+                      <td className="px-4 py-3">
+                        <select
+                          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 shadow-sm focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-100"
+                          value={maxOrders}
+                          disabled={busyId === d.id}
+                          aria-label={`Máximo de pedidos para ${name}`}
+                          title="Cantidad máxima de pedidos que puede aceptar antes del recojo"
+                          onChange={(e) => setMaxOrders(d.id, e.target.value)}
+                        >
+                          {MAX_ORDER_OPTIONS.map((n) => (
+                            <option key={n} value={n}>
+                              {n} pedido{n === 1 ? '' : 's'}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="mt-1 text-[11px] text-gray-400">2 · 3 · 4</p>
+                      </td>
                       <td className="px-4 py-3">
                         <select
                           className="rounded-lg border px-2 py-1 text-xs"
@@ -151,7 +222,7 @@ export function AdminDrivers() {
                 })}
                 {drivers.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-4 py-10 text-center text-gray-500">
+                    <td colSpan={7} className="px-4 py-10 text-center text-gray-500">
                       No hay repartidores. En Supabase Auth crea el usuario y en <code>profiles.role</code> pon <strong>delivery</strong>.
                     </td>
                   </tr>

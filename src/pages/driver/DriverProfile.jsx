@@ -6,7 +6,7 @@ import { Button } from '../../components/ui/Button';
 export function DriverProfile() {
   const { profile } = useAuth();
   const [driver, setDriver] = useState(null);
-  const [form, setForm] = useState({ vehicle_type: 'motocicleta', vehicle_plate: '', vehicle_color: '', phone: '', max_orders: 2 });
+  const [form, setForm] = useState({ vehicle_type: 'motocicleta', vehicle_plate: '', vehicle_color: '', phone: '' });
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
 
@@ -19,7 +19,6 @@ export function DriverProfile() {
           vehicle_plate: d.vehicle_plate || '',
           vehicle_color: d.vehicle_color || '',
           phone: d.phone || profile?.phone || '',
-          max_orders: d.max_orders || 2,
         });
       })
       .catch((err) => setError(err.message));
@@ -28,6 +27,7 @@ export function DriverProfile() {
   const save = async () => {
     if (!driver) return;
     try {
+      // max_orders solo lo define el admin en /admin/repartidores
       await updateDriverProfile(driver.id, form);
       setMsg('Perfil actualizado');
     } catch (err) {
@@ -82,10 +82,16 @@ export function DriverProfile() {
           Teléfono
           <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="mt-1 w-full rounded-xl border px-3 py-2" />
         </label>
-        <label className="block text-sm">
-          Capacidad (pedidos simultáneos)
-          <input type="number" min={1} max={5} value={form.max_orders} onChange={(e) => setForm({ ...form, max_orders: Number(e.target.value) })} className="mt-1 w-full rounded-xl border px-3 py-2" />
-        </label>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm">
+          <p className="font-semibold text-slate-800">Cupo máximo de pedidos</p>
+          <p className="mt-0.5 text-lg font-bold text-pollon-orange">
+            {driver?.max_orders || 2} pedido{(driver?.max_orders || 2) === 1 ? '' : 's'}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            Lo define administración. Mientras vas al local puedes aceptar hasta ese tope;
+            al marcar un pedido como recogido no llegan más ofertas hasta entregar todos.
+          </p>
+        </div>
         <Button onClick={save} className="w-full">Guardar</Button>
         <Button variant="outline" onClick={goOffline} className="w-full">Ponerme offline</Button>
       </div>

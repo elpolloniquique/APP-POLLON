@@ -53,23 +53,26 @@
 
 .admin-shell__eyebrow {
   margin: 0;
-  font-size: 0.6rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
+  font-size: 0.62rem;
+  font-weight: 750;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: #9ca3af;
-  line-height: 1.1;
+  color: #a8a29e;
+  line-height: 1.15;
+  -webkit-font-smoothing: antialiased;
 }
 
 .admin-shell__page-title {
   margin: 0;
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: #111827;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #1c1917;
+  letter-spacing: -0.02em;
   line-height: 1.2;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  -webkit-font-smoothing: antialiased;
 }
 
 .admin-shell__branch-chip {
