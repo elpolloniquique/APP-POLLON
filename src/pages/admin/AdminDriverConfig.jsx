@@ -82,7 +82,7 @@ export function AdminDriverConfig() {
   };
 
   return (
-    <div className="space-y-4 p-3 sm:p-4 lg:p-6">
+    <div className="admin-page">
       <AdminPageHeader
         title="Configuración repartidores"
         subtitle="Despacho por sucursal: TTL de oferta, radios GPS, capacidad y alertas"

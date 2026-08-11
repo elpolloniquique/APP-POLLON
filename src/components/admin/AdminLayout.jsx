@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import '../../styles/admin-shell.css';
+import '../../styles/admin-theme.css';
 
 const ICON_MAP = {
   LayoutDashboard, BookOpen, ShoppingBag, ChefHat, Users, Megaphone,

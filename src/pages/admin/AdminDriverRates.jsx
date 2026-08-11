@@ -314,7 +314,7 @@ export function AdminDriverRates() {
     : '—';
 
   return (
-    <div className="flex h-[calc(100dvh-3.5rem)] flex-col gap-3 p-3 sm:p-4 lg:px-8 lg:py-5">
+    <div className="admin-page flex h-[calc(100dvh-3.5rem)] flex-col">
       <AdminPageHeader
         title="Tarifas de Delivery"
         subtitle="Configura las tarifas por kilómetro o por zonas de entrega"

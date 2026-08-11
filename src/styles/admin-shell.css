@@ -8,8 +8,8 @@
   display: flex;
   min-height: 100dvh;
   min-height: 100svh;
-  background: #f3f4f6;
-  color: #111827;
+  background: #fafaf9;
+  color: #1c1917;
 }
 
 /* ── Top bar (siempre; hamburguesa solo en modo drawer) ── */

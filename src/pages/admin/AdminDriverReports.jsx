@@ -152,7 +152,7 @@ export function AdminDriverReports() {
     : (filterBranch || '');
 
   return (
-    <div className="driver-report space-y-3 p-2 sm:p-3 lg:p-5">
+    <div className="admin-page driver-report">
       <AdminPageHeader
         title="Reporte de repartidores"
         subtitle="Control operativo de entregas, delivery y cobros de caja"

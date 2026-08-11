@@ -113,7 +113,7 @@ export function AdminDrivers() {
   };
 
   return (
-    <div className="space-y-4 p-3 sm:p-4 lg:p-6">
+    <div className="admin-page">
       <AdminPageHeader
         title="Repartidores"
         subtitle="Aprueba, suspende, asigna sucursal y define cuántos pedidos puede llevar cada uno en ruta al local."

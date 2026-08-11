@@ -5,8 +5,8 @@ export function AdminPageHeader({ title, subtitle, branchLabel, actions }) {
   return (
     <div className="admin-page-header flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-3">
       <div className="min-w-0">
-        <h2 className="admin-page-header__title text-lg font-bold text-pollon-black sm:text-xl lg:text-2xl">{title}</h2>
-        {subtitle && <p className="admin-page-header__subtitle mt-0.5 text-xs text-gray-500 sm:text-sm">{subtitle}</p>}
+        <h2 className="admin-page-header__title">{title}</h2>
+        {subtitle && <p className="admin-page-header__subtitle">{subtitle}</p>}
         {branchLabel && (
           <p className="mt-1 text-xs font-medium text-pollon-red sm:text-sm">Sucursal: {branchLabel}</p>
         )}

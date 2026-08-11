@@ -78,7 +78,7 @@
 
 .driver-report__panel {
   overflow: hidden;
-  border: 1px solid #2a2a2a;
+  border: 1px solid #1c1917;
   border-radius: 0.65rem;
   background: #fff;
   box-shadow: 0 10px 28px rgb(0 0 0 / 0.08);
@@ -101,11 +101,11 @@
   position: sticky;
   top: 0;
   z-index: 2;
-  background: #2f2f2f;
-  color: #fff;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  background: #1c1917;
+  color: #fafaf9;
+  font-size: 0.64rem;
+  font-weight: 800;
+  letter-spacing: 0.055em;
   text-align: left;
   padding: 0.7rem 0.65rem;
   white-space: nowrap;
@@ -118,14 +118,14 @@
 
 .driver-report__table tbody td {
   padding: 0.62rem 0.65rem;
-  border-bottom: 1px solid #e5e7eb;
-  color: #1f2937;
+  border-bottom: 1px solid #e7e5e4;
+  color: #1c1917;
   vertical-align: middle;
-  background: #f3f4f6;
+  background: #fff;
 }
 
 .driver-report__table tbody tr:nth-child(even) td {
-  background: #e8e8e8;
+  background: #fafaf9;
 }
 
 .driver-report__table tbody tr:hover td {

@@ -1,11 +1,11 @@
 const estadoColors = {
-  pendiente: 'bg-amber-100 text-amber-800',
-  aceptado: 'bg-teal-100 text-teal-800',
-  confirmado: 'bg-blue-100 text-blue-800',
-  preparando: 'bg-orange-100 text-orange-800',
+  pendiente: 'bg-amber-100 text-amber-900',
+  aceptado: 'bg-green-100 text-green-800',
+  confirmado: 'bg-green-100 text-green-800',
+  preparando: 'bg-orange-100 text-orange-900',
   listo: 'bg-emerald-100 text-emerald-800',
-  en_delivery: 'bg-purple-100 text-purple-800',
-  entregado: 'bg-green-100 text-green-800',
+  en_delivery: 'bg-blue-100 text-blue-800',
+  entregado: 'bg-teal-100 text-teal-800',
   cancelado: 'bg-red-100 text-red-800',
 };
 

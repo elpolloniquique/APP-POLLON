@@ -16,9 +16,9 @@
   padding: 0.55rem 0.75rem 0.65rem;
   box-sizing: border-box;
   overflow: hidden;
-  background: #f1f5f9;
-  color: #0f172a;
-  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  background: #fafaf9;
+  color: #1c1917;
+  font-family: Inter, system-ui, sans-serif;
 }
 
 .admin-users--denied {

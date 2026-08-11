@@ -4,7 +4,7 @@ export function AdminBranchFilter({ branches, value, onChange, className = '' })
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className={`rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm ${className}`}
+      className={`rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-stone-800 ${className}`}
       aria-label="Filtrar por sucursal"
     >
       <option value="">Todas las sucursales</option>
