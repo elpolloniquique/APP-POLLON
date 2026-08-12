@@ -33,6 +33,16 @@ function isBgLocationOk(status) {
   return bg === 'granted' || bg === 'always';
 }
 
+function withTimeout(promise, ms, fallback) {
+  let timer;
+  return Promise.race([
+    Promise.resolve(promise),
+    new Promise((resolve) => {
+      timer = setTimeout(() => resolve(fallback), ms);
+    }),
+  ]).finally(() => clearTimeout(timer));
+}
+
 /** Solo lectura del estado de permisos (sin prompts). */
 export async function checkLocationPermissionSnapshot() {
   if (!isNativeDriverApp()) {
@@ -65,7 +75,21 @@ export async function checkLocationPermissionSnapshot() {
   }
 
   try {
-    const status = await BackgroundGeolocation.checkPermissions();
+    const status = await withTimeout(
+      BackgroundGeolocation.checkPermissions(),
+      4500,
+      null,
+    );
+    if (!status) {
+      return {
+        ok: false,
+        locationOk: false,
+        alwaysOk: false,
+        mode: 'native',
+        timedOut: true,
+        canOpenSettings: true,
+      };
+    }
     const locationOk = status.location === 'granted';
     const alwaysOk = isBgLocationOk(status);
     return {

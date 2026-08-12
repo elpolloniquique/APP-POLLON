@@ -156,24 +156,32 @@ export async function ensureNativePushRegistration(opts = {}) {
     /* ignore */
   }
 
-  // Solo marcar OK si ya hay token FCM (registration async puede llegar después)
-  const tokenNow = lastToken || getCachedFcmToken();
-  if (tokenNow) {
-    try {
-      localStorage.setItem('pollon_native_notif_ok', '1');
-    } catch {
-      /* ignore */
-    }
+  // Solo marcar OK con permiso concedido; el token FCM puede llegar un instante después
+  try {
+    localStorage.setItem('pollon_native_notif_ok', '1');
+  } catch {
+    /* ignore */
   }
 
-  return { ok: true, permission: perm, token: tokenNow || null };
+  return { ok: true, permission: perm, token: lastToken || getCachedFcmToken() || null };
+}
+
+function withTimeout(promise, ms, fallback) {
+  let timer;
+  return Promise.race([
+    Promise.resolve(promise),
+    new Promise((resolve) => {
+      timer = setTimeout(() => resolve(fallback), ms);
+    }),
+  ]).finally(() => clearTimeout(timer));
 }
 
 export async function getNativeNotificationPermissionState() {
-  const PushNotifications = await getPushPlugin();
+  const PushNotifications = await withTimeout(getPushPlugin(), 4000, null);
   if (!PushNotifications) return 'unsupported';
   try {
-    const perm = await PushNotifications.checkPermissions();
+    const perm = await withTimeout(PushNotifications.checkPermissions(), 4000, null);
+    if (!perm) return 'prompt';
     if (perm.receive === 'granted') return 'granted';
     if (perm.receive === 'denied') return 'denied';
     return 'prompt';

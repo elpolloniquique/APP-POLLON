@@ -113,11 +113,13 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
       const res = await ensureNativePushRegistration();
       if (res.reason === 'denied') {
         setMsg('Debes permitir notificaciones en Ajustes del celular.');
-      } else if (res.ok && res.token) {
-        try { localStorage.setItem('pollon_native_notif_ok', '1'); } catch { /* ignore */ }
-        setMsg('Notificaciones listas. Te avisaremos aunque la pantalla esté apagada.');
       } else if (res.ok) {
-        setMsg('Permiso OK. Espera unos segundos a que Firebase registre el token, o reintenta.');
+        try { localStorage.setItem('pollon_native_notif_ok', '1'); } catch { /* ignore */ }
+        setMsg(
+          res.token
+            ? 'Notificaciones listas. Te avisaremos aunque la pantalla esté apagada.'
+            : 'Permiso OK. El token FCM se registrará en segundo plano.'
+        );
       } else if (res.permissionGranted) {
         setMsg(
           'Permiso OK. Si no llega el token FCM, reinstala la APK con google-services.json. Puedes seguir con GPS.'
@@ -204,6 +206,14 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
     return (
       <div className="driver-native-gate">
         <p className="driver-native-gate__loading">Verificando cuenta de repartidor…</p>
+        <button
+          type="button"
+          className="driver-native-gate__cta"
+          style={{ marginTop: 16, maxWidth: 280 }}
+          onClick={() => refresh()}
+        >
+          Reintentar
+        </button>
       </div>
     );
   }
@@ -288,6 +298,7 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
         <h1 className="driver-native-gate__title">Listo para salir a ruta</h1>
         <p className="driver-native-gate__lead">
           App nativa detectada · v{state.versionName || DRIVER_APP_VERSION_NAME}
+          {state.evaluateTimedOut ? ' · (reintento de permisos disponible)' : ''}
         </p>
 
         <div className="driver-native-gate__hint">

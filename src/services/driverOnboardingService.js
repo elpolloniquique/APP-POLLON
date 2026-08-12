@@ -24,6 +24,16 @@ import {
 
 const STORAGE_KEY = 'pollon_driver_live_tracking_v2';
 
+function withTimeout(promise, ms, fallback) {
+  let timer;
+  return Promise.race([
+    Promise.resolve(promise),
+    new Promise((resolve) => {
+      timer = setTimeout(() => resolve(fallback), ms);
+    }),
+  ]).finally(() => clearTimeout(timer));
+}
+
 function readStore() {
   try {
     return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {};
@@ -109,79 +119,107 @@ export async function evaluateDriverLiveTrackingReady(userId) {
     };
   }
 
-  let notifState = getNotificationPermission();
-  try {
-    const nativeNotif = await getNativeNotificationPermissionState();
-    if (nativeNotif === 'granted' || nativeNotif === 'denied' || nativeNotif === 'prompt') {
-      notifState = nativeNotif;
-    }
-  } catch {
-    /* ignore */
-  }
-
-  let notifOk = notifState === 'granted';
-  if (!notifOk) {
-    try {
-      notifOk = localStorage.getItem('pollon_native_notif_ok') === '1';
-    } catch {
-      /* ignore */
-    }
-  }
-
-  let hasPushSub = false;
-  if (notifState === 'granted' && hasWebPushSupport()) {
-    try {
-      hasPushSub = Boolean(await getExistingPushSubscription());
-    } catch {
-      hasPushSub = false;
-    }
-  }
-  try {
-    if (!hasPushSub && localStorage.getItem('pollon_fcm_token')) hasPushSub = true;
-  } catch {
-    /* ignore */
-  }
-
-  let location = { ok: false, alwaysOk: false, locationOk: false };
-  try {
-    location = await checkLocationPermissionSnapshot();
-  } catch {
-    location = { ok: false, alwaysOk: false, locationOk: false };
-  }
-
-  let userConfirmedAlways = false;
-  try {
-    userConfirmedAlways = localStorage.getItem(`pollon_driver_always_confirmed_${userId}`) === '1';
-  } catch {
-    /* ignore */
-  }
-
-  const gpsOk = Boolean(location.locationOk && (location.alwaysOk || userConfirmedAlways));
-  const saved = getDriverOnboardingRecord(userId);
-  const ready = Boolean(native && notifOk && gpsOk);
-
-  return {
-    native,
+  const base = {
+    native: true,
     platform: getNativePlatform(),
-    needsInstall,
+    needsInstall: false,
     mustNative: true,
-    installed,
-    notifOk,
-    hasPushSub,
-    pushDeferred: false,
-    notifState,
-    gpsOk,
-    locationOk: Boolean(location.locationOk),
-    alwaysOk: Boolean(location.alwaysOk || userConfirmedAlways),
-    needsSettings: Boolean(location.needsSettings && !userConfirmedAlways),
-    canOpenSettings: Boolean(location.canOpenSettings) || native,
-    isIos: isIosSafari(),
-    isAndroid: isAndroidChrome(),
-    savedCompletedAt: saved?.completedAt || null,
-    ready,
+    installed: true,
     apkUrl,
     versionName: DRIVER_APP_VERSION_NAME,
     versionCode: DRIVER_APP_VERSION_CODE,
+    isIos: isIosSafari(),
+    isAndroid: isAndroidChrome(),
+    savedCompletedAt: getDriverOnboardingRecord(userId)?.completedAt || null,
+  };
+
+  // Cap duro: nunca dejar la UI en “Verificando…” infinito (plugins nativos a veces no responden)
+  const evaluated = await withTimeout(
+    (async () => {
+      let notifState = getNotificationPermission();
+      try {
+        const nativeNotif = await getNativeNotificationPermissionState();
+        if (nativeNotif === 'granted' || nativeNotif === 'denied' || nativeNotif === 'prompt') {
+          notifState = nativeNotif;
+        }
+      } catch {
+        /* ignore */
+      }
+
+      let notifOk = notifState === 'granted';
+      if (!notifOk) {
+        try {
+          notifOk = localStorage.getItem('pollon_native_notif_ok') === '1';
+        } catch {
+          /* ignore */
+        }
+      }
+
+      // En nativo el push real es FCM; no esperar Service Worker / Web Push
+      let hasPushSub = false;
+      try {
+        if (localStorage.getItem('pollon_fcm_token')) hasPushSub = true;
+      } catch {
+        /* ignore */
+      }
+      if (!hasPushSub && !native && notifState === 'granted' && hasWebPushSupport()) {
+        try {
+          hasPushSub = Boolean(await getExistingPushSubscription());
+        } catch {
+          hasPushSub = false;
+        }
+      }
+
+      let location = { ok: false, alwaysOk: false, locationOk: false };
+      try {
+        location = await checkLocationPermissionSnapshot();
+      } catch {
+        location = { ok: false, alwaysOk: false, locationOk: false };
+      }
+
+      let userConfirmedAlways = false;
+      try {
+        userConfirmedAlways = localStorage.getItem(`pollon_driver_always_confirmed_${userId}`) === '1';
+      } catch {
+        /* ignore */
+      }
+
+      const gpsOk = Boolean(location.locationOk && (location.alwaysOk || userConfirmedAlways));
+      const ready = Boolean(native && notifOk && gpsOk);
+
+      return {
+        ...base,
+        notifOk,
+        hasPushSub,
+        pushDeferred: false,
+        notifState,
+        gpsOk,
+        locationOk: Boolean(location.locationOk),
+        alwaysOk: Boolean(location.alwaysOk || userConfirmedAlways),
+        needsSettings: Boolean(location.needsSettings && !userConfirmedAlways),
+        canOpenSettings: Boolean(location.canOpenSettings) || native,
+        ready,
+      };
+    })(),
+    7000,
+    null,
+  );
+
+  if (evaluated) return evaluated;
+
+  return {
+    ...base,
+    notifOk: false,
+    hasPushSub: false,
+    pushDeferred: false,
+    notifState: 'prompt',
+    gpsOk: false,
+    locationOk: false,
+    alwaysOk: false,
+    needsSettings: false,
+    canOpenSettings: true,
+    ready: false,
+    evaluateTimedOut: true,
   };
 }
 
@@ -197,8 +235,21 @@ export async function completeDriverLiveTrackingSetup(userId) {
   }
 
   await ensureDriverPushSubscription().catch(() => {});
-  const notif = getNotificationPermission();
-  if (notif !== 'granted') {
+
+  let notifGranted = getNotificationPermission() === 'granted';
+  if (!notifGranted) {
+    try {
+      const nativeNotif = await getNativeNotificationPermissionState();
+      notifGranted = nativeNotif === 'granted' || localStorage.getItem('pollon_native_notif_ok') === '1';
+    } catch {
+      try {
+        notifGranted = localStorage.getItem('pollon_native_notif_ok') === '1';
+      } catch {
+        notifGranted = false;
+      }
+    }
+  }
+  if (!notifGranted) {
     return {
       ok: false,
       error: 'Activa las notificaciones para recibir pedidos con la pantalla apagada.',
