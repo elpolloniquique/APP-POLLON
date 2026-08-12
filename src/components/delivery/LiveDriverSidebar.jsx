@@ -201,6 +201,7 @@ export function LiveDriverSidebar({
   onCloseDetail,
   canMarkPickup = false,
   onPickupDone,
+  className = '',
 }) {
   const renderList = (drivers, emptyText) => (
     <div className="space-y-2">
@@ -227,7 +228,7 @@ export function LiveDriverSidebar({
   );
 
   return (
-    <aside className="relative z-20 flex h-full min-h-0 flex-col gap-4 overflow-y-auto rounded-2xl border bg-white p-3 shadow-sm">
+    <aside className={`live-driver-sidebar relative z-20 flex h-full min-h-0 flex-col gap-4 overflow-y-auto rounded-2xl border bg-white p-3 shadow-sm ${className}`}>
       <section>
         <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-gray-400">
           Repartidores hacia recojo

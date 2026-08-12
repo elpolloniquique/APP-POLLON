@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
+import { Bike, ChevronLeft } from 'lucide-react';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { AdminBranchFilter } from '../../components/admin/AdminBranchFilter';
 import { useAdminBranchFilter } from '../../hooks/useAdminBranchFilter';
@@ -33,6 +34,7 @@ import {
   unlockSpeech,
   stopVoiceAlerts,
 } from '../../utils/liveVoiceAlert';
+import '../../styles/live-map-stage.css';
 
 function formatTime(iso) {
   if (!iso) return '—';
@@ -77,6 +79,9 @@ export function AdminLiveMap() {
   const [voiceSpeech, setVoiceSpeech] = useState({ volume: 100, rate: 1, pitch: 1.25 });
   /** Destinos cliente resueltos (coords job o geocode) por driverId */
   const [destByDriver, setDestByDriver] = useState({});
+  const [mapExpanded, setMapExpanded] = useState(false);
+  const [expandedSideOpen, setExpandedSideOpen] = useState(false);
+  const [mapSizeTick, setMapSizeTick] = useState(0);
 
   const setVoiceEnabled = (on) => {
     if (on) unlockSpeech();
@@ -455,34 +460,86 @@ export function AdminLiveMap() {
     setDetail(null);
   };
 
-  return (
-    <div className="admin-page flex h-[calc(100dvh-3.5rem)] flex-col">
-      <AdminPageHeader
-        title="En vivo"
-        subtitle="GPS repartidores · seguimiento hacia sucursal y hacia cliente"
-        actions={(
-          <div className="flex flex-wrap items-center gap-2">
-            <LiveVoiceAlertToggle enabled={voiceAlertOn} onChange={setVoiceEnabled} />
-            {showBranchFilter ? (
-              <AdminBranchFilter
-                value={selectedBranchId || activeBranch?.id || ''}
-                onChange={setSelectedBranchId}
-                branches={branches}
-              />
-            ) : null}
-          </div>
-        )}
-      />
+  const exitMapExpanded = useCallback(() => {
+    setMapExpanded(false);
+    setExpandedSideOpen(false);
+    setMapSizeTick((n) => n + 1);
+  }, []);
 
-      {error && (
+  const enterMapExpanded = useCallback(() => {
+    setMapExpanded(true);
+    setExpandedSideOpen(false);
+    setMapSizeTick((n) => n + 1);
+  }, []);
+
+  const toggleMapExpanded = useCallback(() => {
+    if (mapExpanded) exitMapExpanded();
+    else enterMapExpanded();
+  }, [mapExpanded, enterMapExpanded, exitMapExpanded]);
+
+  // Esc + bloquear scroll del body en pantalla completa
+  useEffect(() => {
+    if (!mapExpanded) return undefined;
+    document.body.classList.add('live-map-expanded');
+    const onKey = (e) => {
+      if (e.key === 'Escape') exitMapExpanded();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.classList.remove('live-map-expanded');
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [mapExpanded, exitMapExpanded]);
+
+  const activeDriverCount = sidebarPickup.length + sidebarDelivery.length;
+
+  const sidebarProps = {
+    pickupDrivers: sidebarPickup,
+    deliveryDrivers: sidebarDelivery,
+    selectedDriverId: viewDriverId,
+    openDriverId: viewDriverId,
+    detail,
+    detailLoading,
+    onSelect: (id) => setFollowId(`drv-${id}`),
+    onView: openDetail,
+    onCloseDetail: closeDetail,
+    canMarkPickup: true,
+    onPickupDone: () => {
+      load();
+      if (viewDriverId) loadDetail(viewDriverId);
+    },
+  };
+
+  return (
+    <div className={`admin-page flex h-[calc(100dvh-3.5rem)] flex-col ${mapExpanded ? 'live-map-page--expanded' : ''}`}>
+      {!mapExpanded && (
+        <AdminPageHeader
+          title="En vivo"
+          subtitle="GPS repartidores · seguimiento hacia sucursal y hacia cliente"
+          actions={(
+            <div className="flex flex-wrap items-center gap-2">
+              <LiveVoiceAlertToggle enabled={voiceAlertOn} onChange={setVoiceEnabled} />
+              {showBranchFilter ? (
+                <AdminBranchFilter
+                  value={selectedBranchId || activeBranch?.id || ''}
+                  onChange={setSelectedBranchId}
+                  branches={branches}
+                />
+              ) : null}
+            </div>
+          )}
+        />
+      )}
+
+      {error && !mapExpanded && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
       )}
 
-      <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[1fr_320px]">
-        {loading ? (
-          <Loader text="Cargando mapa…" />
-        ) : (
-          <div className="relative z-0 min-h-0">
+      <div className={`live-map-stage ${mapExpanded ? 'is-expanded' : ''}`}>
+        <div className="live-map-stage__map">
+          {loading ? (
+            <Loader text="Cargando mapa…" />
+          ) : (
             <LiveMap
               className="h-full min-h-[420px]"
               center={center}
@@ -494,26 +551,54 @@ export function AdminLiveMap() {
               followId={followId}
               showLegend
               autoFit
+              expanded={mapExpanded}
+              onToggleExpand={toggleMapExpanded}
+              sizeRevision={mapSizeTick}
             />
-          </div>
-        )}
+          )}
+        </div>
 
-        <LiveDriverSidebar
-          pickupDrivers={sidebarPickup}
-          deliveryDrivers={sidebarDelivery}
-          selectedDriverId={viewDriverId}
-          openDriverId={viewDriverId}
-          detail={detail}
-          detailLoading={detailLoading}
-          onSelect={(id) => setFollowId(`drv-${id}`)}
-          onView={openDetail}
-          onCloseDetail={closeDetail}
-          canMarkPickup
-          onPickupDone={() => {
-            load();
-            if (viewDriverId) loadDetail(viewDriverId);
-          }}
-        />
+        <div className={`live-map-stage__side ${mapExpanded && expandedSideOpen ? 'is-open' : ''}`}>
+          {mapExpanded && !expandedSideOpen ? (
+            <div className="live-map-stage__rail" role="toolbar" aria-label="Panel repartidores">
+              <button
+                type="button"
+                className="live-map-stage__rail-btn"
+                title="Mostrar repartidores"
+                aria-label="Mostrar panel de repartidores"
+                onClick={() => {
+                  setExpandedSideOpen(true);
+                  setMapSizeTick((n) => n + 1);
+                }}
+              >
+                <Bike className="h-4 w-4" />
+                {activeDriverCount > 0 && (
+                  <span className="live-map-stage__rail-badge">{activeDriverCount}</span>
+                )}
+              </button>
+            </div>
+          ) : mapExpanded && expandedSideOpen ? (
+            <div className="live-map-stage__side-panel">
+              <div className="live-map-stage__side-toolbar">
+                <p>Repartidores</p>
+                <button
+                  type="button"
+                  title="Ocultar panel"
+                  aria-label="Ocultar panel de repartidores"
+                  onClick={() => {
+                    setExpandedSideOpen(false);
+                    setMapSizeTick((n) => n + 1);
+                  }}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+              </div>
+              <LiveDriverSidebar {...sidebarProps} />
+            </div>
+          ) : (
+            <LiveDriverSidebar {...sidebarProps} />
+          )}
+        </div>
       </div>
     </div>
   );

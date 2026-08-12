@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import L from 'leaflet';
 import { MapContainer, Marker, Popup, Polyline, TileLayer, useMap, Pane } from 'react-leaflet';
+import { Maximize2, Minimize2 } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 import { DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM } from '../../utils/geo';
 import { resolveRoutePolyline } from '../../utils/liveRouteHelpers';
@@ -75,6 +76,32 @@ function FollowMarker({ followId, markers }) {
   return null;
 }
 
+/** Recalcula tiles al expandir / colapsar el contenedor. */
+function MapSizeSync({ revision = 0 }) {
+  const map = useMap();
+  useEffect(() => {
+    const run = () => {
+      try {
+        map.invalidateSize({ animate: false });
+      } catch {
+        /* ignore */
+      }
+    };
+    run();
+    const t1 = setTimeout(run, 60);
+    const t2 = setTimeout(run, 280);
+    const t3 = setTimeout(run, 520);
+    window.addEventListener('resize', run);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+      window.removeEventListener('resize', run);
+    };
+  }, [map, revision]);
+  return null;
+}
+
 function FitRoutes({ routes, store, markers, enabled }) {
   const map = useMap();
   useEffect(() => {
@@ -127,6 +154,9 @@ export function LiveMap({
   onStyleChange,
   showLegend = true,
   autoFit = true,
+  expanded = false,
+  onToggleExpand,
+  sizeRevision = 0,
 }) {
   const [mapError, setMapError] = useState('');
   const [resolvedRoutes, setResolvedRoutes] = useState([]);
@@ -177,12 +207,12 @@ export function LiveMap({
   );
 
   return (
-    <div className={`relative z-0 isolate overflow-hidden rounded-2xl border border-gray-200 bg-gray-100 ${className}`}>
+    <div className={`relative z-0 isolate overflow-hidden rounded-2xl border border-gray-200 bg-gray-100 ${expanded ? 'rounded-none border-0' : ''} ${className}`}>
       <MapContainer
         center={[center.lat, center.lng]}
         zoom={zoom}
         scrollWheelZoom
-        className="relative z-0 h-full min-h-[420px] w-full"
+        className={`relative z-0 h-full w-full ${expanded ? 'min-h-0' : 'min-h-[420px]'}`}
       >
         <TileLayer
           key={`${styleId}-${tileUrl}`}
@@ -227,6 +257,7 @@ export function LiveMap({
         ))}
 
         <FollowMarker followId={followId} markers={markerNodes} />
+        <MapSizeSync revision={`${expanded ? 1 : 0}-${sizeRevision}`} />
         <MapCenterSync center={center} lock={fitLock || Boolean(followId) || (autoFit && resolvedRoutes.length > 0)} />
         <FitRoutes
           routes={resolvedRoutes}
@@ -242,21 +273,36 @@ export function LiveMap({
         </div>
       )}
 
-      {typeof onStyleChange === 'function' && (
-        <div className="absolute left-3 top-3 z-10 flex gap-1 rounded-xl bg-white/95 p-1 shadow">
-          {['streets', 'satellite'].map((id) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => onStyleChange?.(id)}
-              className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${
-                styleId === id ? 'bg-pollon-red text-white' : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              {id === 'streets' ? 'Calles' : 'Satelite'}
-            </button>
-          ))}
-        </div>
+      <div className="absolute left-3 top-3 z-10 flex items-center gap-1">
+        {typeof onStyleChange === 'function' && (
+          <div className="flex gap-1 rounded-xl bg-white/95 p-1 shadow-md ring-1 ring-black/5">
+            {['streets', 'satellite'].map((id) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => onStyleChange?.(id)}
+                className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${
+                  styleId === id ? 'bg-pollon-red text-white' : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                {id === 'streets' ? 'Calles' : 'Satelite'}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {typeof onToggleExpand === 'function' && (
+        <button
+          type="button"
+          onClick={onToggleExpand}
+          className="absolute right-3 top-3 z-20 inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white/95 text-gray-800 shadow-md ring-1 ring-black/5 transition hover:bg-white hover:text-pollon-red"
+          title={expanded ? 'Salir de pantalla completa' : 'Pantalla completa'}
+          aria-label={expanded ? 'Salir de pantalla completa' : 'Pantalla completa'}
+          aria-pressed={expanded}
+        >
+          {expanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+        </button>
       )}
 
       {showLegend && (
