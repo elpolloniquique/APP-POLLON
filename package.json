@@ -13,12 +13,19 @@
     "preview": "vite preview",
     "cap:sync": "npm run build && npx cap sync",
     "cap:android": "npm run build && npx cap sync android && npx cap open android",
-    "build:apk": "npm run build && npx cap sync android"
+    "build:apk": "npm run build && npx cap sync android",
+    "build:apk:debug": "npm run build && npx cap sync android && cd android && gradlew.bat assembleDebug",
+    "copy:apk": "node scripts/copy-driver-apk.mjs"
   },
   "dependencies": {
     "@capacitor/app": "^8.1.1",
     "@capacitor/core": "^8.5.0",
     "@capacitor/geolocation": "^8.2.0",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/network": "^8.0.1",
+    "@capacitor/push-notifications": "^8.1.2",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.3",
     "@capgo/background-geolocation": "^8.3.2",
     "@supabase/supabase-js": "^2.106.2",
     "chart.js": "^4.5.1",

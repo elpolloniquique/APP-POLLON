@@ -1,7 +1,6 @@
 /**
- * Onboarding obligatorio SOLO repartidores (mismo app El Pollón que clientes).
- * Detecta rol delivery → exige: app instalada + notificaciones + GPS.
- * No requiere APK aparte.
+ * Onboarding obligatorio repartidores — NATIVE-ONLY (APK Capacitor).
+ * En Chrome/PWA: bloqueo + descarga APK. Sin operar en web.
  */
 import {
   isNativeDriverApp,
@@ -15,7 +14,13 @@ import {
   hasWebPushSupport,
   getExistingPushSubscription,
 } from './pushService';
-import { isStandaloneDisplayMode, isIosSafari, isAndroidChrome } from '../utils/pwa';
+import { getNativeNotificationPermissionState } from './fcmService';
+import { isIosSafari, isAndroidChrome } from '../utils/pwa';
+import {
+  DRIVER_APP_VERSION_CODE,
+  DRIVER_APP_VERSION_NAME,
+  getDriverApkDownloadUrl,
+} from '../utils/driverNativeConstants';
 
 const STORAGE_KEY = 'pollon_driver_live_tracking_v2';
 
@@ -35,18 +40,14 @@ function writeStore(data) {
   }
 }
 
-/** App instalada = PWA standalone (como clientes) o Capacitor nativo. */
+/** Solo cuenta como instalada la app nativa Capacitor (no PWA). */
 export function isDriverAppInstalled() {
-  if (isNativeDriverApp()) return true;
-  return isStandaloneDisplayMode();
+  return isNativeDriverApp();
 }
 
-/** En móvil, si aún no instaló la PWA, debe instalar (misma ventana que clientes). */
+/** En cualquier navegador/PWA: debe instalar APK. */
 export function driverNeedsInstall() {
-  if (isDriverAppInstalled()) return false;
-  // Escritorio/dev: no bloquear
-  if (!isAndroidChrome() && !isIosSafari()) return false;
-  return true;
+  return !isNativeDriverApp();
 }
 
 export function getDriverOnboardingRecord(userId) {
@@ -61,7 +62,8 @@ export function markDriverOnboardingComplete(userId, extra = {}) {
     completedAt: new Date().toISOString(),
     platform: getNativePlatform(),
     native: isNativeDriverApp(),
-    standalone: isStandaloneDisplayMode(),
+    versionName: DRIVER_APP_VERSION_NAME,
+    versionCode: DRIVER_APP_VERSION_CODE,
     ...extra,
   };
   writeStore(all);
@@ -76,36 +78,68 @@ export function clearDriverOnboarding(userId) {
 
 export async function evaluateDriverLiveTrackingReady(userId) {
   const native = isNativeDriverApp();
-  const needsInstall = driverNeedsInstall();
-  const installed = isDriverAppInstalled();
-  const notif = getNotificationPermission();
+  const needsInstall = !native;
+  const installed = native;
+  const apkUrl = getDriverApkDownloadUrl();
 
-  let notifOk = notif === 'granted';
-  if (!notifOk && native) {
+  // Gate web: no listo hasta APK
+  if (!native) {
+    return {
+      native: false,
+      platform: getNativePlatform(),
+      needsInstall: true,
+      mustNative: true,
+      installed: false,
+      notifOk: false,
+      hasPushSub: false,
+      pushDeferred: false,
+      notifState: 'unsupported',
+      gpsOk: false,
+      locationOk: false,
+      alwaysOk: false,
+      needsSettings: false,
+      canOpenSettings: false,
+      isIos: isIosSafari(),
+      isAndroid: isAndroidChrome(),
+      savedCompletedAt: getDriverOnboardingRecord(userId)?.completedAt || null,
+      ready: false,
+      apkUrl,
+      versionName: DRIVER_APP_VERSION_NAME,
+      versionCode: DRIVER_APP_VERSION_CODE,
+    };
+  }
+
+  let notifState = getNotificationPermission();
+  try {
+    const nativeNotif = await getNativeNotificationPermissionState();
+    if (nativeNotif === 'granted' || nativeNotif === 'denied' || nativeNotif === 'prompt') {
+      notifState = nativeNotif;
+    }
+  } catch {
+    /* ignore */
+  }
+
+  let notifOk = notifState === 'granted';
+  if (!notifOk) {
     try {
       notifOk = localStorage.getItem('pollon_native_notif_ok') === '1';
     } catch {
       /* ignore */
     }
   }
-  // Si el permiso del sistema está OK, el paso de notificaciones cuenta
-  // (aunque Google Push falle temporalmente: se reintenta en background).
-  let pushDeferred = false;
-  try {
-    pushDeferred = localStorage.getItem('pollon_push_deferred_ok') === '1';
-  } catch {
-    /* ignore */
-  }
-  if (!notifOk && pushDeferred) notifOk = true;
 
   let hasPushSub = false;
-  if (notif === 'granted' && hasWebPushSupport()) {
+  if (notifState === 'granted' && hasWebPushSupport()) {
     try {
-      // Nunca bloquear el panel si serviceWorker.ready se cuelga
       hasPushSub = Boolean(await getExistingPushSubscription());
     } catch {
       hasPushSub = false;
     }
+  }
+  try {
+    if (!hasPushSub && localStorage.getItem('pollon_fcm_token')) hasPushSub = true;
+  } catch {
+    /* ignore */
   }
 
   let location = { ok: false, alwaysOk: false, locationOk: false };
@@ -122,58 +156,53 @@ export async function evaluateDriverLiveTrackingReady(userId) {
     /* ignore */
   }
 
-  // PWA: location granted = listo. Nativo: Always o confirmación OEM.
-  const gpsOk = native
-    ? Boolean(location.locationOk && (location.alwaysOk || userConfirmedAlways))
-    : Boolean(location.locationOk);
-
+  const gpsOk = Boolean(location.locationOk && (location.alwaysOk || userConfirmedAlways));
   const saved = getDriverOnboardingRecord(userId);
-  // En móvil: must be standalone. En escritorio/dev: no exigir install.
-  const installOk = !needsInstall;
-  const ready = Boolean(installOk && notifOk && gpsOk);
+  const ready = Boolean(native && notifOk && gpsOk);
 
   return {
     native,
     platform: getNativePlatform(),
     needsInstall,
-    mustNative: false,
+    mustNative: true,
     installed,
     notifOk,
     hasPushSub,
-    pushDeferred: Boolean(pushDeferred && !hasPushSub),
-    notifState: notif,
+    pushDeferred: false,
+    notifState,
     gpsOk,
     locationOk: Boolean(location.locationOk),
-    alwaysOk: Boolean(
-      native
-        ? (location.alwaysOk || userConfirmedAlways)
-        : location.locationOk
-    ),
-    needsSettings: Boolean(native && location.needsSettings && !userConfirmedAlways),
+    alwaysOk: Boolean(location.alwaysOk || userConfirmedAlways),
+    needsSettings: Boolean(location.needsSettings && !userConfirmedAlways),
     canOpenSettings: Boolean(location.canOpenSettings) || native,
     isIos: isIosSafari(),
     isAndroid: isAndroidChrome(),
     savedCompletedAt: saved?.completedAt || null,
     ready,
+    apkUrl,
+    versionName: DRIVER_APP_VERSION_NAME,
+    versionCode: DRIVER_APP_VERSION_CODE,
   };
 }
 
 export async function completeDriverLiveTrackingSetup(userId) {
-  if (driverNeedsInstall()) {
+  if (!isNativeDriverApp()) {
     return {
       ok: false,
-      error: 'Primero instala la app El Pollón (como hacen los clientes) y ábrela desde el ícono.',
+      error: 'Debes instalar y abrir la app nativa El Pollón Repartidor (APK).',
       needsInstall: true,
+      mustNative: true,
+      apkUrl: getDriverApkDownloadUrl(),
     };
   }
 
   await ensureDriverPushSubscription().catch(() => {});
   const notif = getNotificationPermission();
   if (notif !== 'granted') {
-    if (isNativeDriverApp()) {
-      try { localStorage.setItem('pollon_native_notif_ok', '1'); } catch { /* ignore */ }
-    } else {
-      return { ok: false, error: 'Activa las notificaciones del sistema.' };
+    try {
+      localStorage.setItem('pollon_native_notif_ok', '1');
+    } catch {
+      /* ignore */
     }
   }
 
@@ -189,7 +218,7 @@ export async function completeDriverLiveTrackingSetup(userId) {
     /* ignore */
   }
 
-  if (isNativeDriverApp() && !gps.alwaysOk && !userConfirmedAlways) {
+  if (!gps.alwaysOk && !userConfirmedAlways) {
     return {
       ok: false,
       error: 'En Ajustes elige ubicación “Permitir todo el tiempo” / “Siempre”.',
@@ -199,14 +228,14 @@ export async function completeDriverLiveTrackingSetup(userId) {
   }
 
   markDriverOnboardingComplete(userId, {
-    alwaysOk: gps.alwaysOk !== false || userConfirmedAlways || !isNativeDriverApp(),
+    alwaysOk: gps.alwaysOk !== false || userConfirmedAlways,
     mode: gps.mode,
   });
 
   return { ok: true, gps };
 }
 
-/** @deprecated use driverNeedsInstall */
+/** True si el flujo exige APK (siempre en este producto). */
 export function driverMustUseNativeApp() {
-  return false;
+  return true;
 }

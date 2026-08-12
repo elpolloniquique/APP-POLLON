@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron-retry-driver-offers",
-      "schedule": "0 12 * * *"
+      "schedule": "*/2 * * * *"
     },
     {
       "path": "/api/bot-dispatch-queue",
@@ -11,6 +11,14 @@
   ],
   "rewrites": [{ "source": "/((?!api/|robots\\.txt|sitemap\\.xml|sitemap-vercel\\.xml|manifest\\.json|sw\\.js|workbox-.*\\.js|.*\\..*).*)", "destination": "/index.html" }],
   "headers": [
+    {
+      "source": "/DESCARGAR-APK/(.*)",
+      "headers": [
+        { "key": "Content-Type", "value": "application/vnd.android.package-archive" },
+        { "key": "Cache-Control", "value": "public, max-age=300" },
+        { "key": "Content-Disposition", "value": "attachment" }
+      ]
+    },
     {
       "source": "/sw.js",
       "headers": [

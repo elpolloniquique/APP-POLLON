@@ -27,12 +27,15 @@ dist-ssr
 *.sln
 *.sw?
 
-# APK builds locales
+# APK builds (muy pesados para git/GitHub; quedan locales en public/DESCARGAR-APK)
 releases/
 *.apk
+!public/DESCARGAR-APK/.gitkeep
+public/DESCARGAR-APK/*.apk
 
 # Secretos locales push
 VAPID-PARA-VERCEL.txt
+android/app/google-services.json
 
 
 .vercel

@@ -2,6 +2,12 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { ensureMyDriverProfile, updateDriverProfile, setMyOperationalStatus } from '../../services/driverService';
 import { Button } from '../../components/ui/Button';
+import { isNativeDriverApp, getNativePlatform } from '../../services/backgroundGpsService';
+import {
+  DRIVER_APP_VERSION_NAME,
+  DRIVER_APP_VERSION_CODE,
+  getDriverApkDownloadUrl,
+} from '../../utils/driverNativeConstants';
 
 export function DriverProfile() {
   const { profile } = useAuth();
@@ -27,7 +33,6 @@ export function DriverProfile() {
   const save = async () => {
     if (!driver) return;
     try {
-      // max_orders solo lo define el admin en /admin/repartidores
       await updateDriverProfile(driver.id, form);
       setMsg('Perfil actualizado');
     } catch (err) {
@@ -54,6 +59,21 @@ export function DriverProfile() {
         {driver && (
           <p className="mt-1 text-xs text-gray-400">Estado admin: {driver.admin_status}</p>
         )}
+        <div className="mt-3 rounded-xl bg-black px-3 py-2 text-[11px] text-white/80">
+          <p>
+            App: <strong className="text-white">{isNativeDriverApp() ? 'Nativa Android' : 'Web (bloqueada)'}</strong>
+            {' · '}{getNativePlatform()}
+          </p>
+          <p className="mt-0.5">
+            Versión <strong className="text-white">v{DRIVER_APP_VERSION_NAME}</strong>
+            {' '}({DRIVER_APP_VERSION_CODE})
+          </p>
+          {!isNativeDriverApp() && (
+            <a className="mt-1 inline-block font-bold text-[#fca5a5] underline" href={getDriverApkDownloadUrl()}>
+              Descargar APK
+            </a>
+          )}
+        </div>
       </div>
 
       {error && <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}

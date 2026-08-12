@@ -225,10 +225,12 @@ export function DriverHome() {
     } catch {
       /* ignore */
     }
-    await clearGps();
+    // Si aún hay pedidos activos, el FGS GPS no se apaga
+    const stillActive = (summary?.activeAssignments || []).length > 0;
+    if (!stillActive) await clearGps();
     if (reason) setError(reason);
     await load();
-  }, [load, clearGps]);
+  }, [load, clearGps, summary?.activeAssignments]);
 
   useEffect(() => {
     const onlineStatuses = ['available', 'heading_to_branch', 'delivering', 'carrying_orders', 'offered'];
@@ -271,22 +273,16 @@ export function DriverHome() {
         },
       });
       if (!res.ok) {
-        setError(res.error || 'No se pudo activar GPS en segundo plano');
-        if (res.canOpenSettings) {
-          setError(
-            `${res.error || 'GPS en segundo plano'} Abre ajustes y elige “Permitir todo el tiempo”.`
-          );
-        }
-        const stop = startGpsWatch(
-          (pos, err) => {
-            if (pos) setGpsPos(pos);
-            if (err) setError(err.message || 'Error GPS');
-          },
-          { publishRef, intervalMs: 5000 }
+        setError(
+          `${res.error || 'No se pudo activar GPS en segundo plano'}${
+            res.canOpenSettings
+              ? ' Abre ajustes y elige “Permitir todo el tiempo”.'
+              : ''
+          }`
         );
-        stopGpsFnRef.current = stop;
-        setGpsOn(true);
-        gpsModeRef.current = 'active';
+        // En nativo NO fingir OK con watchPosition web (pantalla apagada fallaría)
+        setGpsOn(false);
+        gpsModeRef.current = null;
         return res;
       }
       if (res.needsSettings) {
@@ -319,12 +315,15 @@ export function DriverHome() {
     return { ok: true, mode: 'web' };
   }, [goOffline]);
 
-  // En línea → siempre GPS en vivo (background nativo), con o sin pedidos activos
+  // GPS ON: disponible/en ruta O con assignments activos.
+  // GPS OFF solo sin activos y offline (último entregado + offline).
   useEffect(() => {
     const onlineStatuses = ['available', 'heading_to_branch', 'delivering', 'carrying_orders', 'offered'];
     const isOnlineNow = onlineStatuses.includes(summary?.driver?.operational_status);
+    const hasActives = (summary?.activeAssignments || []).length > 0;
+    const shouldTrack = isOnlineNow || hasActives;
 
-    if (!isOnlineNow) {
+    if (!shouldTrack) {
       if (gpsModeRef.current) void clearGps();
       return undefined;
     }
@@ -335,6 +334,7 @@ export function DriverHome() {
     return undefined;
   }, [
     summary?.driver?.operational_status,
+    summary?.activeAssignments,
     startGps,
     clearGps,
   ]);
@@ -385,9 +385,9 @@ export function DriverHome() {
         const ready = await evaluateDriverLiveTrackingReady(userId);
         if (!ready.ready) {
           throw new Error(
-            ready.needsInstall
-              ? 'Instala la app El Pollón (pantalla de inicio) y ábrela desde el ícono.'
-              : 'Debes autorizar ubicación y notificaciones para trabajar.'
+            ready.needsInstall || ready.mustNative
+              ? 'Debes usar la app nativa El Pollón Repartidor (APK). Descárgala desde el aviso de instalación.'
+              : 'Debes autorizar ubicación “Siempre” y notificaciones para trabajar.'
           );
         }
         if (isNativeDriverApp() && !ready.alwaysOk) {
@@ -411,7 +411,8 @@ export function DriverHome() {
       await setMyOperationalStatus(next);
       if (next === 'available') {
         await startGps(true);
-      } else {
+      } else if (!(summary?.activeAssignments || []).length) {
+        // Con pedidos activos el GPS sigue hasta entregar el último
         await clearGps();
       }
       await load();

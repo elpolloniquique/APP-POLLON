@@ -1,6 +1,6 @@
 /**
- * Cron Vercel: re-oferta jobs sin aceptación (~cada minuto) + push.
- * Vars: SUPABASE_SERVICE_ROLE_KEY, VITE_SUPABASE_URL, VAPID_*, CRON_SECRET (opcional)
+ * Cron Vercel: re-oferta jobs sin aceptación (cada 1–3 min) + FCM/Web Push.
+ * Vars: SUPABASE_SERVICE_ROLE_KEY, VITE_SUPABASE_URL, VAPID_*, FCM_SERVER_KEY, CRON_SECRET
  */
 import { createClient } from '@supabase/supabase-js';
 import webpush from 'web-push';
@@ -18,6 +18,46 @@ function ticketShort(code) {
   return s || String(code || '—');
 }
 
+function moneyCLP(n) {
+  try {
+    return new Intl.NumberFormat('es-CL', {
+      style: 'currency',
+      currency: 'CLP',
+      maximumFractionDigits: 0,
+    }).format(Number(n) || 0);
+  } catch {
+    return `$${Math.round(Number(n) || 0)}`;
+  }
+}
+
+async function sendFcm(token, { title, body, data }) {
+  const key = env('FCM_SERVER_KEY', 'FIREBASE_SERVER_KEY');
+  if (!key || !token) return { ok: false };
+  const res = await fetch('https://fcm.googleapis.com/fcm/send', {
+    method: 'POST',
+    headers: {
+      Authorization: `key=${key}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      to: token,
+      priority: 'high',
+      content_available: true,
+      notification: {
+        title,
+        body,
+        sound: 'default',
+        click_action: 'FCM_PLUGIN_ACTIVITY',
+        tag: data.tag || 'pollon-offer',
+      },
+      data: { ...data, title, body },
+    }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || json.failure === 1) return { ok: false, json };
+  return { ok: true, json };
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'GET' && req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -28,7 +68,6 @@ export default async function handler(req, res) {
     const auth = req.headers.authorization || '';
     const q = req.query?.secret;
     const ok = auth === `Bearer ${cronSecret}` || q === cronSecret;
-    // Vercel Cron (Hobby) no siempre manda Bearer; permitir sin secret solo en GET desde vercel cron header
     const fromVercel = Boolean(req.headers['x-vercel-cron']);
     if (!ok && !fromVercel) {
       return res.status(401).json({ error: 'Unauthorized' });
@@ -53,30 +92,57 @@ export default async function handler(req, res) {
   const jobIds = data?.job_ids || [];
   const vapidPublic = env('VITE_VAPID_PUBLIC_KEY', 'VAPID_PUBLIC_KEY');
   const vapidPrivate = env('VAPID_PRIVATE_KEY');
-  let pushed = 0;
+  const hasFcm = Boolean(env('FCM_SERVER_KEY', 'FIREBASE_SERVER_KEY'));
+  let fcmSent = 0;
+  let webSent = 0;
 
-  if (vapidPublic && vapidPrivate && jobIds.length) {
-    webpush.setVapidDetails(
-      env('VAPID_SUBJECT', 'mailto:contacto@el-pollon.cl'),
-      vapidPublic,
-      vapidPrivate
-    );
+  for (const jobId of jobIds) {
+    const { data: offers } = await admin
+      .from('ep_delivery_offers')
+      .select('id, driver_id, offered_fee, ep_delivery_jobs(ticket_code, customer_name, delivery_fee)')
+      .eq('job_id', jobId)
+      .eq('status', 'pending');
+    if (!offers?.length) continue;
 
-    for (const jobId of jobIds) {
-      const { data: offers } = await admin
-        .from('ep_delivery_offers')
-        .select('id, driver_id, offered_fee, ep_delivery_jobs(ticket_code, customer_name, delivery_fee)')
-        .eq('job_id', jobId)
-        .eq('status', 'pending');
-      if (!offers?.length) continue;
+    const driverIds = [...new Set(offers.map((o) => o.driver_id))];
+    const byDriver = Object.fromEntries(offers.map((o) => [o.driver_id, o]));
 
-      const driverIds = [...new Set(offers.map((o) => o.driver_id))];
+    if (hasFcm) {
+      const { data: fcmRows } = await admin
+        .from('ep_driver_fcm_tokens')
+        .select('id, driver_id, token')
+        .in('driver_id', driverIds);
+      for (const row of fcmRows || []) {
+        const offer = byDriver[row.driver_id];
+        if (!offer) continue;
+        const job = offer.ep_delivery_jobs || {};
+        const fee = offer.offered_fee ?? job.delivery_fee ?? 0;
+        const result = await sendFcm(row.token, {
+          title: 'El Pollón · Nuevo pedido',
+          body: `#${ticketShort(job.ticket_code)} · ${job.customer_name || 'Cliente'} · ${moneyCLP(fee)} (reintento)`,
+          data: {
+            type: 'driver_offer',
+            offerId: String(offer.id),
+            jobId: String(jobId),
+            deepLink: '/repartidor',
+            url: '/repartidor',
+            tag: `pollon-offer-${offer.id}`,
+          },
+        });
+        if (result.ok) fcmSent += 1;
+      }
+    }
+
+    if (vapidPublic && vapidPrivate) {
+      webpush.setVapidDetails(
+        env('VAPID_SUBJECT', 'mailto:contacto@el-pollon.cl'),
+        vapidPublic,
+        vapidPrivate
+      );
       const { data: subs } = await admin
         .from('ep_driver_push_subscriptions')
         .select('endpoint, p256dh, auth, driver_id')
         .in('driver_id', driverIds);
-
-      const byDriver = Object.fromEntries(offers.map((o) => [o.driver_id, o]));
       for (const sub of subs || []) {
         const offer = byDriver[sub.driver_id];
         if (!offer) continue;
@@ -85,16 +151,17 @@ export default async function handler(req, res) {
           await webpush.sendNotification(
             { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
             JSON.stringify({
-              title: 'Nuevo pedido — El Pollón',
+              title: 'El Pollón · Nuevo pedido',
               body: `Pedido Nº ${ticketShort(job.ticket_code)} · ${job.customer_name || 'Cliente'} (reintento)`,
               url: '/repartidor',
               offerId: offer.id,
               jobId,
               tag: `pollon-offer-${offer.id}`,
+              type: 'driver_offer',
             }),
             { urgency: 'high', TTL: 86400 }
           );
-          pushed += 1;
+          webSent += 1;
         } catch {
           /* ignore */
         }
@@ -102,5 +169,13 @@ export default async function handler(req, res) {
     }
   }
 
-  return res.status(200).json({ ok: true, retried: data?.retried || 0, job_ids: jobIds, pushed });
+  return res.status(200).json({
+    ok: true,
+    retried: data?.retried || 0,
+    job_ids: jobIds,
+    fcmSent,
+    webSent,
+    pushed: fcmSent + webSent,
+    fcmConfigured: hasFcm,
+  });
 }

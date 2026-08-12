@@ -211,11 +211,11 @@ export async function startDriverBackgroundGps({ onUpdate } = {}) {
   try {
     await BackgroundGeolocation.start(
       {
-        backgroundMessage: 'El Pollón comparte tu ubicación en vivo con el local.',
-        backgroundTitle: 'El Pollón · Ubicación en vivo',
+        backgroundMessage: 'El Pollón · Compartiendo ubicación en vivo con el local',
+        backgroundTitle: 'El Pollón · GPS activo',
         requestPermissions: true,
         stale: false,
-        distanceFilter: 20,
+        distanceFilter: 18,
       },
       (location, error) => {
         if (error) {
