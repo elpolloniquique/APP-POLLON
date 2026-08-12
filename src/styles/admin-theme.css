@@ -32,8 +32,15 @@
 }
 
 .admin-shell__main {
+  display: flex;
+  flex-direction: column;
   color: var(--ap-ink);
   font-family: inherit;
+}
+
+.admin-shell__main:has(.admin-page--fill) {
+  overflow: hidden;
+  min-height: 0;
 }
 
 /* —— Páginas genéricas (Clientes, Caja, Stock, Menú, Campañas, Sucursales…) —— */
@@ -50,6 +57,98 @@
   .admin-shell .admin-page {
     padding: 0.65rem 0.9rem 1rem;
   }
+}
+
+/* Listas a pantalla completa: el cuadro llega al canto inferior */
+.admin-shell .admin-page--fill {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: calc(100dvh - 3.15rem);
+  max-height: calc(100dvh - 3.15rem);
+  overflow: hidden;
+  padding-bottom: 0.55rem;
+}
+
+.admin-shell .admin-page--fill > .admin-page-header,
+.admin-shell .admin-page--fill > .admin-toolbar,
+.admin-shell .admin-page--fill > .rounded-xl,
+.admin-shell .admin-page--fill > p,
+.admin-shell .admin-page--fill > [class*="border-b"],
+.admin-shell .admin-page--fill > .dispatch-panel__filters,
+.admin-shell .admin-page--fill > .dispatch-panel__alerts,
+.admin-shell .admin-page--fill > .dispatch-panel__meta,
+.admin-shell .admin-page--fill > .dcfg-card,
+.admin-shell .admin-page--fill > .dcfg-alert,
+.admin-shell .admin-page--fill > .dcfg-health-bar {
+  flex-shrink: 0;
+}
+
+.admin-shell .admin-page-fill,
+.admin-shell .admin-page-split {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.admin-shell .admin-page-fill > .admin-toolbar {
+  flex-shrink: 0;
+}
+
+.admin-shell .admin-page-split {
+  gap: 0.65rem;
+}
+
+@media (min-width: 1024px) {
+  .admin-shell .admin-page-split {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+    align-items: stretch;
+  }
+}
+
+.admin-shell .admin-page--fill .admin-table,
+.admin-shell .admin-page-fill .admin-table,
+.admin-shell .admin-page-split .admin-table,
+.admin-shell .admin-list-shell {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+.admin-shell .admin-page--fill .admin-scroll-panel,
+.admin-shell .admin-page-fill .admin-scroll-panel,
+.admin-shell .admin-page-split .admin-scroll-panel,
+.admin-shell .admin-list-shell .admin-scroll-panel,
+.admin-shell .admin-scroll-fill {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none !important;
+  height: auto;
+}
+
+.admin-shell .admin-page-detail {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid var(--ap-head);
+  border-radius: var(--ap-radius);
+  background: var(--ap-card);
+  box-shadow: var(--ap-shadow-table);
+}
+
+.admin-shell .admin-list-shell {
+  overflow: hidden;
+  border: 1px solid var(--ap-head);
+  border-radius: var(--ap-radius);
+  background: var(--ap-card);
+  box-shadow: var(--ap-shadow-table);
 }
 
 /* —— Encabezado de página (como toolbar de Pedidos, sin título gigante) —— */
@@ -195,40 +294,47 @@
 }
 
 /* —— Configuración —— */
+.admin-shell .admin-config-page.admin-page {
+  max-width: 46rem;
+}
+
 .admin-shell .admin-config-shell {
   border: 1px solid var(--ap-head);
   border-radius: var(--ap-radius);
   box-shadow: var(--ap-shadow-table);
+  background: var(--ap-card);
 }
 
 .admin-shell .admin-config-section__title {
-  font-size: 0.82rem;
+  font-size: 0.72rem !important;
   font-weight: 800;
   color: var(--ap-ink);
-  letter-spacing: -0.01em;
+  letter-spacing: 0.06em;
 }
 
 .admin-shell .admin-config-section__desc,
 .admin-shell .admin-config-field__hint {
   font-size: 0.72rem;
   color: var(--ap-muted);
+  font-weight: 600;
 }
 
 .admin-shell .admin-config-field__label {
-  font-size: var(--ap-fs-label);
+  font-size: 0.68rem;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: var(--ap-muted);
+  color: #44403c;
 }
 
 .admin-shell .admin-config-input,
 .admin-shell .admin-config-field__control input,
 .admin-shell .admin-config-field__control select,
 .admin-shell .admin-config-field__control textarea {
-  border-color: var(--ap-line-strong);
-  border-radius: 0.4rem;
-  font-size: 0.74rem;
+  border-color: #a8a29e;
+  border-radius: 0.5rem;
+  font-size: 0.88rem;
+  font-weight: 650;
   color: var(--ap-ink);
 }
 

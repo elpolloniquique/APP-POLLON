@@ -21,12 +21,14 @@ const ARRIVAL_RADIUS_M = 90;
  *   pickupDrivers: Array<{ driverId: string, name: string, phase: string, lat?: number, lng?: number, assignments?: any[] }>,
  *   etas: Record<string, number>,
  *   store: { lat: number, lng: number },
+ *   arrivalRadiusM?: number,
  * }} opts
  */
-export function useLiveVoiceAlerts({ enabled, pickupDrivers, etas, store }) {
+export function useLiveVoiceAlerts({ enabled, pickupDrivers, etas, store, arrivalRadiusM = ARRIVAL_RADIUS_M }) {
   const announcedRef = useRef(new Set()); // keys ya anunciadas
   const detailCacheRef = useRef(new Map()); // driverId -> { at, orders }
   const processingRef = useRef(new Set()); // evitar race por driver
+  const radius = Math.min(300, Math.max(20, Number(arrivalRadiusM) || ARRIVAL_RADIUS_M));
 
   // Limpia anuncios de viajes que ya no están en pickup
   useEffect(() => {
@@ -70,7 +72,7 @@ export function useLiveVoiceAlerts({ enabled, pickupDrivers, etas, store }) {
 
         const arrived =
           d.phase === 'at_store'
-          || distM <= ARRIVAL_RADIUS_M
+          || distM <= radius
           || (etas[d.driverId] != null && etas[d.driverId] <= 0);
 
         const approaching =
@@ -114,7 +116,7 @@ export function useLiveVoiceAlerts({ enabled, pickupDrivers, etas, store }) {
 
     run();
     return () => { cancelled = true; };
-  }, [enabled, pickupDrivers, etas, store]);
+  }, [enabled, pickupDrivers, etas, store, radius]);
 }
 
 async function loadOrders(driverId, cacheRef) {

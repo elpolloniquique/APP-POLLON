@@ -201,6 +201,172 @@ export function buildProductRows(orders) {
   return rows.sort((a, b) => b.sales - a.sales);
 }
 
+/** Clave única visual: misma categoría + mismo nombre = un solo plato. */
+function catalogItemKey(category, name) {
+  return `${String(category || '').trim().toLowerCase()}::${String(name || '').trim().toLowerCase()}`;
+}
+
+/**
+ * Une productos repetidos (p. ej. misma bebida en varias sucursales).
+ * Conserva todos los IDs para sumar ventas bien.
+ */
+export function dedupeCatalogProducts(catalog = []) {
+  const map = new Map();
+  (catalog || []).forEach((p, idx) => {
+    const name = String(p.name || '').trim() || 'Producto';
+    const category = String(p.categoryName || p.category || 'Sin categoría').trim() || 'Sin categoría';
+    const key = catalogItemKey(category, name);
+    const id = p.id ? String(p.id) : '';
+    const order = Number(p.displayOrder ?? p.display_order ?? idx + 1) || idx + 1;
+    const prev = map.get(key);
+    if (!prev) {
+      map.set(key, {
+        ...p,
+        name,
+        categoryName: category,
+        displayOrder: order,
+        ids: id ? [id] : [],
+        _idx: idx,
+      });
+      return;
+    }
+    if (id && !prev.ids.includes(id)) prev.ids.push(id);
+    if (order < (Number(prev.displayOrder) || 9999)) prev.displayOrder = order;
+    if (prev.available === false && p.available !== false) prev.available = true;
+    if (!(Number(prev.price) > 0) && Number(p.price) > 0) prev.price = p.price;
+    if (!prev.categoryName && category) prev.categoryName = category;
+  });
+  return [...map.values()];
+}
+
+function sumSoldMatches(soldRows, ids, nameKey) {
+  const idSet = new Set((ids || []).map(String).filter(Boolean));
+  let qty = 0;
+  let sales = 0;
+  let unitSum = 0;
+  let unitCount = 0;
+  const keys = new Set();
+  (soldRows || []).forEach((r) => {
+    const byId = r.productId && idSet.has(String(r.productId));
+    const byName = String(r.name || '').trim().toLowerCase() === nameKey;
+    if (!byId && !byName) return;
+    if (keys.has(r.key)) return;
+    keys.add(r.key);
+    qty += r.qty;
+    sales += r.sales;
+    if (r.avgPrice > 0 && r.qty > 0) {
+      unitSum += r.avgPrice * r.qty;
+      unitCount += r.qty;
+    }
+  });
+  return {
+    qty,
+    sales,
+    avgPrice: unitCount ? unitSum / unitCount : 0,
+    keys,
+  };
+}
+
+/**
+ * Lista tipo Excel: TODOS los platos del catálogo + ventas del período.
+ * Si no se vendió → cantidad 0 y total 0.
+ * Sin duplicados por nombre+categoría (multi-sucursal).
+ */
+export function buildCatalogSalesRows(catalog = [], orders = []) {
+  const uniqueCatalog = dedupeCatalogProducts(catalog);
+  const sold = buildProductRows(orders);
+  const usedSoldKeys = new Set();
+
+  const rows = uniqueCatalog.map((p, idx) => {
+    const name = String(p.name || '').trim() || 'Producto';
+    const nameKey = name.toLowerCase();
+    const category = String(p.categoryName || p.category || 'Sin categoría').trim() || 'Sin categoría';
+    const ids = p.ids || (p.id ? [String(p.id)] : []);
+    const hit = sumSoldMatches(sold, ids, nameKey);
+    hit.keys.forEach((k) => usedSoldKeys.add(k));
+    const unitPrice = Number(p.price) || Number(hit.avgPrice) || 0;
+    return {
+      key: catalogItemKey(category, name) || `cat-${idx}-${nameKey}`,
+      productId: ids[0] || null,
+      order: Number(p.displayOrder ?? p.display_order ?? idx + 1) || idx + 1,
+      category,
+      name,
+      unitPrice,
+      qty: hit.qty,
+      sales: hit.sales,
+      available: p.available !== false,
+    };
+  });
+
+  // Ítems vendidos fuera del menú (también sin duplicar por nombre+categoría)
+  const orphanByKey = new Map();
+  sold.forEach((r) => {
+    if (usedSoldKeys.has(r.key)) return;
+    const category = r.category || 'Sin categoría';
+    const name = r.name || 'Producto';
+    const key = catalogItemKey(category, name);
+    const prev = orphanByKey.get(key);
+    if (!prev) {
+      orphanByKey.set(key, {
+        key: `sold-${key}`,
+        productId: r.productId,
+        order: 9999,
+        category,
+        name,
+        unitPrice: r.avgPrice || 0,
+        qty: r.qty,
+        sales: r.sales,
+        available: true,
+        orphan: true,
+      });
+      return;
+    }
+    prev.qty += r.qty;
+    prev.sales += r.sales;
+  });
+  orphanByKey.forEach((row) => rows.push(row));
+
+  return rows;
+}
+
+export function sortCatalogSalesRows(rows, sortBy = 'sales_desc') {
+  const list = [...(rows || [])];
+  const cmp = {
+    sales_desc: (a, b) => b.sales - a.sales || a.order - b.order,
+    sales_asc: (a, b) => a.sales - b.sales || a.order - b.order,
+    qty_desc: (a, b) => b.qty - a.qty || a.order - b.order,
+    qty_asc: (a, b) => a.qty - b.qty || a.order - b.order,
+    name_asc: (a, b) => a.name.localeCompare(b.name, 'es'),
+    name_desc: (a, b) => b.name.localeCompare(a.name, 'es'),
+    price_desc: (a, b) => b.unitPrice - a.unitPrice,
+    price_asc: (a, b) => a.unitPrice - b.unitPrice,
+    category: (a, b) => a.category.localeCompare(b.category, 'es') || a.order - b.order,
+    order: (a, b) => a.order - b.order || a.name.localeCompare(b.name, 'es'),
+  }[sortBy] || ((a, b) => b.sales - a.sales);
+  return list.sort(cmp);
+}
+
+export function exportCatalogSalesCsv(rows, filename = 'reporte-ventas-platos.csv') {
+  const header = ['Orden', 'Categoría', 'Producto', 'Precio unitario', 'Cantidad vendida', 'Total monto'];
+  const lines = [header.join(';')];
+  (rows || []).forEach((r) => {
+    lines.push([
+      r.order,
+      `"${String(r.category).replace(/"/g, '""')}"`,
+      `"${String(r.name).replace(/"/g, '""')}"`,
+      Math.round(r.unitPrice),
+      r.qty,
+      Math.round(r.sales),
+    ].join(';'));
+  });
+  const blob = new Blob([`\uFEFF${lines.join('\n')}`], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 /** KPIs del reporte de productos. */
 export function buildProductReportKpis(orders, productRows) {
   const sales = productRows.reduce((s, r) => s + r.sales, 0);

@@ -7,6 +7,8 @@ import {
   updateDriverAdminStatus,
   updateDriverProfile,
   updateDriverMaxOrders,
+  updateDriverCommission,
+  normalizeCommissionPercent,
 } from '../../services/driverService';
 import { adminListAllBranches } from '../../services/branchService';
 import { Loader } from '../../components/ui/Loader';
@@ -43,6 +45,7 @@ export function AdminDrivers() {
   const [error, setError] = useState('');
   const [flash, setFlash] = useState('');
   const [busyId, setBusyId] = useState(null);
+  const [commissionDraft, setCommissionDraft] = useState({});
 
   const filterId = isSuperAdmin ? selectedBranchId || null : staffBranchId;
 
@@ -56,6 +59,7 @@ export function AdminDrivers() {
       ]);
       setDrivers(data);
       setAllBranches(br?.length ? br : filterBranches);
+      setCommissionDraft({});
     } catch (err) {
       setError(err.message || 'Error al cargar repartidores. ¿Ejecutaste migration-repartidores-delivery.sql?');
     } finally {
@@ -99,7 +103,6 @@ export function AdminDrivers() {
     setBusyId(id);
     setError('');
     setFlash('');
-    // Optimistic UI
     setDrivers((list) => list.map((d) => (d.id === id ? { ...d, max_orders: next } : d)));
     try {
       await updateDriverMaxOrders(id, next);
@@ -112,11 +115,59 @@ export function AdminDrivers() {
     }
   };
 
+  const commissionValue = (d) => {
+    if (Object.prototype.hasOwnProperty.call(commissionDraft, d.id)) {
+      return commissionDraft[d.id];
+    }
+    return String(normalizeCommissionPercent(d.commission_percent, 5));
+  };
+
+  const setCommission = async (id) => {
+    const prev = drivers.find((d) => d.id === id);
+    const raw = Object.prototype.hasOwnProperty.call(commissionDraft, id)
+      ? commissionDraft[id]
+      : prev?.commission_percent;
+    const next = normalizeCommissionPercent(raw, 5);
+    const prevN = normalizeCommissionPercent(prev?.commission_percent, 5);
+    if (prev && prevN === next) {
+      setCommissionDraft((m) => {
+        const copy = { ...m };
+        delete copy[id];
+        return copy;
+      });
+      return;
+    }
+
+    setBusyId(id);
+    setError('');
+    setFlash('');
+    setDrivers((list) => list.map((d) => (d.id === id ? { ...d, commission_percent: next } : d)));
+    setCommissionDraft((m) => {
+      const copy = { ...m };
+      delete copy[id];
+      return copy;
+    });
+    try {
+      await updateDriverCommission(id, next);
+      setFlash(`Comisión actualizada: ${next}% sobre el delivery.`);
+    } catch (err) {
+      const msg = String(err.message || '');
+      if (/commission_percent|column/i.test(msg)) {
+        setError('Falta la columna de comisión. Ejecuta en Supabase: supabase/fix-driver-commission-percent.sql');
+      } else {
+        setError(err.message);
+      }
+      await load();
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   return (
-    <div className="admin-page">
+    <div className="admin-page admin-page--fill">
       <AdminPageHeader
         title="Repartidores"
-        subtitle="Aprueba, suspende, asigna sucursal y define cuántos pedidos puede llevar cada uno en ruta al local."
+        subtitle="Aprueba, suspende, asigna sucursal, cupo de pedidos y comisión % de cada repartidor."
         actions={showBranchFilter ? (
           <AdminBranchFilter value={selectedBranchId} onChange={setSelectedBranchId} branches={filterBranches} />
         ) : null}
@@ -128,6 +179,7 @@ export function AdminDrivers() {
           <li>Mientras va a la sucursal (pedidos aún no recogidos), puede aceptar hasta su máximo (2, 3 o 4).</li>
           <li>En cuanto marca <strong>pedido recogido</strong>, ya no recibe ofertas nuevas.</li>
           <li>Solo cuando entrega <strong>todos</strong> sus pedidos activos vuelve a recibir ofertas.</li>
+          <li><strong>Comisión:</strong> porcentaje que cobras sobre el delivery de cada pedido (editable por repartidor).</li>
         </ul>
       </div>
 
@@ -137,10 +189,10 @@ export function AdminDrivers() {
       {loading ? (
         <Loader text="Cargando repartidores…" />
       ) : (
-        <div className="overflow-hidden rounded-2xl border bg-white">
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
+        <div className="admin-list-shell">
+          <div className="admin-scroll-fill overflow-auto">
+            <table className="admin-data-table min-w-full text-left text-sm">
+              <thead>
                 <tr>
                   <th className="px-4 py-3">Repartidor</th>
                   <th className="px-4 py-3">Vehículo</th>
@@ -150,6 +202,12 @@ export function AdminDrivers() {
                     Máx. pedidos
                     <span className="mt-0.5 block font-normal normal-case text-[11px] text-gray-400">
                       Cupo simultáneo
+                    </span>
+                  </th>
+                  <th className="px-4 py-3">
+                    Comisión
+                    <span className="mt-0.5 block font-normal normal-case text-[11px] text-gray-400">
+                      % sobre delivery
                     </span>
                   </th>
                   <th className="px-4 py-3">Sucursal</th>
@@ -192,6 +250,32 @@ export function AdminDrivers() {
                         <p className="mt-1 text-[11px] text-gray-400">2 · 3 · 4</p>
                       </td>
                       <td className="px-4 py-3">
+                        <div className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 shadow-sm focus-within:border-red-400 focus-within:ring-2 focus-within:ring-red-100">
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            step={0.5}
+                            inputMode="decimal"
+                            className="w-14 border-0 bg-transparent p-0 text-xs font-semibold text-slate-800 outline-none"
+                            value={commissionValue(d)}
+                            disabled={busyId === d.id}
+                            aria-label={`Comisión % de ${name}`}
+                            title="Porcentaje de comisión sobre el delivery"
+                            onChange={(e) => {
+                              setCommissionDraft((m) => ({ ...m, [d.id]: e.target.value }));
+                            }}
+                            onBlur={() => setCommission(d.id)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.currentTarget.blur();
+                              }
+                            }}
+                          />
+                          <span className="text-xs font-bold text-slate-500">%</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
                         <select
                           className="rounded-lg border px-2 py-1 text-xs"
                           value={d.preferred_branch_id || ''}
@@ -222,7 +306,7 @@ export function AdminDrivers() {
                 })}
                 {drivers.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-gray-500">
+                    <td colSpan={8} className="px-4 py-10 text-center text-gray-500">
                       No hay repartidores. En Supabase Auth crea el usuario y en <code>profiles.role</code> pon <strong>delivery</strong>.
                     </td>
                   </tr>

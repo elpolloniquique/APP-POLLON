@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
+import { Calendar, MapPin, RefreshCw, Search, Send, Bike } from 'lucide-react';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { AdminBranchFilter } from '../../components/admin/AdminBranchFilter';
 import { useAdminBranchFilter } from '../../hooks/useAdminBranchFilter';
@@ -6,20 +7,27 @@ import { listDeliveryJobs, startDriverSearch, upsertJobFromOrder, subscribeDispa
 import { retryStaleDriverSearches } from '../../services/orderDeliveryService';
 import { fetchOrdersAdmin } from '../../services/orderService';
 import { money } from '../../utils/format';
-import { Button } from '../../components/ui/Button';
+import { toInputDate } from '../../utils/productReportAnalytics';
 import { Loader } from '../../components/ui/Loader';
+import '../../styles/dispatch-panel.css';
 
-const STATUS_CLS = {
-  ready_for_dispatch: 'bg-blue-100 text-blue-800',
-  searching_driver: 'bg-amber-100 text-amber-800',
-  offered: 'bg-orange-100 text-orange-800',
-  assigned: 'bg-purple-100 text-purple-800',
-  heading_to_branch: 'bg-indigo-100 text-indigo-800',
-  picked_up: 'bg-cyan-100 text-cyan-800',
-  delivering: 'bg-violet-100 text-violet-800',
-  delivered: 'bg-green-100 text-green-800',
-  cancelled: 'bg-red-100 text-red-800',
+const STATUS_META = {
+  ready_for_dispatch: { label: 'Listo', tone: 'ready' },
+  searching_driver: { label: 'Buscando', tone: 'search' },
+  offered: { label: 'Ofertado', tone: 'offer' },
+  assigned: { label: 'Asignado', tone: 'assigned' },
+  heading_to_branch: { label: 'A local', tone: 'route' },
+  picked_up: { label: 'Recogido', tone: 'picked' },
+  delivering: { label: 'En ruta', tone: 'route' },
+  delivered: { label: 'Entregado', tone: 'done' },
+  cancelled: { label: 'Cancelado', tone: 'cancel' },
 };
+
+const OFFERABLE = new Set(['ready_for_dispatch', 'searching_driver', 'offered']);
+
+function todayInput() {
+  return toInputDate(new Date());
+}
 
 export function AdminDispatch() {
   const {
@@ -36,12 +44,20 @@ export function AdminDispatch() {
   const [busy, setBusy] = useState(null);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
+  const [dateFrom, setDateFrom] = useState(todayInput);
+  const [dateTo, setDateTo] = useState(todayInput);
+  const [search, setSearch] = useState('');
 
   const filterBranch = isSuperAdmin ? selectedBranchId || null : staffBranchId;
+  const isTodayOnly = dateFrom === todayInput() && dateTo === todayInput();
 
   const load = useCallback(async () => {
     try {
-      const data = await listDeliveryJobs({ branchId: filterBranch });
+      const data = await listDeliveryJobs({
+        branchId: filterBranch,
+        dateFrom,
+        dateTo,
+      });
       setJobs(data);
       setError('');
     } catch (err) {
@@ -49,9 +65,10 @@ export function AdminDispatch() {
     } finally {
       setLoading(false);
     }
-  }, [filterBranch]);
+  }, [filterBranch, dateFrom, dateTo]);
 
   useEffect(() => {
+    setLoading(true);
     load();
     const unsub = subscribeDispatch(() => load());
     const t = setInterval(() => {
@@ -60,6 +77,12 @@ export function AdminDispatch() {
     }, 20000);
     return () => { unsub(); clearInterval(t); };
   }, [load]);
+
+  const setToday = () => {
+    const t = todayInput();
+    setDateFrom(t);
+    setDateTo(t);
+  };
 
   const syncFromOrders = async () => {
     setBusy('sync');
@@ -89,6 +112,7 @@ export function AdminDispatch() {
 
   const offer = async (jobId) => {
     setBusy(jobId);
+    setError('');
     try {
       const res = await startDriverSearch(jobId);
       setMsg(`Oferta enviada a ${res?.offered ?? 0} repartidor(es)`);
@@ -100,59 +124,201 @@ export function AdminDispatch() {
     }
   };
 
+  const filteredJobs = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return jobs;
+    return jobs.filter((j) => {
+      const driver = j.ep_driver_profiles?.profiles?.full_name || '';
+      const hay = [
+        j.ticket_code,
+        j.customer_name,
+        j.customer_address,
+        j.customer_phone,
+        j.status,
+        driver,
+        STATUS_META[j.status]?.label,
+      ].join(' ').toLowerCase();
+      return hay.includes(q);
+    });
+  }, [jobs, search]);
+
+  const pendingCount = filteredJobs.filter((j) => OFFERABLE.has(j.status)).length;
+
   return (
-    <div className="admin-page">
+    <div className="admin-page admin-page--fill dispatch-panel">
       <AdminPageHeader
         title="Despacho"
         subtitle="Cola de delivery · ofertar a repartidores en tiempo real"
         actions={(
-          <div className="flex flex-wrap gap-2">
+          <div className="dispatch-panel__actions">
             {showBranchFilter && (
               <AdminBranchFilter value={selectedBranchId} onChange={setSelectedBranchId} branches={branches} />
             )}
-            <Button className="!px-3 !py-2 text-sm" disabled={busy === 'sync'} onClick={syncFromOrders}>
+            <button
+              type="button"
+              className="dispatch-panel__btn dispatch-panel__btn--primary"
+              disabled={busy === 'sync'}
+              onClick={syncFromOrders}
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${busy === 'sync' ? 'animate-spin' : ''}`} />
               {busy === 'sync' ? 'Sincronizando…' : 'Sincronizar pedidos'}
-            </Button>
+            </button>
           </div>
         )}
       />
 
-      {error && <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
-      {msg && <div className="rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">{msg}</div>}
+      <div className="dispatch-panel__filters">
+        <label className="dispatch-panel__field">
+          <span>Desde</span>
+          <div className="dispatch-panel__field-control">
+            <Calendar className="h-3.5 w-3.5 opacity-55" aria-hidden />
+            <input
+              type="date"
+              value={dateFrom}
+              max={dateTo || undefined}
+              onChange={(e) => setDateFrom(e.target.value || todayInput())}
+            />
+          </div>
+        </label>
+        <label className="dispatch-panel__field">
+          <span>Hasta</span>
+          <div className="dispatch-panel__field-control">
+            <Calendar className="h-3.5 w-3.5 opacity-55" aria-hidden />
+            <input
+              type="date"
+              value={dateTo}
+              min={dateFrom || undefined}
+              onChange={(e) => setDateTo(e.target.value || todayInput())}
+            />
+          </div>
+        </label>
+        <button
+          type="button"
+          className={`dispatch-panel__today ${isTodayOnly ? 'is-active' : ''}`}
+          onClick={setToday}
+        >
+          Hoy
+        </button>
+        <label className="dispatch-panel__search">
+          <Search className="h-3.5 w-3.5 opacity-55" aria-hidden />
+          <input
+            type="search"
+            placeholder="Buscar pedido, cliente, dirección…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </label>
+      </div>
 
-      {loading ? <Loader text="Cargando cola…" /> : (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {jobs.map((job) => (
-            <div key={job.id} className="rounded-2xl border bg-white p-4 shadow-sm">
-              <div className="mb-2 flex items-start justify-between gap-2">
-                <div>
-                  <p className="font-bold">#{job.ticket_code || '—'} · {job.customer_name}</p>
-                  <p className="text-xs text-gray-500">{job.customer_address}</p>
-                </div>
-                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${STATUS_CLS[job.status] || 'bg-gray-100'}`}>
-                  {job.status}
-                </span>
-              </div>
-              <div className="mb-3 flex justify-between text-sm">
-                <span>Pedido {money(job.order_total)}</span>
-                <span className="font-semibold text-pollon-orange">Delivery {money(job.delivery_fee)}</span>
-              </div>
-              {job.ep_driver_profiles?.profiles?.full_name && (
-                <p className="mb-2 text-xs text-purple-700">🛵 {job.ep_driver_profiles.profiles.full_name}</p>
-              )}
-              {['ready_for_dispatch', 'searching_driver', 'offered'].includes(job.status) && (
-                <Button className="w-full !py-2 text-sm" disabled={busy === job.id} onClick={() => offer(job.id)}>
-                  {busy === job.id ? 'Ofertando…' : 'Ofertar a repartidores'}
-                </Button>
-              )}
-            </div>
-          ))}
-          {jobs.length === 0 && (
-            <div className="col-span-full rounded-2xl border border-dashed p-10 text-center text-gray-500">
-              Sin jobs en cola. Pulsa <strong>Sincronizar pedidos</strong> cuando haya deliveries listos en cocina.
-            </div>
-          )}
+      {(error || msg) && (
+        <div className="dispatch-panel__alerts">
+          {error && <div className="dispatch-panel__alert dispatch-panel__alert--error">{error}</div>}
+          {msg && <div className="dispatch-panel__alert dispatch-panel__alert--ok">{msg}</div>}
         </div>
+      )}
+
+      <div className="dispatch-panel__meta">
+        <span>
+          {loading
+            ? 'Cargando…'
+            : `${filteredJobs.length} en lista`}
+          {!loading && pendingCount > 0 ? ` · ${pendingCount} por ofertar` : ''}
+          {!loading && isTodayOnly ? ' · solo hoy' : ''}
+        </span>
+      </div>
+
+      {loading ? (
+        <Loader text="Cargando cola…" />
+      ) : (
+        <section className="dispatch-panel__shell" aria-label="Cola de despacho">
+          <div className="dispatch-panel__scroll">
+            <table className="dispatch-panel__table">
+              <thead>
+                <tr>
+                  <th className="col-ticket">Pedido</th>
+                  <th className="col-client">Cliente</th>
+                  <th className="col-address">Dirección</th>
+                  <th className="col-money is-num">Pedido</th>
+                  <th className="col-money is-num">Delivery</th>
+                  <th className="col-driver">Repartidor</th>
+                  <th className="col-status">Estado</th>
+                  <th className="col-action">Acción</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredJobs.map((job) => {
+                  const st = STATUS_META[job.status] || { label: job.status, tone: 'other' };
+                  const driverName = job.ep_driver_profiles?.profiles?.full_name;
+                  const canOffer = OFFERABLE.has(job.status);
+                  return (
+                    <tr key={job.id} className={canOffer ? 'is-actionable' : undefined}>
+                      <td className="col-ticket">
+                        <span className="dispatch-panel__ticket">#{job.ticket_code || '—'}</span>
+                      </td>
+                      <td className="col-client">
+                        <span className="dispatch-panel__name" title={job.customer_name || ''}>
+                          {job.customer_name || '—'}
+                        </span>
+                      </td>
+                      <td className="col-address">
+                        <span className="dispatch-panel__address" title={job.customer_address || ''}>
+                          <MapPin className="dispatch-panel__pin" aria-hidden />
+                          {job.customer_address || '—'}
+                        </span>
+                      </td>
+                      <td className="col-money is-num">{money(job.order_total)}</td>
+                      <td className="col-money is-num dispatch-panel__fee">{money(job.delivery_fee)}</td>
+                      <td className="col-driver">
+                        {driverName ? (
+                          <span className="dispatch-panel__driver">
+                            <Bike className="h-3 w-3" aria-hidden />
+                            {driverName}
+                          </span>
+                        ) : (
+                          <span className="dispatch-panel__muted">Sin asignar</span>
+                        )}
+                      </td>
+                      <td className="col-status">
+                        <span className={`dispatch-panel__badge dispatch-panel__badge--${st.tone}`}>
+                          {st.label}
+                        </span>
+                      </td>
+                      <td className="col-action">
+                        {canOffer ? (
+                          <button
+                            type="button"
+                            className="dispatch-panel__offer"
+                            disabled={busy === job.id}
+                            onClick={() => offer(job.id)}
+                          >
+                            <Send className="h-3.5 w-3.5" />
+                            {busy === job.id ? 'Ofertando…' : 'Ofertar'}
+                          </button>
+                        ) : (
+                          <span className="dispatch-panel__muted">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {filteredJobs.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="dispatch-panel__empty">
+                      {jobs.length === 0
+                        ? (
+                          <>
+                            Sin pedidos en este rango. Por defecto se muestra <strong>solo hoy</strong>.
+                            {' '}Cambia las fechas o pulsa <strong>Sincronizar pedidos</strong>.
+                          </>
+                        )
+                        : 'Sin resultados para la búsqueda.'}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
       )}
     </div>
   );

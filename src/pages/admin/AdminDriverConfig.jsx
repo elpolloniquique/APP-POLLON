@@ -1,11 +1,147 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  Activity,
+  CheckCircle2,
+  Info,
+  Save,
+  AlertTriangle,
+  Radio,
+  MapPin,
+  Percent,
+  Power,
+  StickyNote,
+} from 'lucide-react';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { useAdminBranchFilter } from '../../hooks/useAdminBranchFilter';
 import { AdminBranchFilter } from '../../components/admin/AdminBranchFilter';
-import { getDispatchSettings, saveDispatchSettings } from '../../services/trackingService';
+import {
+  getDispatchSettings,
+  saveDispatchSettings,
+  applyDispatchDefaultsToDrivers,
+  normalizeDispatchSettings,
+  DISPATCH_SETTINGS_DEFAULTS,
+} from '../../services/trackingService';
 import { verifyDeliveryModule } from '../../services/driverService';
-import { Button } from '../../components/ui/Button';
 import { Loader } from '../../components/ui/Loader';
+import '../../styles/dispatch-config.css';
+
+const TOGGLES = [
+  {
+    key: 'enabled',
+    label: 'Despacho activo',
+    help: 'Apagado = no se ofertean pedidos (ni auto ni manual).',
+  },
+  {
+    key: 'auto_offer',
+    label: 'Oferta automática',
+    help: 'Al llegar un delivery en Pedidos. Si está off, ofertarás desde Despacho.',
+  },
+  {
+    key: 'require_gps',
+    label: 'Exigir GPS',
+    help: 'El repartidor debe publicar ubicación para estar disponible.',
+  },
+  {
+    key: 'voice_alerts',
+    label: 'Alertas de voz',
+    help: 'Valor inicial del mapa en vivo (se puede silenciar allí).',
+  },
+];
+
+function Switch({ checked, onChange, label }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      className={`dcfg-switch ${checked ? 'is-on' : ''}`}
+      onClick={() => onChange(!checked)}
+    >
+      <span className="dcfg-switch__knob" />
+    </button>
+  );
+}
+
+function Section({ icon: Icon, title, subtitle, children, className = '' }) {
+  return (
+    <section className={`dcfg-section ${className}`}>
+      <header className="dcfg-section__head">
+        <span className="dcfg-section__icon" aria-hidden>
+          <Icon className="h-4 w-4" />
+        </span>
+        <div className="min-w-0">
+          <h3 className="dcfg-section__title">{title}</h3>
+          {subtitle && <p className="dcfg-section__sub">{subtitle}</p>}
+        </div>
+      </header>
+      <div className="dcfg-section__body">{children}</div>
+    </section>
+  );
+}
+
+function HealthPanel({ health, busy, onRun }) {
+  const rows = useMemo(() => {
+    if (!health || health.demo) return [];
+    const out = [];
+    const pushGroup = (label, obj) => {
+      if (!obj || typeof obj !== 'object') return;
+      Object.entries(obj).forEach(([k, v]) => out.push({ group: label, key: k, ok: !!v }));
+    };
+    pushGroup('Tablas', health.tables);
+    pushGroup('Funciones', health.functions);
+    pushGroup('Columnas', health.columns);
+    return out;
+  }, [health]);
+
+  return (
+    <section className="dcfg-health-bar">
+      <div className="dcfg-health-bar__main">
+        <div className="dcfg-health-bar__text">
+          <Activity className="h-4 w-4 shrink-0" aria-hidden />
+          <div className="min-w-0">
+            <p className="dcfg-health-bar__title">Salud del módulo</p>
+            <p className="dcfg-health-bar__sub">Tablas, RPCs y columnas en Supabase</p>
+          </div>
+        </div>
+        <button type="button" className="dcfg-btn dcfg-btn--ghost" disabled={busy} onClick={onRun}>
+          {busy ? 'Comprobando…' : 'Verificar'}
+        </button>
+      </div>
+
+      {health?.demo && (
+        <p className="dcfg-note">Modo local — verificación no aplica.</p>
+      )}
+
+      {health && !health.demo && (
+        <div className={`dcfg-health ${health.ok ? 'is-ok' : 'is-bad'}`}>
+          <div className="dcfg-health__status">
+            {health.ok
+              ? <><CheckCircle2 className="h-4 w-4" /> Operativo</>
+              : <><AlertTriangle className="h-4 w-4" /> Revisar SQL</>}
+          </div>
+          {health.error && <p className="dcfg-health__err">{health.error}</p>}
+          {health.hint && <p className="dcfg-health__hint">{health.hint}</p>}
+          {!!rows.length && (
+            <ul className="dcfg-health__list">
+              {rows.map((r) => (
+                <li key={`${r.group}-${r.key}`} className={r.ok ? 'is-ok' : 'is-bad'}>
+                  <span>{r.group}: {r.key}</span>
+                  <strong>{r.ok ? 'OK' : 'Falta'}</strong>
+                </li>
+              ))}
+            </ul>
+          )}
+          {!health.ok && (
+            <p className="dcfg-health__hint">
+              Ejecuta: <code>fix-delivery-production-ready.sql</code> y <code>fix-dispatch-config-v2.sql</code>
+            </p>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
 
 export function AdminDriverConfig() {
   const {
@@ -18,9 +154,14 @@ export function AdminDriverConfig() {
   } = useAdminBranchFilter();
 
   const activeBranchId = isSuperAdmin ? (selectedBranchId || branches[0]?.id) : staffBranchId;
+  const activeBranchName = branches.find((b) => b.id === activeBranchId)?.name
+    || branches.find((b) => b.id === activeBranchId)?.nombre
+    || 'Sucursal';
+
   const [form, setForm] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [applying, setApplying] = useState(false);
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
   const [health, setHealth] = useState(null);
@@ -33,20 +174,9 @@ export function AdminDriverConfig() {
       return;
     }
     setLoading(true);
+    setError('');
     getDispatchSettings(activeBranchId)
-      .then((data) => setForm({
-        enabled: data?.enabled ?? true,
-        auto_offer: data?.auto_offer ?? false,
-        offer_ttl_seconds: data?.offer_ttl_seconds ?? 120,
-        retry_after_seconds: data?.retry_after_seconds ?? 180,
-        max_search_radius_km: data?.max_search_radius_km ?? 8,
-        arrival_radius_m: data?.arrival_radius_m ?? 80,
-        customer_arrival_radius_m: data?.customer_arrival_radius_m ?? 60,
-        max_orders_per_driver: data?.max_orders_per_driver ?? 2,
-        require_gps: data?.require_gps ?? true,
-        voice_alerts: data?.voice_alerts ?? false,
-        notes: data?.notes || '',
-      }))
+      .then((data) => setForm(normalizeDispatchSettings(data || DISPATCH_SETTINGS_DEFAULTS)))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, [activeBranchId]);
@@ -59,8 +189,9 @@ export function AdminDriverConfig() {
     setMsg('');
     setError('');
     try {
-      await saveDispatchSettings(activeBranchId, form);
-      setMsg('Configuración guardada');
+      const saved = await saveDispatchSettings(activeBranchId, form);
+      setForm(normalizeDispatchSettings(saved));
+      setMsg('Configuración guardada correctamente.');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -68,12 +199,34 @@ export function AdminDriverConfig() {
     }
   };
 
+  const applyToDrivers = async () => {
+    if (!activeBranchId || !form) return;
+    const ok = window.confirm(
+      `¿Aplicar cupo ${form.max_orders_per_driver} y comisión ${form.default_commission_percent}% a los repartidores de “${activeBranchName}”?`
+    );
+    if (!ok) return;
+    setApplying(true);
+    setMsg('');
+    setError('');
+    try {
+      await saveDispatchSettings(activeBranchId, form);
+      const res = await applyDispatchDefaultsToDrivers(activeBranchId, {
+        maxOrders: form.max_orders_per_driver,
+        commissionPercent: form.default_commission_percent,
+      });
+      setMsg(`Aplicado a ${res.updated} repartidor(es).`);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setApplying(false);
+    }
+  };
+
   const runHealth = async () => {
     setHealthBusy(true);
     setHealth(null);
     try {
-      const result = await verifyDeliveryModule();
-      setHealth(result);
+      setHealth(await verifyDeliveryModule());
     } catch (err) {
       setHealth({ ok: false, error: err.message });
     } finally {
@@ -82,95 +235,242 @@ export function AdminDriverConfig() {
   };
 
   return (
-    <div className="admin-page">
+    <div className="admin-page dispatch-config">
       <AdminPageHeader
-        title="Configuración repartidores"
-        subtitle="Despacho por sucursal: TTL de oferta, radios GPS, capacidad y alertas"
+        title="Configuración de despacho"
+        subtitle="Parámetros por sucursal · ofertas, GPS, cupo y comisión"
         actions={showBranchFilter ? (
-          <AdminBranchFilter value={selectedBranchId || activeBranchId || ''} onChange={setSelectedBranchId} branches={branches} />
+          <AdminBranchFilter
+            value={selectedBranchId || activeBranchId || ''}
+            onChange={setSelectedBranchId}
+            branches={branches}
+          />
         ) : null}
       />
 
-      <div className="rounded-2xl border bg-white p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold">Salud del módulo GPS / SQL</p>
-            <p className="text-xs text-gray-500">Verifica tablas y RPCs en Supabase</p>
-          </div>
-          <Button type="button" onClick={runHealth} disabled={healthBusy}>
-            {healthBusy ? 'Comprobando…' : 'Verificar conexión'}
-          </Button>
-        </div>
-        {health && (
-          <pre className={`mt-3 overflow-auto rounded-xl p-3 text-xs ${health.ok ? 'bg-green-50 text-green-900' : 'bg-amber-50 text-amber-950'}`}>
-            {JSON.stringify(health, null, 2)}
-          </pre>
-        )}
-        {health && !health.ok && (
-          <p className="mt-2 text-sm text-amber-800">
-            Ejecuta en Supabase SQL Editor: <code className="rounded bg-amber-100 px-1">supabase/fix-delivery-production-ready.sql</code>
-          </p>
-        )}
-      </div>
-
       {!activeBranchId && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        <div className="dcfg-alert dcfg-alert--warn">
           Selecciona una sucursal para configurar el despacho.
         </div>
       )}
 
+      {error && <div className="dcfg-alert dcfg-alert--error">{error}</div>}
+      {msg && <div className="dcfg-alert dcfg-alert--ok">{msg}</div>}
+
       {loading && <Loader text="Cargando configuración…" />}
-      {error && <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
-      {msg && <div className="rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">{msg}</div>}
 
-      {form && activeBranchId && (
-        <div className="grid max-w-3xl gap-4 rounded-2xl border bg-white p-4 sm:p-6">
-          {[
-            { key: 'enabled', label: 'Despacho activo en esta sucursal' },
-            { key: 'auto_offer', label: 'Ofertar automáticamente a repartidores disponibles' },
-            { key: 'require_gps', label: 'Exigir GPS para aceptar pedidos' },
-            { key: 'voice_alerts', label: 'Alertas de voz en mapa en vivo' },
-          ].map((f) => (
-            <label key={f.key} className="flex items-center justify-between gap-4 rounded-xl border px-4 py-3">
-              <span className="text-sm font-medium">{f.label}</span>
-              <input type="checkbox" checked={!!form[f.key]} onChange={(e) => update(f.key, e.target.checked)} className="h-5 w-5 accent-pollon-red" />
-            </label>
-          ))}
+      {form && activeBranchId && !loading && (
+        <div className="dcfg-shell">
+          <div className="dcfg-main">
+            <HealthPanel health={health} busy={healthBusy} onRun={runHealth} />
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="text-sm">
-              TTL oferta (segundos) — visible 2 min
-              <input type="number" min={15} max={300} value={form.offer_ttl_seconds} onChange={(e) => update('offer_ttl_seconds', Number(e.target.value))} className="mt-1 w-full rounded-xl border px-3 py-2" />
-            </label>
-            <label className="text-sm">
-              Re-ofertar si nadie acepta (segundos)
-              <input type="number" min={60} max={900} value={form.retry_after_seconds ?? 180} onChange={(e) => update('retry_after_seconds', Number(e.target.value))} className="mt-1 w-full rounded-xl border px-3 py-2" />
-              <span className="mt-0.5 block text-[11px] text-gray-500">Default 180 = cada 3 minutos (solo si sigue en Nuevo)</span>
-            </label>
-            <label className="text-sm">
-              Radio búsqueda (km)
-              <input type="number" min={1} max={30} step={0.5} value={form.max_search_radius_km} onChange={(e) => update('max_search_radius_km', Number(e.target.value))} className="mt-1 w-full rounded-xl border px-3 py-2" />
-            </label>
-            <label className="text-sm">
-              Radio llegada local (m)
-              <input type="number" min={20} max={300} value={form.arrival_radius_m} onChange={(e) => update('arrival_radius_m', Number(e.target.value))} className="mt-1 w-full rounded-xl border px-3 py-2" />
-            </label>
-            <label className="text-sm">
-              Radio llegada cliente (m)
-              <input type="number" min={20} max={300} value={form.customer_arrival_radius_m} onChange={(e) => update('customer_arrival_radius_m', Number(e.target.value))} className="mt-1 w-full rounded-xl border px-3 py-2" />
-            </label>
-            <label className="text-sm">
-              Máx. pedidos por repartidor
-              <input type="number" min={1} max={5} value={form.max_orders_per_driver} onChange={(e) => update('max_orders_per_driver', Number(e.target.value))} className="mt-1 w-full rounded-xl border px-3 py-2" />
-            </label>
+            <Section icon={Power} title="Operación" subtitle={activeBranchName}>
+              <div className="dcfg-toggles">
+                {TOGGLES.map((f) => (
+                  <div key={f.key} className="dcfg-toggle">
+                    <div className="dcfg-toggle__text">
+                      <p className="dcfg-toggle__label">{f.label}</p>
+                      <p className="dcfg-toggle__help">{f.help}</p>
+                    </div>
+                    <Switch
+                      checked={!!form[f.key]}
+                      label={f.label}
+                      onChange={(v) => update(f.key, v)}
+                    />
+                  </div>
+                ))}
+              </div>
+            </Section>
+
+            <Section
+              icon={Radio}
+              title="Ofertas"
+              subtitle="TTL y reintento del motor de ofertas"
+            >
+              <div className="dcfg-grid dcfg-grid--3">
+                <label className="dcfg-field">
+                  <span>TTL oferta</span>
+                  <div className="dcfg-field__control">
+                    <input
+                      type="number"
+                      min={15}
+                      max={300}
+                      value={form.offer_ttl_seconds}
+                      onChange={(e) => update('offer_ttl_seconds', Number(e.target.value))}
+                    />
+                    <span className="dcfg-field__unit">seg</span>
+                  </div>
+                  <em>Visible en el celular. Ideal: 120</em>
+                </label>
+                <label className="dcfg-field">
+                  <span>Re-ofertar</span>
+                  <div className="dcfg-field__control">
+                    <input
+                      type="number"
+                      min={60}
+                      max={900}
+                      value={form.retry_after_seconds}
+                      onChange={(e) => update('retry_after_seconds', Number(e.target.value))}
+                    />
+                    <span className="dcfg-field__unit">seg</span>
+                  </div>
+                  <em>Si nadie acepta. Ideal: 180</em>
+                </label>
+                <label className="dcfg-field">
+                  <span>Radio búsqueda</span>
+                  <div className="dcfg-field__control">
+                    <input
+                      type="number"
+                      min={1}
+                      max={30}
+                      step={0.5}
+                      value={form.max_search_radius_km}
+                      onChange={(e) => update('max_search_radius_km', Number(e.target.value))}
+                    />
+                    <span className="dcfg-field__unit">km</span>
+                  </div>
+                  <em>Referencia · elegibilidad por sucursal</em>
+                </label>
+              </div>
+            </Section>
+
+            <Section
+              icon={MapPin}
+              title="GPS y mapa"
+              subtitle="Radios de llegada al local y al cliente"
+            >
+              <div className="dcfg-grid dcfg-grid--2">
+                <label className="dcfg-field">
+                  <span>Llegada al local</span>
+                  <div className="dcfg-field__control">
+                    <input
+                      type="number"
+                      min={20}
+                      max={300}
+                      value={form.arrival_radius_m}
+                      onChange={(e) => update('arrival_radius_m', Number(e.target.value))}
+                    />
+                    <span className="dcfg-field__unit">m</span>
+                  </div>
+                  <em>Alertas de voz al acercarse a la sucursal</em>
+                </label>
+                <label className="dcfg-field">
+                  <span>Llegada al cliente</span>
+                  <div className="dcfg-field__control">
+                    <input
+                      type="number"
+                      min={20}
+                      max={300}
+                      value={form.customer_arrival_radius_m}
+                      onChange={(e) => update('customer_arrival_radius_m', Number(e.target.value))}
+                    />
+                    <span className="dcfg-field__unit">m</span>
+                  </div>
+                  <em>Proximidad al destino del pedido</em>
+                </label>
+              </div>
+            </Section>
+
+            <Section
+              icon={Percent}
+              title="Cupo y comisión"
+              subtitle="Defaults de la sucursal · se pueden personalizar por repartidor"
+            >
+              <div className="dcfg-grid dcfg-grid--2">
+                <label className="dcfg-field">
+                  <span>Cupo máx. pedidos</span>
+                  <select
+                    value={form.max_orders_per_driver}
+                    onChange={(e) => update('max_orders_per_driver', Number(e.target.value))}
+                  >
+                    {[2, 3, 4].map((n) => (
+                      <option key={n} value={n}>{n} simultáneos</option>
+                    ))}
+                  </select>
+                  <em>Mismo criterio que en Repartidores</em>
+                </label>
+                <label className="dcfg-field">
+                  <span>Comisión</span>
+                  <div className="dcfg-field__control">
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={0.5}
+                      value={form.default_commission_percent}
+                      onChange={(e) => update('default_commission_percent', Number(e.target.value))}
+                    />
+                    <span className="dcfg-field__unit">%</span>
+                  </div>
+                  <em>Sobre el delivery · ej. $4.000 × 5% = $200</em>
+                </label>
+              </div>
+
+              <div className="dcfg-banner">
+                <Info className="h-4 w-4 shrink-0" aria-hidden />
+                <p>
+                  <strong>Aplicar a repartidores</strong> copia cupo y comisión a quienes tienen esta sucursal preferida.
+                  Los ajustes uno a uno siguen en Repartidores.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="dcfg-btn dcfg-btn--block"
+                disabled={applying || saving}
+                onClick={applyToDrivers}
+              >
+                {applying ? 'Aplicando…' : 'Aplicar cupo y comisión a repartidores'}
+              </button>
+            </Section>
+
+            <Section icon={StickyNote} title="Notas internas" subtitle="Solo visibles en administración">
+              <label className="dcfg-field">
+                <span className="sr-only">Notas</span>
+                <textarea
+                  value={form.notes}
+                  onChange={(e) => update('notes', e.target.value)}
+                  rows={3}
+                  placeholder="Horarios especiales, observaciones del local…"
+                />
+              </label>
+            </Section>
           </div>
 
-          <label className="text-sm">
-            Notas internas
-            <textarea value={form.notes} onChange={(e) => update('notes', e.target.value)} rows={3} className="mt-1 w-full rounded-xl border px-3 py-2" />
-          </label>
+          <aside className="dcfg-aside">
+            <div className="dcfg-aside__card">
+              <p className="dcfg-aside__label">Sucursal</p>
+              <p className="dcfg-aside__branch" title={activeBranchName}>{activeBranchName}</p>
+              <ul className="dcfg-aside__summary">
+                <li><span>Despacho</span><strong>{form.enabled ? 'Activo' : 'Off'}</strong></li>
+                <li><span>Auto oferta</span><strong>{form.auto_offer ? 'Sí' : 'No'}</strong></li>
+                <li><span>TTL</span><strong>{form.offer_ttl_seconds}s</strong></li>
+                <li><span>Cupo</span><strong>{form.max_orders_per_driver}</strong></li>
+                <li><span>Comisión</span><strong>{form.default_commission_percent}%</strong></li>
+              </ul>
+              <button
+                type="button"
+                className="dcfg-btn dcfg-btn--primary dcfg-btn--block"
+                disabled={saving}
+                onClick={save}
+              >
+                <Save className="h-4 w-4" />
+                {saving ? 'Guardando…' : 'Guardar'}
+              </button>
+            </div>
+          </aside>
 
-          <Button onClick={save} disabled={saving}>{saving ? 'Guardando…' : 'Guardar configuración'}</Button>
+          <div className="dcfg-mobile-bar">
+            <button
+              type="button"
+              className="dcfg-btn dcfg-btn--primary dcfg-btn--block"
+              disabled={saving}
+              onClick={save}
+            >
+              <Save className="h-4 w-4" />
+              {saving ? 'Guardando…' : 'Guardar configuración'}
+            </button>
+          </div>
         </div>
       )}
     </div>

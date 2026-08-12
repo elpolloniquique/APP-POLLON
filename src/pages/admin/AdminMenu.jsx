@@ -293,7 +293,7 @@ export function AdminMenu() {
   const currentBranch = branches.find((b) => b.id === activeBranchId);
 
   return (
-    <div className="admin-page">
+    <div className="admin-page admin-page--fill">
       {Toast}
       <AdminPageHeader
         title="Menú por sucursal"
@@ -341,14 +341,14 @@ export function AdminMenu() {
       </div>
 
       {tab === 'categorias' && (
-        <div className="rounded-2xl bg-white p-4 shadow-sm">
+        <div className="admin-list-shell p-3 sm:p-4">
           <div className="mb-3 flex items-center justify-between px-1">
             <h3 className="font-bold">Categorías ({categories.length})</h3>
             {categories.length > 7 && (
               <span className="text-xs text-gray-400">Desplaza para ver más</span>
             )}
           </div>
-          <AdminScrollPanel maxRows={7} variant="card" className={categories.length ? '' : 'border-0 shadow-none'}>
+          <AdminScrollPanel maxRows={12} variant="card" className={`admin-scroll-fill ${categories.length ? '' : 'border-0 shadow-none'}`}>
             <div className="space-y-2 p-2">
             {categories.map((c, i) => (
               <div key={c.id} className="flex flex-wrap items-center gap-2 rounded-xl border p-3">
@@ -385,7 +385,7 @@ export function AdminMenu() {
       )}
 
       {tab === 'productos' && (
-        <div className="space-y-4">
+        <div className="admin-page-fill gap-3">
           <div className="admin-toolbar">
             <select value={selectedCatId} onChange={(e) => setSelectedCatId(e.target.value)} className="w-full sm:w-auto">
               <option value="">Todas las categorías</option>

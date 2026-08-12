@@ -20,7 +20,7 @@ export function AdminTable({
     <div className={`admin-table ${className}`}>
       <div className="admin-table__meta">
         <p>{label}</p>
-        {total > maxRows && (
+        {total > 8 && (
           <p>Desplaza para ver más ↓</p>
         )}
       </div>

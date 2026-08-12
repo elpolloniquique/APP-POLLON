@@ -234,20 +234,45 @@ export async function getDispatchReport(branchId = null, from = null, to = null)
   return data;
 }
 
+export const DISPATCH_SETTINGS_DEFAULTS = {
+  enabled: true,
+  auto_offer: true,
+  offer_ttl_seconds: 120,
+  retry_after_seconds: 180,
+  max_search_radius_km: 8,
+  arrival_radius_m: 80,
+  customer_arrival_radius_m: 60,
+  max_orders_per_driver: 2,
+  default_commission_percent: 5,
+  require_gps: true,
+  voice_alerts: true,
+  notes: '',
+};
+
+export function normalizeDispatchSettings(raw = {}) {
+  const n = (v, fb) => {
+    const x = Number(v);
+    return Number.isFinite(x) ? x : fb;
+  };
+  return {
+    enabled: raw.enabled !== false,
+    auto_offer: raw.auto_offer !== false,
+    offer_ttl_seconds: Math.min(300, Math.max(15, n(raw.offer_ttl_seconds, 120))),
+    retry_after_seconds: Math.min(900, Math.max(60, n(raw.retry_after_seconds, 180))),
+    max_search_radius_km: Math.min(30, Math.max(1, n(raw.max_search_radius_km, 8))),
+    arrival_radius_m: Math.min(300, Math.max(20, n(raw.arrival_radius_m, 80))),
+    customer_arrival_radius_m: Math.min(300, Math.max(20, n(raw.customer_arrival_radius_m, 60))),
+    max_orders_per_driver: Math.min(4, Math.max(2, Math.round(n(raw.max_orders_per_driver, 2)))),
+    default_commission_percent: Math.min(100, Math.max(0, n(raw.default_commission_percent, 5))),
+    require_gps: raw.require_gps !== false,
+    voice_alerts: raw.voice_alerts !== false,
+    notes: String(raw.notes || ''),
+  };
+}
+
 export async function getDispatchSettings(branchId) {
   if (!isSupabaseConfigured() || !branchId) {
-    return {
-      enabled: true,
-      auto_offer: false,
-      offer_ttl_seconds: 120,
-      retry_after_seconds: 180,
-      max_search_radius_km: 8,
-      arrival_radius_m: 80,
-      customer_arrival_radius_m: 60,
-      max_orders_per_driver: 2,
-      require_gps: true,
-      voice_alerts: false,
-    };
+    return { ...DISPATCH_SETTINGS_DEFAULTS };
   }
   const sb = getSupabase();
   const { data, error } = await sb
@@ -256,15 +281,17 @@ export async function getDispatchSettings(branchId) {
     .eq('branch_id', branchId)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  return data;
+  return normalizeDispatchSettings(data || {});
 }
 
 export async function saveDispatchSettings(branchId, settings) {
-  if (!isSupabaseConfigured()) return settings;
+  if (!isSupabaseConfigured()) return normalizeDispatchSettings(settings);
+  if (!branchId) throw new Error('Selecciona una sucursal');
+  const clean = normalizeDispatchSettings(settings);
   const sb = getSupabase();
   const payload = {
     branch_id: branchId,
-    ...settings,
+    ...clean,
     updated_at: new Date().toISOString(),
   };
   const { data, error } = await sb
@@ -272,8 +299,45 @@ export async function saveDispatchSettings(branchId, settings) {
     .upsert(payload, { onConflict: 'branch_id' })
     .select()
     .single();
-  if (error) throw new Error(error.message);
-  return data;
+  if (error) {
+    const msg = error.message || '';
+    if (/default_commission_percent|column/i.test(msg)) {
+      throw new Error('Falta SQL de config. Ejecuta supabase/fix-dispatch-config-v2.sql en Supabase.');
+    }
+    throw new Error(msg || 'No se pudo guardar');
+  }
+  return normalizeDispatchSettings(data || clean);
+}
+
+/** Aplica cupo y comisión por defecto a repartidores de la sucursal. */
+export async function applyDispatchDefaultsToDrivers(branchId, {
+  maxOrders,
+  commissionPercent,
+} = {}) {
+  if (!isSupabaseConfigured() || !branchId) {
+    return { updated: 0 };
+  }
+  const sb = getSupabase();
+  const patch = { updated_at: new Date().toISOString() };
+  if (maxOrders != null) patch.max_orders = Math.min(4, Math.max(2, Number(maxOrders) || 2));
+  if (commissionPercent != null) {
+    patch.commission_percent = Math.min(100, Math.max(0, Number(commissionPercent) || 0));
+  }
+  if (Object.keys(patch).length <= 1) return { updated: 0 };
+
+  const { data, error } = await sb
+    .from('ep_driver_profiles')
+    .update(patch)
+    .eq('preferred_branch_id', branchId)
+    .select('id');
+  if (error) {
+    const msg = error.message || '';
+    if (/commission_percent|column/i.test(msg)) {
+      throw new Error('Falta columna commission_percent. Ejecuta fix-driver-commission-percent.sql');
+    }
+    throw new Error(msg || 'No se pudo aplicar a repartidores');
+  }
+  return { updated: (data || []).length };
 }
 
 /** Watch GPS. Si publishRef.current === false, solo actualiza UI local (no visible en admin). */

@@ -57,7 +57,7 @@ export function AdminCustomers() {
   }
 
   return (
-    <div className="admin-page">
+    <div className="admin-page admin-page--fill">
       <AdminPageHeader
         title="Clientes registrados"
         subtitle="Buscar, segmentar y ver historial de compras"
@@ -80,7 +80,7 @@ export function AdminCustomers() {
         </select>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2 lg:gap-6">
+      <div className="admin-page-split">
         {loading ? (
           <p className="col-span-full py-8 text-center text-gray-500">Cargando…</p>
         ) : (
@@ -115,7 +115,7 @@ export function AdminCustomers() {
           </AdminTable>
         )}
 
-        <div className="flex min-h-[280px] flex-col overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
+        <div className="admin-page-detail">
           {selected ? (
             <>
               <div className="border-b px-4 py-3 sm:p-4">
@@ -128,7 +128,7 @@ export function AdminCustomers() {
               <h4 className="flex items-center gap-2 px-4 pt-3 text-sm font-bold">
                 <ShoppingBag className="h-4 w-4" /> Historial de pedidos ({orders.length})
               </h4>
-              <AdminScrollPanel maxRows={7} variant="card" className="flex-1 rounded-none border-0 shadow-none">
+              <AdminScrollPanel maxRows={12} variant="card" className="admin-scroll-fill flex-1 rounded-none border-0 shadow-none">
                 <ul className="space-y-2 p-3 sm:p-4">
                   {orders.map((o) => (
                     <li key={o.id} className="rounded-lg border p-3 text-sm">

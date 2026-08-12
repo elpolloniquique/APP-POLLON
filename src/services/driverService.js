@@ -19,6 +19,7 @@ const DEMO_DRIVERS = [
     operational_status: 'available',
     preferred_branch_id: null,
     max_orders: 2,
+    commission_percent: 5,
     vehicle_type: 'motocicleta',
     vehicle_plate: 'AB-12-34',
     phone: '+56911111111',
@@ -97,6 +98,22 @@ export async function updateDriverMaxOrders(driverId, maxOrders) {
     throw new Error('El máximo de pedidos debe ser 2, 3 o 4');
   }
   return updateDriverProfile(driverId, { max_orders: n });
+}
+
+/** Comisión % sobre delivery (solo admin). 0–100 */
+export function normalizeCommissionPercent(value, fallback = 5) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  const rounded = Math.round(n * 100) / 100;
+  return Math.min(100, Math.max(0, rounded));
+}
+
+export async function updateDriverCommission(driverId, percent) {
+  const n = normalizeCommissionPercent(percent, NaN);
+  if (!Number.isFinite(n)) {
+    throw new Error('La comisión debe ser un número entre 0 y 100');
+  }
+  return updateDriverProfile(driverId, { commission_percent: n });
 }
 
 export async function ensureMyDriverProfile() {
@@ -207,7 +224,17 @@ export async function verifyDeliveryModule() {
   const sb = getSupabase();
   const { data, error } = await sb.rpc('ep_verify_delivery_module');
   if (error) {
-    return { ok: false, error: error.message, hint: 'Ejecuta fix-delivery-production-ready.sql' };
+    return { ok: false, error: error.message, hint: 'Ejecuta fix-delivery-production-ready.sql y fix-dispatch-config-v2.sql' };
   }
-  return data;
+  const result = data || {};
+  // Compat: RPCs viejos siempre devolvían ok:true — recalcular si hay tables
+  if (result.tables && typeof result.tables === 'object') {
+    const tablesOk = Object.values(result.tables).every(Boolean);
+    const funcs = result.functions || {};
+    const funcsOk = !Object.keys(funcs).length || Object.values(funcs).every(Boolean);
+    const cols = result.columns || {};
+    const colsOk = !Object.keys(cols).length || Object.values(cols).every(Boolean);
+    result.ok = Boolean(tablesOk && funcsOk && (Object.keys(cols).length ? colsOk : true));
+  }
+  return result;
 }

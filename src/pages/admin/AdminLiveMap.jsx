@@ -9,6 +9,7 @@ import {
   listLiveLocations,
   listLiveAssignments,
   getDriverActiveOrdersDetail,
+  getDispatchSettings,
 } from '../../services/trackingService';
 import { subscribeDispatch } from '../../services/dispatchService';
 import { fetchOsrmRoute } from '../../utils/osrm';
@@ -71,6 +72,7 @@ export function AdminLiveMap() {
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [voiceAlertOn, setVoiceAlertOn] = useState(() => loadVoiceAlertEnabled());
+  const [arrivalRadiusM, setArrivalRadiusM] = useState(80);
   /** Destinos cliente resueltos (coords job o geocode) por driverId */
   const [destByDriver, setDestByDriver] = useState({});
 
@@ -95,6 +97,28 @@ export function AdminLiveMap() {
       .then(setAllBranches)
       .catch(() => setAllBranches(filterBranches || []));
   }, [filterBranches]);
+
+  // Config despacho de la sucursal activa → voz + radio llegada
+  useEffect(() => {
+    const branchId = filterBranch || null;
+    if (!branchId) return undefined;
+    let cancelled = false;
+    getDispatchSettings(branchId)
+      .then((s) => {
+        if (cancelled) return;
+        setArrivalRadiusM(s.arrival_radius_m || 80);
+        // Solo aplica default de sucursal si el usuario no eligió aún en esta sesión
+        try {
+          if (localStorage.getItem('ep_live_voice_alert_on') == null) {
+            setVoiceAlertOn(!!s.voice_alerts);
+          }
+        } catch {
+          /* ignore */
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [filterBranch]);
 
   const branches = allBranches.length ? allBranches : (filterBranches || []);
 
@@ -247,6 +271,7 @@ export function AdminLiveMap() {
     pickupDrivers,
     etas,
     store,
+    arrivalRadiusM,
   });
 
   // ETA via OSRM (async, cached in state)

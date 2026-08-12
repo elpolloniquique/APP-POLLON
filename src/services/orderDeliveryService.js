@@ -1,5 +1,6 @@
 import { getSupabase, isSupabaseConfigured } from './supabaseClient';
 import { notifyDriversForJob } from './pushService';
+import { getDispatchSettings } from './trackingService';
 
 /**
  * Links pedidos ↔ delivery jobs ↔ driver assignments.
@@ -9,6 +10,26 @@ import { notifyDriversForJob } from './pushService';
 let jobCache = {};
 let driverCache = {};
 let lastFetch = 0;
+const settingsCache = new Map(); // branchId -> { at, data }
+
+async function settingsForBranch(branchId) {
+  if (!branchId) return getDispatchSettings(null);
+  const hit = settingsCache.get(branchId);
+  if (hit && Date.now() - hit.at < 15000) return hit.data;
+  const data = await getDispatchSettings(branchId);
+  settingsCache.set(branchId, { at: Date.now(), data });
+  return data;
+}
+
+async function resolveOrderBranchId(orderId) {
+  const sb = getSupabase();
+  const { data } = await sb
+    .from('pedidos')
+    .select('branch_id, datos_json')
+    .eq('id', orderId)
+    .maybeSingle();
+  return data?.branch_id || data?.datos_json?.branchId || null;
+}
 
 /** Fetch all delivery jobs with their assigned driver (no embed — safe) */
 export async function fetchDeliveryJobMap() {
@@ -73,13 +94,25 @@ export async function autoDispatchNewOrder(orderId) {
   if (!isSupabaseConfigured() || !orderId) return null;
   const sb = getSupabase();
   try {
+    const branchId = await resolveOrderBranchId(orderId);
+    const settings = await settingsForBranch(branchId);
+
+    if (!settings.enabled) {
+      return { skipped: true, reason: 'dispatch_disabled' };
+    }
+
     const { data: jobId, error } = await sb.rpc('ep_upsert_job_from_pedido', { p_order_id: orderId });
     if (error) { console.warn('[Pollón] autoDispatch upsert:', error.message); return null; }
     if (!jobId) return null;
 
+    if (!settings.auto_offer) {
+      lastFetch = 0;
+      return { jobId, skippedSearch: true, reason: 'auto_offer_off' };
+    }
+
     const { data: searchResult, error: sErr } = await sb.rpc('ep_start_driver_search', { p_job_id: jobId });
     if (sErr) { console.warn('[Pollón] autoDispatch search:', sErr.message); }
-    else {
+    else if (searchResult?.offered > 0) {
       notifyDriversForJob(jobId).catch(() => {});
     }
 
@@ -96,12 +129,21 @@ export async function manualSearchDrivers(orderId) {
   if (!isSupabaseConfigured() || !orderId) throw new Error('Sin conexión');
   const sb = getSupabase();
 
+  const branchId = await resolveOrderBranchId(orderId);
+  const settings = await settingsForBranch(branchId);
+  if (!settings.enabled) {
+    throw new Error('Despacho desactivado en la configuración de esta sucursal');
+  }
+
   const { data: jobId, error } = await sb.rpc('ep_upsert_job_from_pedido', { p_order_id: orderId });
   if (error) throw new Error(error.message || 'Error creando job de delivery');
   if (!jobId) throw new Error('No se pudo crear trabajo de delivery');
 
   const { data, error: sErr } = await sb.rpc('ep_start_driver_search', { p_job_id: jobId });
   if (sErr) throw new Error(sErr.message || 'Error buscando repartidores');
+  if (data?.reason === 'dispatch_disabled') {
+    throw new Error(data.message || 'Despacho desactivado en esta sucursal');
+  }
 
   notifyDriversForJob(jobId).catch(() => {});
 

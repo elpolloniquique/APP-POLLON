@@ -3,15 +3,16 @@ import { resolveCajaPagoStatus, CAJA_PAGO } from '../utils/cajaPago';
 
 /**
  * Comisión del repartidor sobre el delivery.
- * Regla de negocio: 5% del valor de delivery
- * (ej. delivery $4.000 → comisión $200).
+ * Default 5% si no se indica otro porcentaje por repartidor.
  */
 export const DRIVER_DELIVERY_COMMISSION_RATE = 0.05;
 
-export function calcDeliveryCommission(deliveryFee) {
+export function calcDeliveryCommission(deliveryFee, percent = null) {
   const fee = Number(deliveryFee) || 0;
-  // Enteros CLP (sin decimales)
-  return Math.round(fee * DRIVER_DELIVERY_COMMISSION_RATE);
+  const rate = percent == null || percent === ''
+    ? DRIVER_DELIVERY_COMMISSION_RATE
+    : (Number(percent) || 0) / 100;
+  return Math.round(fee * rate);
 }
 
 function parseComisionCobro(datos) {
@@ -75,7 +76,7 @@ export async function fetchDriverReportRows({
   const branchIds = [...new Set(jobs.map((j) => j.branch_id).filter(Boolean))];
 
   const [{ data: drivers }, { data: branches }, { data: pedidos }] = await Promise.all([
-    sb.from('ep_driver_profiles').select('id, profile_id, vehicle_plate').in('id', driverIds),
+    sb.from('ep_driver_profiles').select('id, profile_id, vehicle_plate, commission_percent').in('id', driverIds),
     branchIds.length
       ? sb.from('branches').select('id, name').in('id', branchIds)
       : Promise.resolve({ data: [] }),
@@ -102,6 +103,7 @@ export async function fetchDriverReportRows({
         name: p.full_name || p.email || 'Repartidor',
         phone: p.phone || '',
         plate: d.vehicle_plate || '',
+        commissionPercent: d.commission_percent == null ? 5 : Number(d.commission_percent),
       }];
     })
   );
@@ -144,7 +146,8 @@ export async function fetchDriverReportRows({
       subTotal,
       deliveryFee,
       total,
-      commission: calcDeliveryCommission(deliveryFee),
+      commission: calcDeliveryCommission(deliveryFee, driver.commissionPercent),
+      commissionPercent: driver.commissionPercent ?? 5,
       /** Cobro de la comisión del repartidor (NO el pago del cliente) */
       comisionCobro,
       cobro: resolveCajaPagoStatus({ cajaPago: comisionCobro }),

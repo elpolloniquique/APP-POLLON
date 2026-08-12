@@ -9,7 +9,7 @@
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
-  color: #242121;
+  color: #1a1a1a;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
@@ -44,49 +44,12 @@
   min-width: 0;
   flex-wrap: wrap;
 }
-
-.orders-panel__live {
-  display: inline-flex;
+.orders-panel__pedidos {
+  display: flex;
   align-items: center;
   gap: 0.4rem;
-  margin: 0;
-  padding: 0.28rem 0.65rem 0.28rem 0.5rem;
-  border-radius: 999px;
-  border: 1px solid #bbf7d0;
-  background: #f0fdf4;
-  font-size: 0.75rem;
+  font-size: 0.76rem;
   font-weight: 700;
-  letter-spacing: 0.01em;
-  color: #166534;
-  line-height: 1.2;
-}
-
-.orders-panel__live.is-local {
-  border-color: #fde68a;
-  background: #fffbeb;
-  color: #92400e;
-}
-
-.orders-panel__live.is-wait {
-  border-color: #e5e7eb;
-  background: #f8fafc;
-  color: #64748b;
-}
-
-.orders-panel__live-local {
-  color: inherit;
-  font-weight: 700;
-}
-
-.orders-panel__branch-note {
-  font-size: 0.72rem;
-  font-weight: 650;
-  color: #64748b;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 16rem;
 }
 
 .orders-panel__live-dot {
@@ -606,9 +569,9 @@
 }
 
 .orders-panel__badge--nuevo { background: #fef3c7; color: #92400e; }
-.orders-panel__badge--aceptado { background: #f9f1db; color: #ed8210; }
+.orders-panel__badge--aceptado { background: #dcfce7; color: #166534; }
 .orders-panel__badge--reparto { background: #dbeafe; color: #1e40af; }
-.orders-panel__badge--entregado { background: #ccfbf1; color: #058d59; }
+.orders-panel__badge--entregado { background: #ccfbf1; color: #0f766e; }
 .orders-panel__badge--cancelado { background: #fee2e2; color: #991b1b; }
 .orders-panel__badge--otro { background: #f5f5f4; color: #44403c; }
 
@@ -712,12 +675,12 @@
   position: sticky;
   bottom: 0;
   z-index: 2;
-  background: #2e2c2b;
+  background: #1c1917;
   color: #fafaf9;
   font-size: 0.76rem;
   font-weight: 800;
   padding: 0.52rem 0.35rem;
-  border-top: 1px solid #181717;
+  border-top: 1px solid #0c0a09;
   white-space: nowrap;
 }
 
@@ -746,7 +709,7 @@
 .orders-panel__table .col-total { width: 7%; }
 .orders-panel__table .col-estado { width: 8%; }
 .orders-panel__table .col-driver { width: 10%; }
-.orders-panel__table .col-cobro { width: 8%; }
+.orders-panel__table .col-cobro { width: 8%; text-align: center; }
 .orders-panel__table .col-hora { width: 6.5%; }
 .orders-panel__table .col-actions { width: 13%; }
 

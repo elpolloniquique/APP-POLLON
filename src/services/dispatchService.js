@@ -38,11 +38,27 @@ const DEMO_JOBS = [
   },
 ];
 
-export async function listDeliveryJobs({ branchId, status } = {}) {
+function dayBoundsIso(dateFrom, dateTo) {
+  const from = dateFrom ? new Date(`${dateFrom}T00:00:00`) : null;
+  const to = dateTo ? new Date(`${dateTo}T23:59:59.999`) : null;
+  return {
+    fromIso: from && !Number.isNaN(from.getTime()) ? from.toISOString() : null,
+    toIso: to && !Number.isNaN(to.getTime()) ? to.toISOString() : null,
+  };
+}
+
+export async function listDeliveryJobs({ branchId, status, dateFrom, dateTo, limit = 300 } = {}) {
+  const { fromIso, toIso } = dayBoundsIso(dateFrom, dateTo);
+
   if (!isSupabaseConfigured()) {
     return DEMO_JOBS.filter((j) => {
       if (branchId && j.branch_id && j.branch_id !== branchId) return false;
       if (status && j.status !== status) return false;
+      if (fromIso || toIso) {
+        const t = new Date(j.created_at).getTime();
+        if (fromIso && t < new Date(fromIso).getTime()) return false;
+        if (toIso && t > new Date(toIso).getTime()) return false;
+      }
       return true;
     });
   }
@@ -51,9 +67,11 @@ export async function listDeliveryJobs({ branchId, status } = {}) {
     .from('ep_delivery_jobs')
     .select('*')
     .order('created_at', { ascending: false })
-    .limit(100);
+    .limit(Math.min(Math.max(Number(limit) || 300, 50), 500));
   if (branchId) q = q.eq('branch_id', branchId);
   if (status) q = q.eq('status', status);
+  if (fromIso) q = q.gte('created_at', fromIso);
+  if (toIso) q = q.lte('created_at', toIso);
   const { data, error } = await q;
   if (error) throw error;
 
@@ -104,7 +122,9 @@ export async function startDriverSearch(jobId) {
   const sb = getSupabase();
   const { data, error } = await sb.rpc('ep_start_driver_search', { p_job_id: jobId });
   if (error) throw error;
-  // Push a bandeja del sistema (pantalla apagada) para cada oferta creada
+  if (data?.reason === 'dispatch_disabled') {
+    throw new Error(data.message || 'Despacho desactivado en esta sucursal');
+  }
   if (data?.offered > 0 || data?.ok) {
     notifyDriversForJob(jobId).catch(() => {});
   }

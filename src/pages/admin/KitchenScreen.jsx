@@ -152,7 +152,7 @@ export function KitchenScreen() {
   ) : null;
 
   return (
-    <div className="admin-page kitchen-page">
+    <div className="admin-page admin-page--fill kitchen-page">
       <AdminPageHeader
         title="🍳 Cocina digital"
         subtitle={(
@@ -167,7 +167,7 @@ export function KitchenScreen() {
       />
 
       {active.length > 0 ? (
-        <AdminScrollPanel maxRows={8} variant="grid" className="kitchen-board">
+        <AdminScrollPanel maxRows={12} variant="grid" className="kitchen-board admin-scroll-fill">
           <div className="kitchen-grid">
             {active.map((o) => (
               <KitchenOrderCard
