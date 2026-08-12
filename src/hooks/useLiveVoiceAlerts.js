@@ -8,12 +8,12 @@ import {
 } from '../utils/liveVoiceAlert';
 import { getDriverActiveOrdersDetail } from '../services/trackingService';
 
-const ETA_ALERT_MIN = 5;
+const DEFAULT_ETA_ALERT_MIN = 5;
 const ARRIVAL_RADIUS_M = 90;
 
 /**
  * Vigila repartidores hacia recojo y dispara alertas de voz:
- * - ~5 min de ETA a la sucursal
+ * - ETA ≤ minutos configurados (ej. 5, 6, 7, 8)
  * - llegada a la sucursal (fase at_store o radio GPS)
  *
  * @param {{
@@ -22,15 +22,27 @@ const ARRIVAL_RADIUS_M = 90;
  *   etas: Record<string, number>,
  *   store: { lat: number, lng: number },
  *   arrivalRadiusM?: number,
+ *   etaAlertMin?: number,
+ *   speech?: { volume?: number, rate?: number, pitch?: number },
  * }} opts
  */
-export function useLiveVoiceAlerts({ enabled, pickupDrivers, etas, store, arrivalRadiusM = ARRIVAL_RADIUS_M }) {
-  const announcedRef = useRef(new Set()); // keys ya anunciadas
-  const detailCacheRef = useRef(new Map()); // driverId -> { at, orders }
-  const processingRef = useRef(new Set()); // evitar race por driver
+export function useLiveVoiceAlerts({
+  enabled,
+  pickupDrivers,
+  etas,
+  store,
+  arrivalRadiusM = ARRIVAL_RADIUS_M,
+  etaAlertMin = DEFAULT_ETA_ALERT_MIN,
+  speech = {},
+}) {
+  const announcedRef = useRef(new Set());
+  const detailCacheRef = useRef(new Map());
+  const processingRef = useRef(new Set());
   const radius = Math.min(300, Math.max(20, Number(arrivalRadiusM) || ARRIVAL_RADIUS_M));
+  const etaThreshold = Math.min(15, Math.max(3, Math.round(Number(etaAlertMin) || DEFAULT_ETA_ALERT_MIN)));
+  const speechRef = useRef(speech);
+  speechRef.current = speech;
 
-  // Limpia anuncios de viajes que ya no están en pickup
   useEffect(() => {
     const activeTrips = new Set(
       (pickupDrivers || []).map((d) => {
@@ -52,7 +64,6 @@ export function useLiveVoiceAlerts({ enabled, pickupDrivers, etas, store, arriva
     let cancelled = false;
 
     const run = async () => {
-      // Orden: los más cercanos (menor ETA) primero
       const sorted = [...pickupDrivers].sort((a, b) => {
         const ea = etas[a.driverId] ?? 999;
         const eb = etas[b.driverId] ?? 999;
@@ -63,7 +74,7 @@ export function useLiveVoiceAlerts({ enabled, pickupDrivers, etas, store, arriva
         if (cancelled) return;
         const ids = (d.assignments || []).map((a) => a.id).filter(Boolean);
         const trip = tripSignature(d.driverId, ids);
-        const etaKey = `eta5|${trip}`;
+        const etaKey = `eta|${trip}`;
         const arrKey = `arrived|${trip}`;
 
         const distM = (d.lat != null && d.lng != null)
@@ -79,7 +90,7 @@ export function useLiveVoiceAlerts({ enabled, pickupDrivers, etas, store, arriva
           !arrived
           && d.phase === 'to_store'
           && etas[d.driverId] != null
-          && etas[d.driverId] <= ETA_ALERT_MIN;
+          && etas[d.driverId] <= etaThreshold;
 
         if (!approaching && !arrived) continue;
         if (arrived && announcedRef.current.has(arrKey)) continue;
@@ -90,23 +101,25 @@ export function useLiveVoiceAlerts({ enabled, pickupDrivers, etas, store, arriva
         try {
           const orders = await loadOrders(d.driverId, detailCacheRef);
           if (cancelled) return;
+          const voiceOpts = speechRef.current || {};
 
           if (arrived) {
             announcedRef.current.add(arrKey);
-            announcedRef.current.add(etaKey); // no repetir el de 5 min después
+            announcedRef.current.add(etaKey);
             const text = buildArrivedSpeech({
               driverName: d.name,
               orderCount: orders.length || ids.length || 1,
             });
-            await speakAlert(text);
+            await speakAlert(text, voiceOpts);
           } else if (approaching) {
             announcedRef.current.add(etaKey);
+            const liveEta = etas[d.driverId];
             const text = buildApproachingSpeech({
               driverName: d.name,
-              etaMin: ETA_ALERT_MIN,
+              etaMin: liveEta != null ? liveEta : etaThreshold,
               orders,
             });
-            await speakAlert(text);
+            await speakAlert(text, voiceOpts);
           }
         } finally {
           processingRef.current.delete(d.driverId);
@@ -116,7 +129,7 @@ export function useLiveVoiceAlerts({ enabled, pickupDrivers, etas, store, arriva
 
     run();
     return () => { cancelled = true; };
-  }, [enabled, pickupDrivers, etas, store, radius]);
+  }, [enabled, pickupDrivers, etas, store, radius, etaThreshold]);
 }
 
 async function loadOrders(driverId, cacheRef) {
@@ -127,7 +140,6 @@ async function loadOrders(driverId, cacheRef) {
     const orders = (detail?.orders || []).filter(
       (o) => o.phase === 'to_store' || o.phase === 'at_store' || !o.phase
     );
-    // Si filtro vacía, usa todos (aún van a recojo)
     const list = orders.length ? orders : (detail?.orders || []);
     cacheRef.current.set(driverId, { at: Date.now(), orders: list });
     return list;

@@ -10,6 +10,7 @@ import {
   Percent,
   Power,
   StickyNote,
+  Volume2,
 } from 'lucide-react';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { useAdminBranchFilter } from '../../hooks/useAdminBranchFilter';
@@ -22,8 +23,11 @@ import {
   DISPATCH_SETTINGS_DEFAULTS,
 } from '../../services/trackingService';
 import { verifyDeliveryModule } from '../../services/driverService';
+import { unlockSpeech, speakAlert, isSpeechSupported } from '../../utils/liveVoiceAlert';
 import { Loader } from '../../components/ui/Loader';
 import '../../styles/dispatch-config.css';
+
+const ETA_MINUTE_OPTIONS = [3, 4, 5, 6, 7, 8, 9, 10];
 
 const TOGGLES = [
   {
@@ -234,6 +238,24 @@ export function AdminDriverConfig() {
     }
   };
 
+  const previewVoice = () => {
+    if (!form) return;
+    if (!isSpeechSupported()) {
+      setError('Este navegador no soporta voz (Web Speech). Prueba Chrome o Edge.');
+      return;
+    }
+    unlockSpeech();
+    const mins = form.voice_eta_minutes || 5;
+    speakAlert(
+      `Repartidor Akiles llega en ${mins} minutos. Pedido 01, medio pollo asado.`,
+      {
+        volume: form.voice_volume,
+        rate: form.voice_rate,
+        pitch: form.voice_pitch,
+      },
+    );
+  };
+
   return (
     <div className="admin-page dispatch-config">
       <AdminPageHeader
@@ -352,7 +374,7 @@ export function AdminDriverConfig() {
                     />
                     <span className="dcfg-field__unit">m</span>
                   </div>
-                  <em>Alertas de voz al acercarse a la sucursal</em>
+                  <em>Radio GPS de llegada a la sucursal</em>
                 </label>
                 <label className="dcfg-field">
                   <span>Llegada al cliente</span>
@@ -369,6 +391,83 @@ export function AdminDriverConfig() {
                   <em>Proximidad al destino del pedido</em>
                 </label>
               </div>
+            </Section>
+
+            <Section
+              icon={Volume2}
+              title="Voz del mapa en vivo"
+              subtitle="Cuándo avisar, volumen, velocidad y claridad de la voz"
+            >
+              <div className="dcfg-grid dcfg-grid--2">
+                <label className="dcfg-field">
+                  <span>Avisar antes de</span>
+                  <select
+                    value={form.voice_eta_minutes}
+                    onChange={(e) => update('voice_eta_minutes', Number(e.target.value))}
+                  >
+                    {ETA_MINUTE_OPTIONS.map((m) => (
+                      <option key={m} value={m}>{m} minutos</option>
+                    ))}
+                  </select>
+                  <em>Suena cuando el ETA al local sea ≤ este valor (ej. 5, 6, 7, 8)</em>
+                </label>
+                <label className="dcfg-field">
+                  <span>Volumen {form.voice_volume}%</span>
+                  <input
+                    className="dcfg-range"
+                    type="range"
+                    min={20}
+                    max={100}
+                    step={5}
+                    value={form.voice_volume}
+                    onChange={(e) => update('voice_volume', Number(e.target.value))}
+                  />
+                  <em>Qué tan fuerte se escucha el aviso</em>
+                </label>
+                <label className="dcfg-field">
+                  <span>Velocidad {Number(form.voice_rate).toFixed(2)}×</span>
+                  <input
+                    className="dcfg-range"
+                    type="range"
+                    min={0.7}
+                    max={1.35}
+                    step={0.05}
+                    value={form.voice_rate}
+                    onChange={(e) => update('voice_rate', Number(e.target.value))}
+                  />
+                  <em>Más bajo = más lento · más alto = más rápido</em>
+                </label>
+                <label className="dcfg-field">
+                  <span>Claridad / tono {Number(form.voice_pitch).toFixed(2)}</span>
+                  <input
+                    className="dcfg-range"
+                    type="range"
+                    min={1}
+                    max={1.5}
+                    step={0.05}
+                    value={form.voice_pitch}
+                    onChange={(e) => update('voice_pitch', Number(e.target.value))}
+                  />
+                  <em>Más alto = voz más delgada y nítida (recomendado 1.20–1.35)</em>
+                </label>
+              </div>
+
+              <div className="dcfg-banner">
+                <Info className="h-4 w-4 shrink-0" aria-hidden />
+                <p>
+                  La voz usa el motor del navegador en español, priorizando un timbre claro y fácil de entender.
+                  Guarda y prueba en <strong>En vivo</strong>, o usa <strong>Probar voz</strong> aquí.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="dcfg-btn dcfg-btn--block"
+                onClick={previewVoice}
+              >
+                <Volume2 className="h-4 w-4" />
+                Probar voz con estos ajustes
+              </button>
             </Section>
 
             <Section
@@ -445,6 +544,8 @@ export function AdminDriverConfig() {
                 <li><span>Despacho</span><strong>{form.enabled ? 'Activo' : 'Off'}</strong></li>
                 <li><span>Auto oferta</span><strong>{form.auto_offer ? 'Sí' : 'No'}</strong></li>
                 <li><span>TTL</span><strong>{form.offer_ttl_seconds}s</strong></li>
+                <li><span>Aviso voz</span><strong>{form.voice_eta_minutes} min</strong></li>
+                <li><span>Volumen</span><strong>{form.voice_volume}%</strong></li>
                 <li><span>Cupo</span><strong>{form.max_orders_per_driver}</strong></li>
                 <li><span>Comisión</span><strong>{form.default_commission_percent}%</strong></li>
               </ul>

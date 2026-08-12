@@ -247,6 +247,10 @@ export const DISPATCH_SETTINGS_DEFAULTS = {
   default_commission_percent: 5,
   require_gps: true,
   voice_alerts: true,
+  voice_eta_minutes: 5,
+  voice_volume: 100,
+  voice_rate: 1,
+  voice_pitch: 1.25,
   notes: '',
 };
 
@@ -267,6 +271,10 @@ export function normalizeDispatchSettings(raw = {}) {
     default_commission_percent: Math.min(100, Math.max(0, n(raw.default_commission_percent, 5))),
     require_gps: raw.require_gps !== false,
     voice_alerts: raw.voice_alerts !== false,
+    voice_eta_minutes: Math.min(15, Math.max(3, Math.round(n(raw.voice_eta_minutes, 5)))),
+    voice_volume: Math.min(100, Math.max(20, Math.round(n(raw.voice_volume, 100)))),
+    voice_rate: Math.round(Math.min(1.4, Math.max(0.7, n(raw.voice_rate, 1))) * 100) / 100,
+    voice_pitch: Math.round(Math.min(1.6, Math.max(0.8, n(raw.voice_pitch, 1.25))) * 100) / 100,
     notes: String(raw.notes || ''),
   };
 }
@@ -304,6 +312,9 @@ export async function saveDispatchSettings(branchId, settings) {
     const msg = error.message || '';
     if (/default_commission_percent|column/i.test(msg)) {
       throw new Error('Falta SQL de config. Ejecuta supabase/fix-dispatch-config-v2.sql en Supabase.');
+    }
+    if (/voice_eta_minutes|voice_volume|voice_rate|voice_pitch|column/i.test(msg)) {
+      throw new Error('Falta SQL de voz. Ejecuta supabase/fix-dispatch-voice-alerts.sql en Supabase.');
     }
     throw new Error(msg || 'No se pudo guardar');
   }

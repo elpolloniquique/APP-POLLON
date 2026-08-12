@@ -73,6 +73,8 @@ export function AdminLiveMap() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [voiceAlertOn, setVoiceAlertOn] = useState(() => loadVoiceAlertEnabled());
   const [arrivalRadiusM, setArrivalRadiusM] = useState(80);
+  const [voiceEtaMin, setVoiceEtaMin] = useState(5);
+  const [voiceSpeech, setVoiceSpeech] = useState({ volume: 100, rate: 1, pitch: 1.25 });
   /** Destinos cliente resueltos (coords job o geocode) por driverId */
   const [destByDriver, setDestByDriver] = useState({});
 
@@ -107,7 +109,12 @@ export function AdminLiveMap() {
       .then((s) => {
         if (cancelled) return;
         setArrivalRadiusM(s.arrival_radius_m || 80);
-        // Solo aplica default de sucursal si el usuario no eligió aún en esta sesión
+        setVoiceEtaMin(s.voice_eta_minutes || 5);
+        setVoiceSpeech({
+          volume: s.voice_volume ?? 100,
+          rate: s.voice_rate ?? 1,
+          pitch: s.voice_pitch ?? 1.25,
+        });
         try {
           if (localStorage.getItem('ep_live_voice_alert_on') == null) {
             setVoiceAlertOn(!!s.voice_alerts);
@@ -300,6 +307,8 @@ export function AdminLiveMap() {
     etas,
     store,
     arrivalRadiusM,
+    etaAlertMin: voiceEtaMin,
+    speech: voiceSpeech,
   });
 
   // ETA via OSRM (async, en paralelo)

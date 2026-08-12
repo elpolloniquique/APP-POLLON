@@ -1,5 +1,6 @@
 /**
  * Alerta de voz en vivo (Web Speech API) — cola secuencial, es-CL.
+ * Voz clara / nítida (pitch más agudo), volumen y velocidad configurables.
  */
 
 const STORAGE_KEY = 'ep_live_voice_alert_on';
@@ -45,7 +46,8 @@ export function summarizeOrderItems(items = []) {
  */
 export function buildApproachingSpeech({ driverName, etaMin = 5, orders = [] }) {
   const name = firstName(driverName);
-  const parts = [`Repartidor ${name} llega en ${etaMin} minutos`];
+  const mins = Math.max(1, Math.round(Number(etaMin) || 5));
+  const parts = [`Repartidor ${name} llega en ${mins} minutos`];
   if (!orders.length) {
     parts.push('con pedidos pendientes de recojo');
   } else {
@@ -87,46 +89,85 @@ export function unlockSpeech() {
   }
 }
 
-function pickSpanishVoice() {
+/**
+ * Prefiere voces en español claras (femeninas / nítidas) sobre tonos graves.
+ */
+export function pickClearSpanishVoice() {
   try {
     const voices = window.speechSynthesis?.getVoices?.() || [];
-    return (
-      voices.find((v) => /es(-|_)CL/i.test(v.lang))
-      || voices.find((v) => /es(-|_)MX/i.test(v.lang))
-      || voices.find((v) => /es(-|_)ES/i.test(v.lang))
-      || voices.find((v) => /^es/i.test(v.lang))
-      || null
-    );
+    if (!voices.length) return null;
+
+    const score = (v) => {
+      const label = `${v.name || ''} ${v.lang || ''}`;
+      let s = 0;
+      if (/^es/i.test(v.lang)) s += 10;
+      if (/es(-|_)CL/i.test(v.lang)) s += 8;
+      if (/es(-|_)MX/i.test(v.lang)) s += 6;
+      if (/es(-|_)ES/i.test(v.lang)) s += 5;
+      // Voces típicamente más claras / menos “gruesas”
+      if (/sabina|paulina|helena|luc[ií]a|elena|m[oó]nica|dalia|paloma|google.*espa[nñ]ol/i.test(label)) s += 12;
+      if (/female|femen|mujer|woman/i.test(label)) s += 8;
+      if (/male|hombre|david|jorge|pablo|raul|jorge/i.test(label)) s -= 6;
+      if (/premium|enhanced|neural|natural/i.test(label)) s += 3;
+      return s;
+    };
+
+    return [...voices].sort((a, b) => score(b) - score(a))[0] || null;
   } catch {
     return null;
   }
 }
 
+export function normalizeSpeechOptions(opts = {}) {
+  const volPct = Number(opts.volume);
+  const rate = Number(opts.rate);
+  const pitch = Number(opts.pitch);
+  return {
+    // Web Speech volume 0–1
+    volume: Math.min(1, Math.max(0.2, Number.isFinite(volPct)
+      ? (volPct > 1 ? volPct / 100 : volPct)
+      : 1)),
+    rate: Math.min(1.4, Math.max(0.7, Number.isFinite(rate) ? rate : 1)),
+    // Pitch > 1 = más agudo / “delgado” / nítido
+    pitch: Math.min(1.6, Math.max(0.8, Number.isFinite(pitch) ? pitch : 1.25)),
+  };
+}
+
 /**
  * Encola una frase; se reproducen en orden (varios repartidores).
+ * @param {string} text
+ * @param {{ volume?: number, rate?: number, pitch?: number }} [opts]
+ *   volume: 0–1 o 0–100; rate ~0.7–1.4; pitch ~0.8–1.6 (más alto = más nítido)
  * @returns {Promise<void>}
  */
-export function speakAlert(text) {
+export function speakAlert(text, opts = {}) {
   if (typeof window === 'undefined' || !window.speechSynthesis) {
     return Promise.resolve();
   }
   const phrase = String(text || '').trim();
   if (!phrase) return Promise.resolve();
 
+  const speech = normalizeSpeechOptions(opts);
+
   queue = queue.then(() => new Promise((resolve) => {
     const utter = new SpeechSynthesisUtterance(phrase);
     utter.lang = 'es-CL';
-    utter.rate = 0.95;
-    utter.pitch = 1;
-    utter.volume = 1;
-    const voice = pickSpanishVoice();
-    if (voice) utter.voice = voice;
+    utter.rate = speech.rate;
+    utter.pitch = speech.pitch;
+    utter.volume = speech.volume;
+    const voice = pickClearSpanishVoice();
+    if (voice) {
+      utter.voice = voice;
+      if (voice.lang) utter.lang = voice.lang;
+    }
 
     const done = () => resolve();
     utter.onend = done;
     utter.onerror = done;
 
     try {
+      // Chrome a veces necesita getVoices() ya cargado
+      window.speechSynthesis.getVoices();
       window.speechSynthesis.speak(utter);
     } catch {
       done();
