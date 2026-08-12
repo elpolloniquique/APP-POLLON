@@ -2,11 +2,28 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import { rmSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+
+/** Evita meter el APK (~200MB) dentro del dist → Capacitor → APK (bucle de tamaño). */
+function stripApkFromDist() {
+  return {
+    name: 'strip-apk-from-dist',
+    closeBundle() {
+      const apkPath = join(process.cwd(), 'dist', 'DESCARGAR-APK', 'El-Pollon-repartidor.apk');
+      if (existsSync(apkPath)) {
+        rmSync(apkPath, { force: true });
+        console.log('[vite] Excluido APK de dist (no va al Android assets)');
+      }
+    },
+  };
+}
 
 export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
+    stripApkFromDist(),
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: null,
@@ -21,7 +38,7 @@ export default defineConfig({
         // Handlers push / notificationclick (bandeja del sistema)
         importScripts: ['sw-push.js'],
         globPatterns: ['**/*.{js,css,html,ico,svg,woff2,json}', 'icons/*.png'],
-        globIgnores: ['**/img/**', '**/sounds/**'],
+        globIgnores: ['**/img/**', '**/sounds/**', '**/DESCARGAR-APK/**'],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [

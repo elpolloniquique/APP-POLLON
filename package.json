@@ -14,7 +14,7 @@
     "cap:sync": "npm run build && npx cap sync",
     "cap:android": "npm run build && npx cap sync android && npx cap open android",
     "build:apk": "npm run build && npx cap sync android",
-    "build:apk:debug": "npm run build && npx cap sync android && cd android && gradlew.bat assembleDebug",
+    "build:apk:debug": "npm run build && npx cap sync android && cd android && gradlew.bat assembleDebug && cd .. && node scripts/copy-driver-apk.mjs",
     "copy:apk": "node scripts/copy-driver-apk.mjs"
   },
   "dependencies": {

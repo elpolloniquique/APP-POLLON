@@ -50,17 +50,20 @@ Release firmado (producción):
 ```
 Requiere keystore. No subir keystores al git.
 
-## Firebase / FCM (push con app killada)
-1. Crear proyecto Firebase → app Android `cl.elpollon.app`
-2. Descargar `google-services.json` → `android/app/google-services.json`
-3. En Vercel: variable `FCM_SERVER_KEY` (clave del servidor FCM legacy) o migrar a HTTP v1
-4. `npx cap sync android` + rebuild APK
+## Firebase / FCM (push con app killada) — HTTP v1 (recomendado)
 
-Sin `google-services.json` el GPS y el gate funcionan; el push con app **cerrada** puede no llegar.
+Firebase ya no muestra **Server key** (Legacy desactivado). Usa **cuenta de servicio**:
 
-## Variables Vercel
-- Ya usadas: Supabase + VAPID (Web Push)
-- Nueva: `FCM_SERVER_KEY` (opcional pero recomendada)
+1. Firebase → ⚙️ Project settings → pestaña **Service accounts** / **Cuentas de servicio**
+2. **Generate new private key** / **Generar nueva clave privada** → Download JSON
+3. En Vercel → Environment Variables:
+   - Key: `FIREBASE_SERVICE_ACCOUNT_JSON`
+   - Value: **todo el contenido del JSON** (una sola línea / pegado completo)
+   - Production → Save → Redeploy
+4. `google-services.json` ya debe estar en `android/app/`
+5. Rebuild APK e instalar
+
+Opcional (legado): `FCM_SERVER_KEY` si algún día habilitas Legacy.
 
 > Plan Hobby: el cron de re-oferta en Vercel solo puede ser **1×/día**.
 > El reintento en vivo lo hacen **Pedidos / Despacho** en el admin (cada ~20s).

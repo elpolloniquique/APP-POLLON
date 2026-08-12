@@ -3,18 +3,21 @@
  * POST /api/notify-driver-offers  Body: { jobId }
  *
  * Prioridad:
- *  1) FCM nativo (ep_driver_fcm_tokens) si FCM_SERVER_KEY está en env
- *  2) Web Push (VAPID) fallback
+ *  1) FCM HTTP v1 (FIREBASE_SERVICE_ACCOUNT_JSON)  ← recomendado
+ *  2) FCM legacy (FCM_SERVER_KEY) si aún existe
+ *  3) Web Push (VAPID) fallback
  *
  * Env:
  *   SUPABASE_URL / VITE_SUPABASE_URL
  *   SUPABASE_ANON_KEY / VITE_SUPABASE_ANON_KEY
  *   SUPABASE_SERVICE_ROLE_KEY
  *   VITE_VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT
- *   FCM_SERVER_KEY (opcional — Firebase Cloud Messaging legacy HTTP)
+ *   FIREBASE_SERVICE_ACCOUNT_JSON (JSON completo de la cuenta de servicio)
+ *   FCM_SERVER_KEY (opcional — legacy)
  */
 import { createClient } from '@supabase/supabase-js';
 import webpush from 'web-push';
+import crypto from 'node:crypto';
 
 function moneyCLP(n) {
   try {
@@ -41,7 +44,121 @@ function env(...keys) {
   return '';
 }
 
-async function sendFcm(token, { title, body, data }) {
+function b64url(input) {
+  return Buffer.from(input)
+    .toString('base64')
+    .replace(/=/g, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_');
+}
+
+function parseServiceAccount() {
+  const raw = env('FIREBASE_SERVICE_ACCOUNT_JSON', 'GOOGLE_SERVICE_ACCOUNT_JSON');
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    try {
+      return JSON.parse(Buffer.from(raw, 'base64').toString('utf8'));
+    } catch {
+      return null;
+    }
+  }
+}
+
+let cachedAccessToken = { value: '', exp: 0 };
+
+async function getFirebaseAccessToken(sa) {
+  const now = Math.floor(Date.now() / 1000);
+  if (cachedAccessToken.value && cachedAccessToken.exp > now + 60) {
+    return cachedAccessToken.value;
+  }
+
+  const header = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
+  const claim = b64url(JSON.stringify({
+    iss: sa.client_email,
+    sub: sa.client_email,
+    aud: 'https://oauth2.googleapis.com/token',
+    iat: now,
+    exp: now + 3600,
+    scope: 'https://www.googleapis.com/auth/firebase.messaging',
+  }));
+  const unsigned = `${header}.${claim}`;
+  const signer = crypto.createSign('RSA-SHA256');
+  signer.update(unsigned);
+  signer.end();
+  const signature = signer.sign(sa.private_key).toString('base64')
+    .replace(/=/g, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_');
+  const jwt = `${unsigned}.${signature}`;
+
+  const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion: jwt,
+    }),
+  });
+  const tokenJson = await tokenRes.json().catch(() => ({}));
+  if (!tokenRes.ok || !tokenJson.access_token) {
+    throw new Error(tokenJson.error_description || tokenJson.error || 'No se pudo obtener access token FCM');
+  }
+  cachedAccessToken = {
+    value: tokenJson.access_token,
+    exp: now + Number(tokenJson.expires_in || 3600),
+  };
+  return cachedAccessToken.value;
+}
+
+async function sendFcmV1(sa, deviceToken, { title, body, data }) {
+  const accessToken = await getFirebaseAccessToken(sa);
+  const projectId = sa.project_id;
+  const res = await fetch(
+    `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: {
+          token: deviceToken,
+          notification: { title, body },
+          data: Object.fromEntries(
+            Object.entries({
+              ...data,
+              title,
+              body,
+            }).map(([k, v]) => [k, String(v ?? '')]),
+          ),
+          android: {
+            priority: 'HIGH',
+            notification: {
+              channelId: 'pollon_driver_offers',
+              sound: 'default',
+              default_vibrate_timings: true,
+              notification_priority: 'PRIORITY_MAX',
+              tag: data.tag || 'pollon-offer',
+            },
+          },
+        },
+      }),
+    },
+  );
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const status = json?.error?.status || '';
+    const notRegistered = /NOT_FOUND|UNREGISTERED/i.test(status)
+      || /Requested entity was not found/i.test(json?.error?.message || '');
+    return { ok: false, status: res.status, json, notRegistered };
+  }
+  return { ok: true, json };
+}
+
+async function sendFcmLegacy(token, { title, body, data }) {
   const key = env('FCM_SERVER_KEY', 'FIREBASE_SERVER_KEY');
   if (!key || !token) return { ok: false, reason: 'no_key' };
 
@@ -72,9 +189,22 @@ async function sendFcm(token, { title, body, data }) {
 
   const json = await res.json().catch(() => ({}));
   if (!res.ok || json.failure === 1) {
-    return { ok: false, status: res.status, json };
+    return {
+      ok: false,
+      status: res.status,
+      json,
+      notRegistered: json?.results?.[0]?.error === 'NotRegistered',
+    };
   }
   return { ok: true, json };
+}
+
+async function sendFcm(deviceToken, payload) {
+  const sa = parseServiceAccount();
+  if (sa?.client_email && sa?.private_key && sa?.project_id) {
+    return sendFcmV1(sa, deviceToken, payload);
+  }
+  return sendFcmLegacy(deviceToken, payload);
 }
 
 export default async function handler(req, res) {
@@ -91,7 +221,11 @@ export default async function handler(req, res) {
   const vapidPublic = env('VITE_VAPID_PUBLIC_KEY', 'VAPID_PUBLIC_KEY');
   const vapidPrivate = env('VAPID_PRIVATE_KEY');
   const vapidSubject = env('VAPID_SUBJECT', 'mailto:contacto@el-pollon.cl');
-  const hasFcm = Boolean(env('FCM_SERVER_KEY', 'FIREBASE_SERVER_KEY'));
+  const sa = parseServiceAccount();
+  const hasFcm = Boolean(
+    (sa?.client_email && sa?.private_key && sa?.project_id)
+    || env('FCM_SERVER_KEY', 'FIREBASE_SERVER_KEY'),
+  );
 
   if (!supabaseUrl || !anonKey || !serviceKey) {
     return res.status(500).json({ error: 'Faltan vars Supabase (URL, ANON, SERVICE_ROLE)' });
@@ -145,7 +279,6 @@ export default async function handler(req, res) {
   const staleWeb = [];
   const staleFcm = [];
 
-  // 1) FCM nativo
   if (hasFcm) {
     const { data: fcmRows } = await admin
       .from('ep_driver_fcm_tokens')
@@ -162,24 +295,26 @@ export default async function handler(req, res) {
         const name = job.customer_name || 'Cliente';
         const title = 'El Pollón · Nuevo pedido';
         const bodyText = `Pedido Nº ${ticket} · ${name} · Delivery ${moneyCLP(fee)}`;
-        const result = await sendFcm(row.token, {
-          title,
-          body: bodyText,
-          data: {
-            type: 'driver_offer',
-            offerId: String(offer.id),
-            jobId: String(jobId),
-            deepLink: '/repartidor',
-            url: '/repartidor',
-            tag: `pollon-offer-${offer.id}`,
-            badgeCount: '1',
-          },
-        });
-        if (result.ok) fcmSent += 1;
-        else if (result.json?.results?.[0]?.error === 'NotRegistered') {
-          staleFcm.push(row.id);
+        try {
+          const result = await sendFcm(row.token, {
+            title,
+            body: bodyText,
+            data: {
+              type: 'driver_offer',
+              offerId: String(offer.id),
+              jobId: String(jobId),
+              deepLink: '/repartidor',
+              url: '/repartidor',
+              tag: `pollon-offer-${offer.id}`,
+              badgeCount: '1',
+            },
+          });
+          if (result.ok) fcmSent += 1;
+          else if (result.notRegistered) staleFcm.push(row.id);
+        } catch (err) {
+          console.warn('[Pollón] FCM send:', err?.message || err);
         }
-      })
+      }),
     );
 
     if (staleFcm.length) {
@@ -187,7 +322,6 @@ export default async function handler(req, res) {
     }
   }
 
-  // 2) Web Push fallback
   if (vapidPublic && vapidPrivate) {
     const { data: subs } = await admin
       .from('ep_driver_push_subscriptions')
@@ -218,14 +352,14 @@ export default async function handler(req, res) {
             await webpush.sendNotification(
               { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
               payload,
-              { urgency: 'high', TTL: 86400 }
+              { urgency: 'high', TTL: 86400 },
             );
             webSent += 1;
           } catch (err) {
             const code = err?.statusCode;
             if (code === 404 || code === 410) staleWeb.push(sub.id);
           }
-        })
+        }),
       );
       if (staleWeb.length) {
         await admin.from('ep_driver_push_subscriptions').delete().in('id', staleWeb);
@@ -240,5 +374,6 @@ export default async function handler(req, res) {
     webSent,
     offers: offers.length,
     fcmConfigured: hasFcm,
+    fcmMode: sa?.project_id ? 'http_v1' : (env('FCM_SERVER_KEY') ? 'legacy' : 'none'),
   });
 }
