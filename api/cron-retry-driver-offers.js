@@ -1,17 +1,11 @@
 /**
- * Cron Vercel: re-oferta jobs sin aceptación (cada 1–3 min) + FCM/Web Push.
- * Vars: SUPABASE_SERVICE_ROLE_KEY, VITE_SUPABASE_URL, VAPID_*, FCM_SERVER_KEY, CRON_SECRET
+ * Cron Vercel: re-oferta jobs sin aceptación + FCM/Web Push.
+ * Vars: SUPABASE_SERVICE_ROLE_KEY, VITE_SUPABASE_URL, VAPID_*,
+ *       FIREBASE_SERVICE_ACCOUNT_JSON (o FCM_SERVER_KEY), CRON_SECRET
  */
 import { createClient } from '@supabase/supabase-js';
 import webpush from 'web-push';
-
-function env(...keys) {
-  for (const k of keys) {
-    const v = process.env[k];
-    if (v) return v;
-  }
-  return '';
-}
+import { env, sendFcm, isFcmConfigured, fcmModeLabel } from './_lib/fcmSend.js';
 
 function ticketShort(code) {
   const s = String(code || '').replace(/^0+/, '');
@@ -28,34 +22,6 @@ function moneyCLP(n) {
   } catch {
     return `$${Math.round(Number(n) || 0)}`;
   }
-}
-
-async function sendFcm(token, { title, body, data }) {
-  const key = env('FCM_SERVER_KEY', 'FIREBASE_SERVER_KEY');
-  if (!key || !token) return { ok: false };
-  const res = await fetch('https://fcm.googleapis.com/fcm/send', {
-    method: 'POST',
-    headers: {
-      Authorization: `key=${key}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      to: token,
-      priority: 'high',
-      content_available: true,
-      notification: {
-        title,
-        body,
-        sound: 'default',
-        click_action: 'FCM_PLUGIN_ACTIVITY',
-        tag: data.tag || 'pollon-offer',
-      },
-      data: { ...data, title, body },
-    }),
-  });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok || json.failure === 1) return { ok: false, json };
-  return { ok: true, json };
 }
 
 export default async function handler(req, res) {
@@ -92,9 +58,10 @@ export default async function handler(req, res) {
   const jobIds = data?.job_ids || [];
   const vapidPublic = env('VITE_VAPID_PUBLIC_KEY', 'VAPID_PUBLIC_KEY');
   const vapidPrivate = env('VAPID_PRIVATE_KEY');
-  const hasFcm = Boolean(env('FCM_SERVER_KEY', 'FIREBASE_SERVER_KEY'));
+  const hasFcm = isFcmConfigured();
   let fcmSent = 0;
   let webSent = 0;
+  const staleFcm = [];
 
   for (const jobId of jobIds) {
     const { data: offers } = await admin
@@ -117,19 +84,24 @@ export default async function handler(req, res) {
         if (!offer) continue;
         const job = offer.ep_delivery_jobs || {};
         const fee = offer.offered_fee ?? job.delivery_fee ?? 0;
-        const result = await sendFcm(row.token, {
-          title: 'El Pollón · Nuevo pedido',
-          body: `#${ticketShort(job.ticket_code)} · ${job.customer_name || 'Cliente'} · ${moneyCLP(fee)} (reintento)`,
-          data: {
-            type: 'driver_offer',
-            offerId: String(offer.id),
-            jobId: String(jobId),
-            deepLink: '/repartidor',
-            url: '/repartidor',
-            tag: `pollon-offer-${offer.id}`,
-          },
-        });
-        if (result.ok) fcmSent += 1;
+        try {
+          const result = await sendFcm(row.token, {
+            title: 'El Pollón · Nuevo pedido',
+            body: `#${ticketShort(job.ticket_code)} · ${job.customer_name || 'Cliente'} · ${moneyCLP(fee)} (reintento)`,
+            data: {
+              type: 'driver_offer',
+              offerId: String(offer.id),
+              jobId: String(jobId),
+              deepLink: '/repartidor',
+              url: '/repartidor',
+              tag: `pollon-offer-${offer.id}`,
+            },
+          });
+          if (result.ok) fcmSent += 1;
+          else if (result.notRegistered) staleFcm.push(row.id);
+        } catch (err) {
+          console.warn('[Pollón] cron FCM:', err?.message || err);
+        }
       }
     }
 
@@ -137,7 +109,7 @@ export default async function handler(req, res) {
       webpush.setVapidDetails(
         env('VAPID_SUBJECT', 'mailto:contacto@el-pollon.cl'),
         vapidPublic,
-        vapidPrivate
+        vapidPrivate,
       );
       const { data: subs } = await admin
         .from('ep_driver_push_subscriptions')
@@ -159,7 +131,7 @@ export default async function handler(req, res) {
               tag: `pollon-offer-${offer.id}`,
               type: 'driver_offer',
             }),
-            { urgency: 'high', TTL: 86400 }
+            { urgency: 'high', TTL: 86400 },
           );
           webSent += 1;
         } catch {
@@ -167,6 +139,10 @@ export default async function handler(req, res) {
         }
       }
     }
+  }
+
+  if (staleFcm.length) {
+    await admin.from('ep_driver_fcm_tokens').delete().in('id', staleFcm);
   }
 
   return res.status(200).json({
@@ -177,5 +153,6 @@ export default async function handler(req, res) {
     webSent,
     pushed: fcmSent + webSent,
     fcmConfigured: hasFcm,
+    fcmMode: fcmModeLabel(),
   });
 }

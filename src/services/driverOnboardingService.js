@@ -199,11 +199,11 @@ export async function completeDriverLiveTrackingSetup(userId) {
   await ensureDriverPushSubscription().catch(() => {});
   const notif = getNotificationPermission();
   if (notif !== 'granted') {
-    try {
-      localStorage.setItem('pollon_native_notif_ok', '1');
-    } catch {
-      /* ignore */
-    }
+    return {
+      ok: false,
+      error: 'Activa las notificaciones para recibir pedidos con la pantalla apagada.',
+      needsNotif: true,
+    };
   }
 
   const gps = await requestAlwaysLocationPermission();

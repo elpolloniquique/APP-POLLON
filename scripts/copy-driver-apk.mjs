@@ -3,8 +3,12 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const outDir = join(root, 'public', 'DESCARGAR-APK');
-const dest = join(outDir, 'El-Pollon-repartidor.apk');
+const workspaceRoot = join(root, '..');
+const outDirs = [
+  join(root, 'public', 'DESCARGAR-APK'),
+  join(workspaceRoot, 'DESCARGAR-APK'),
+];
+const fileName = 'El-Pollon-repartidor.apk';
 
 const candidates = [
   join(root, 'android', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk'),
@@ -37,8 +41,11 @@ if (!src) {
   process.exit(1);
 }
 
-mkdirSync(outDir, { recursive: true });
-copyFileSync(src, dest);
 console.log('[copy-driver-apk] OK');
 console.log('  from:', src);
-console.log('  to:  ', dest);
+for (const outDir of outDirs) {
+  mkdirSync(outDir, { recursive: true });
+  const dest = join(outDir, fileName);
+  copyFileSync(src, dest);
+  console.log('  to:  ', dest);
+}

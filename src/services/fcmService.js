@@ -55,9 +55,31 @@ export async function upsertMyFcmToken(token) {
   return data;
 }
 
+const OFFER_CHANNEL_ID = 'pollon_driver_offers';
+
+async function ensureOfferNotificationChannel(PushNotifications) {
+  if (!PushNotifications?.createChannel) return;
+  try {
+    await PushNotifications.createChannel({
+      id: OFFER_CHANNEL_ID,
+      name: 'Ofertas El Pollón',
+      description: 'Pedidos nuevos para repartidores',
+      importance: 5,
+      visibility: 1,
+      sound: 'default',
+      vibration: true,
+      lights: true,
+    });
+  } catch (err) {
+    console.warn('[Pollón][DriverNative] createChannel:', err?.message || err);
+  }
+}
+
 export async function registerNativePushHandlers({ onOffer } = {}) {
   const PushNotifications = await getPushPlugin();
   if (!PushNotifications) return { ok: false, reason: 'no_plugin' };
+
+  await ensureOfferNotificationChannel(PushNotifications);
 
   if (!listenersBound) {
     listenersBound = true;
@@ -134,13 +156,17 @@ export async function ensureNativePushRegistration(opts = {}) {
     /* ignore */
   }
 
-  try {
-    localStorage.setItem('pollon_native_notif_ok', '1');
-  } catch {
-    /* ignore */
+  // Solo marcar OK si ya hay token FCM (registration async puede llegar después)
+  const tokenNow = lastToken || getCachedFcmToken();
+  if (tokenNow) {
+    try {
+      localStorage.setItem('pollon_native_notif_ok', '1');
+    } catch {
+      /* ignore */
+    }
   }
 
-  return { ok: true, permission: perm, token: lastToken || null };
+  return { ok: true, permission: perm, token: tokenNow || null };
 }
 
 export async function getNativeNotificationPermissionState() {

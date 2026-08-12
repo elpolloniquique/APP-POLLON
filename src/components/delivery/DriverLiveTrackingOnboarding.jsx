@@ -113,16 +113,17 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
       const res = await ensureNativePushRegistration();
       if (res.reason === 'denied') {
         setMsg('Debes permitir notificaciones en Ajustes del celular.');
-      } else if (res.ok) {
+      } else if (res.ok && res.token) {
+        try { localStorage.setItem('pollon_native_notif_ok', '1'); } catch { /* ignore */ }
         setMsg('Notificaciones listas. Te avisaremos aunque la pantalla esté apagada.');
+      } else if (res.ok) {
+        setMsg('Permiso OK. Espera unos segundos a que Firebase registre el token, o reintenta.');
       } else if (res.permissionGranted) {
         setMsg(
-          'Permiso OK. Para push con app cerrada configura Firebase (google-services.json). Puedes seguir con GPS.'
+          'Permiso OK. Si no llega el token FCM, reinstala la APK con google-services.json. Puedes seguir con GPS.'
         );
-        try { localStorage.setItem('pollon_native_notif_ok', '1'); } catch { /* ignore */ }
       } else {
-        try { localStorage.setItem('pollon_native_notif_ok', '1'); } catch { /* ignore */ }
-        setMsg('Permiso de notificaciones registrado. Continúa con la ubicación.');
+        setMsg(res.error || 'No se pudo registrar push. Revisa permisos e inténtalo de nuevo.');
       }
       await refresh();
     } catch (err) {
