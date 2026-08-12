@@ -62,6 +62,10 @@ Sin `google-services.json` el GPS y el gate funcionan; el push con app **cerrada
 - Ya usadas: Supabase + VAPID (Web Push)
 - Nueva: `FCM_SERVER_KEY` (opcional pero recomendada)
 
+> Plan Hobby: el cron de re-oferta en Vercel solo puede ser **1×/día**.
+> El reintento en vivo lo hacen **Pedidos / Despacho** en el admin (cada ~20s).
+> Para cron cada 1–3 min hace falta plan Pro o un scheduler externo.
+
 ## Checklist dispositivo real
 1. En Chrome `/repartidor` → bloquea y ofrece APK
 2. Instalar APK → login repartidor
