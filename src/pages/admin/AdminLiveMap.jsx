@@ -139,10 +139,25 @@ export function AdminLiveMap() {
   }, [filterBranch]);
 
   useEffect(() => {
-    load();
-    const unsub = subscribeDispatch(() => load());
-    const t = setInterval(load, 5000);
-    return () => { unsub(); clearInterval(t); };
+    let cancelled = false;
+    let debounceTimer = null;
+    const safeLoad = () => {
+      if (cancelled) return;
+      load();
+    };
+    const debouncedLoad = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(safeLoad, 400);
+    };
+    safeLoad();
+    const unsub = subscribeDispatch(() => debouncedLoad());
+    const t = setInterval(safeLoad, 10000);
+    return () => {
+      cancelled = true;
+      unsub();
+      clearInterval(t);
+      if (debounceTimer) clearTimeout(debounceTimer);
+    };
   }, [load]);
 
   const activeBranch = useMemo(() => {
@@ -220,6 +235,8 @@ export function AdminLiveMap() {
     (async () => {
       const next = { ...destByDriver };
       let changed = false;
+      const toResolve = [];
+
       for (const d of driverGroups) {
         if (!isDeliveryPhase(d.phase)) continue;
         const job = deliveryJobOf(d);
@@ -236,14 +253,25 @@ export function AdminLiveMap() {
           continue;
         }
         if (existing?.source === 'geocode') continue;
-        const dest = await resolveCustomerDestination(job);
+        toResolve.push({ key, job });
+      }
+
+      if (toResolve.length) {
+        const resolved = await Promise.all(
+          toResolve.map(async ({ key, job }) => {
+            const dest = await resolveCustomerDestination(job);
+            return { key, dest };
+          }),
+        );
         if (cancelled) return;
-        if (dest) {
-          next[key] = dest;
-          changed = true;
+        for (const { key, dest } of resolved) {
+          if (dest) {
+            next[key] = dest;
+            changed = true;
+          }
         }
       }
-      // limpiar drivers que ya no están en delivery
+
       const liveIds = new Set(driverGroups.filter((d) => isDeliveryPhase(d.phase)).map((d) => d.driverId));
       for (const id of Object.keys(next)) {
         if (!liveIds.has(id)) {
@@ -274,24 +302,33 @@ export function AdminLiveMap() {
     arrivalRadiusM,
   });
 
-  // ETA via OSRM (async, cached in state)
+  // ETA via OSRM (async, en paralelo)
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      const jobs = driverGroups
+        .filter((d) => d.hasGps)
+        .map((d) => {
+          const to = isPickupPhase(d.phase)
+            ? store
+            : (destByDriver[d.driverId] || null);
+          if (!to || !isValidLatLng(to.lat, to.lng)) return null;
+          return { id: d.driverId, from: { lat: d.lat, lng: d.lng }, to };
+        })
+        .filter(Boolean);
+
+      const results = await Promise.all(
+        jobs.map(async (j) => {
+          const route = await fetchOsrmRoute(j.from, j.to);
+          return { id: j.id, min: route?.durationMin };
+        }),
+      );
+      if (cancelled) return;
       const next = {};
-      for (const d of driverGroups) {
-        if (!d.hasGps) continue;
-        const to = isPickupPhase(d.phase)
-          ? store
-          : (destByDriver[d.driverId] || null);
-        if (!to || !isValidLatLng(to.lat, to.lng)) continue;
-        const route = await fetchOsrmRoute({ lat: d.lat, lng: d.lng }, to);
-        if (cancelled) return;
-        if (route?.durationMin != null) {
-          next[d.driverId] = Math.max(1, Math.round(route.durationMin));
-        }
+      for (const r of results) {
+        if (r.min != null) next[r.id] = Math.max(1, Math.round(r.min));
       }
-      if (!cancelled) setEtas(next);
+      setEtas(next);
     })();
     return () => { cancelled = true; };
   }, [driverGroups, store, destByDriver]);

@@ -138,10 +138,50 @@ export function isBackendReady() {
   return backendReady && isSupabaseConfigured();
 }
 
+/** Ventana operativa del panel: evita bajar todo el historial (causa principal de lentitud). */
+const ADMIN_ORDERS_WINDOW_DAYS = 45;
+const ADMIN_ORDERS_LIMIT = 500;
+const OPEN_ORDER_STATES = [
+  'pendiente',
+  'aceptado',
+  'confirmado',
+  'preparando',
+  'en_cocina',
+  'listo',
+  'en_delivery',
+];
+
 async function fetchAll(sb) {
-  const { data, error } = await sb.from('pedidos').select('*').order('creado_en', { ascending: false });
-  if (error) throw error;
-  return (data || []).map(rowToOrder);
+  const cutoff = new Date();
+  cutoff.setUTCDate(cutoff.getUTCDate() - ADMIN_ORDERS_WINDOW_DAYS);
+  const cutoffIso = cutoff.toISOString();
+
+  const [recentRes, openRes] = await Promise.all([
+    sb
+      .from('pedidos')
+      .select('*')
+      .gte('creado_en', cutoffIso)
+      .order('creado_en', { ascending: false })
+      .limit(ADMIN_ORDERS_LIMIT),
+    sb
+      .from('pedidos')
+      .select('*')
+      .in('estado', OPEN_ORDER_STATES)
+      .lt('creado_en', cutoffIso)
+      .order('creado_en', { ascending: false })
+      .limit(100),
+  ]);
+
+  if (recentRes.error) throw recentRes.error;
+  if (openRes.error) {
+    console.warn('[Pollón] open orders fetch:', openRes.error.message);
+  }
+
+  const byId = new Map();
+  for (const row of [...(openRes.data || []), ...(recentRes.data || [])]) {
+    if (row?.id) byId.set(row.id, row);
+  }
+  return [...byId.values()].map(rowToOrder);
 }
 
 /** Comprueba conexión con Supabase (no depende de haber abierto el panel admin antes) */
@@ -238,12 +278,13 @@ function startPollingFallback(sb) {
   if (pollTimer) return;
   pollTimer = setInterval(() => {
     if (!backendReady || !sb) return;
-    const stale = Date.now() - lastRealtimeAt > 10000;
+    // Solo poll completo si Realtime está caído o hace mucho sin eventos
     const disconnected = realtimeConnectionStatus !== 'SUBSCRIBED';
-    if (stale || disconnected) {
+    const stale = Date.now() - lastRealtimeAt > 25000;
+    if (disconnected || stale) {
       refreshFromServer(sb).catch((e) => console.warn('[Pollón] poll refresh:', e));
     }
-  }, 8000);
+  }, 15000);
 }
 
 function subscribeRealtime(sb) {

@@ -4,6 +4,8 @@ import { playNewOrderAlert } from '../utils/orderAlertSound';
 
 export { playNewOrderAlert, playNewOrderBeep } from '../utils/orderAlertSound';
 
+const FOCUS_REFRESH_MIN_MS = 90_000;
+
 export function useOrders(options = {}) {
   const { alarmEnabled = false } = options;
   const [orders, setOrders] = useState([]);
@@ -12,6 +14,7 @@ export function useOrders(options = {}) {
   const prevIds = useRef(new Set());
   const initialLoad = useRef(true);
   const alarmEnabledRef = useRef(alarmEnabled);
+  const lastFocusRefresh = useRef(0);
 
   alarmEnabledRef.current = alarmEnabled;
 
@@ -31,6 +34,14 @@ export function useOrders(options = {}) {
   useEffect(() => {
     const refreshOnFocus = () => {
       if (document.visibilityState !== 'visible') return;
+      const now = Date.now();
+      if (now - lastFocusRefresh.current < FOCUS_REFRESH_MIN_MS) return;
+      // Si Realtime está vivo, no hace falta bajar todo el listado al volver a la pestaña
+      if (orderService.isBackendReady() && realtimeStatus === 'live') {
+        lastFocusRefresh.current = now;
+        return;
+      }
+      lastFocusRefresh.current = now;
       orderService.fetchOrdersAdmin().then((list) => {
         sync(list, { realtimeStatus: orderService.isBackendReady() ? 'live' : 'local' });
       });
@@ -41,7 +52,7 @@ export function useOrders(options = {}) {
       document.removeEventListener('visibilitychange', refreshOnFocus);
       window.removeEventListener('focus', refreshOnFocus);
     };
-  }, [sync]);
+  }, [sync, realtimeStatus]);
 
   useEffect(() => {
     if (!ready) return;

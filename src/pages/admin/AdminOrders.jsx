@@ -181,7 +181,7 @@ export function AdminOrders() {
   useEffect(() => {
     refreshDelivery();
     fetchDriverNamesForFilter().then(setDriverNames).catch(() => {});
-    const t = setInterval(refreshDelivery, 8000);
+    const t = setInterval(refreshDelivery, 12000);
     return () => clearInterval(t);
   }, [refreshDelivery]);
 
@@ -213,46 +213,64 @@ export function AdminOrders() {
   }, [ready, refreshDelivery]);
 
   useEffect(() => {
+    const syncing = new Set();
+    const tasks = [];
+    const doneKey = (id, estado) => `${id}:${estado}`;
+
     for (const o of ordersScoped) {
       const info = deliveryMap[o.id];
       if (!info?.jobStatus) continue;
       const st = info.jobStatus;
       const cur = o.estado;
+      let nextEstado = null;
+      let next = null;
 
-      // Repartidor aceptó → Aceptado
       if (cur === 'pendiente' && (st === 'assigned' || st === 'heading_to_branch') && info.driverId) {
-        updateOrder({
+        nextEstado = 'aceptado';
+        next = {
           ...o,
           estado: 'aceptado',
           trackingMode: 'live_map',
           driverAcceptedAt: new Date().toISOString(),
-        }).then(refresh);
-        continue;
-      }
-
-      // Pedido recogido / en camino al cliente → En reparto
-      if (
+        };
+      } else if (
         (st === 'picked_up' || st === 'delivering')
         && !['en_delivery', 'entregado', 'cancelado'].includes(cur)
       ) {
-        updateOrder({
+        nextEstado = 'en_delivery';
+        next = {
           ...o,
           estado: 'en_delivery',
           trackingMode: o.trackingMode || 'live_map',
           pickedUpAt: new Date().toISOString(),
-        }).then(refresh);
-        continue;
-      }
-
-      // Entregado en job → Entregado en pedido
-      if (st === 'delivered' && cur !== 'entregado' && cur !== 'cancelado') {
-        updateOrder({
+        };
+      } else if (st === 'delivered' && cur !== 'entregado' && cur !== 'cancelado') {
+        nextEstado = 'entregado';
+        next = {
           ...o,
           estado: 'entregado',
           deliveredAt: new Date().toISOString(),
-        }).then(refresh);
+        };
       }
+
+      if (!next || !nextEstado) continue;
+      const key = doneKey(o.id, nextEstado);
+      if (syncing.has(key) || autoDispatchedRef.current.has(`sync:${key}`)) continue;
+      syncing.add(key);
+      autoDispatchedRef.current.add(`sync:${key}`);
+      tasks.push(updateOrder(next));
     }
+
+    if (!tasks.length) return undefined;
+
+    let cancelled = false;
+    Promise.allSettled(tasks).then((results) => {
+      if (cancelled) return;
+      const ok = results.some((r) => r.status === 'fulfilled');
+      if (ok) refresh();
+    });
+
+    return () => { cancelled = true; };
   }, [deliveryMap, ordersScoped, updateOrder, refresh]);
 
   const todayCount = useMemo(

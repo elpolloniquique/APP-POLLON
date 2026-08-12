@@ -220,11 +220,11 @@ export function subscribeOrderUpdates(orderId, onUpdate) {
 }
 
 /** Admin: listar clientes */
-export async function adminListCustomers({ branchId, search, acceptsPromotions } = {}) {
+export async function adminListCustomers({ branchId, search, acceptsPromotions, limit = 120 } = {}) {
   let q = sb().from('profiles').select(`
-    *,
+    id, full_name, email, phone, is_active, created_at,
     customer_marketing_preferences(accepts_email_promotions, accepts_whatsapp_promotions)
-  `).eq('role', ROLES.CLIENTE).order('created_at', { ascending: false });
+  `).eq('role', ROLES.CLIENTE).order('created_at', { ascending: false }).limit(limit);
 
   if (search) {
     q = q.or(`full_name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`);
@@ -265,7 +265,8 @@ async function adminCustomerOrderCountsByBranch(branchId) {
     .from('pedidos')
     .select('customer_id')
     .eq('branch_id', branchId)
-    .not('customer_id', 'is', null);
+    .not('customer_id', 'is', null)
+    .limit(2000);
   const counts = {};
   (data || []).forEach((r) => {
     if (r.customer_id) counts[r.customer_id] = (counts[r.customer_id] || 0) + 1;

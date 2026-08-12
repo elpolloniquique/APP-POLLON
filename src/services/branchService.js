@@ -89,23 +89,56 @@ export async function loadBranches(includeInactive = false) {
   return DEFAULT_BRANCHES.filter((b) => includeInactive || !b.comingSoon);
 }
 
-export async function adminListAllBranches() {
+let adminBranchesCache = null;
+let adminBranchesCacheAt = 0;
+let adminBranchesInflight = null;
+const ADMIN_BRANCHES_TTL_MS = 60_000;
+
+/** Invalida caché tras crear/editar/borrar sucursales. */
+export function invalidateAdminBranchesCache() {
+  adminBranchesCache = null;
+  adminBranchesCacheAt = 0;
+  adminBranchesInflight = null;
+}
+
+export async function adminListAllBranches({ force = false } = {}) {
   if (!isSupabaseConfigured()) return DEFAULT_BRANCHES;
-  try {
-    const sb = getSupabase();
-    const { data, error } = await sb.from('branches').select('*').order('display_order', { ascending: true });
-    if (error) throw error;
-    if (data?.length) {
-      const mapped = data.map(mapBranch);
-      return [
-        ...mapped.filter((b) => b.isActive),
-        ...mapped.filter((b) => !b.isActive),
-      ];
-    }
-  } catch (e) {
-    console.warn(e);
+
+  const now = Date.now();
+  if (!force && adminBranchesCache && now - adminBranchesCacheAt < ADMIN_BRANCHES_TTL_MS) {
+    return adminBranchesCache;
   }
-  return loadBranches(true);
+  if (!force && adminBranchesInflight) return adminBranchesInflight;
+
+  adminBranchesInflight = (async () => {
+    try {
+      const sb = getSupabase();
+      const { data, error } = await sb.from('branches').select('*').order('display_order', { ascending: true });
+      if (error) throw error;
+      if (data?.length) {
+        const mapped = data.map(mapBranch);
+        const list = [
+          ...mapped.filter((b) => b.isActive),
+          ...mapped.filter((b) => !b.isActive),
+        ];
+        adminBranchesCache = list;
+        adminBranchesCacheAt = Date.now();
+        return list;
+      }
+    } catch (e) {
+      console.warn(e);
+    }
+    const fallback = await loadBranches(true);
+    adminBranchesCache = fallback;
+    adminBranchesCacheAt = Date.now();
+    return fallback;
+  })();
+
+  try {
+    return await adminBranchesInflight;
+  } finally {
+    adminBranchesInflight = null;
+  }
 }
 
 async function nextBranchDisplayOrder(sb) {
@@ -152,6 +185,7 @@ export async function adminSetBranchActive(branchId, isActive, user) {
     oldData: { is_active: existing.is_active, display_order: existing.display_order },
     newData: patch,
   });
+  invalidateAdminBranchesCache();
   return mapBranch(data);
 }
 
@@ -208,6 +242,7 @@ export async function adminSaveBranch(branch, user) {
   const { data, error } = await sb.from('branches').upsert(row).select().single();
   if (error) throw error;
   await logAudit({ user, branchId: data.id, entityType: 'branch', entityId: data.id, action: branch.id ? 'update' : 'create', newData: data });
+  invalidateAdminBranchesCache();
   return mapBranch(data);
 }
 
@@ -233,6 +268,7 @@ export async function adminDeleteBranch(branchId, user) {
     action: 'delete',
     oldData: branch,
   });
+  invalidateAdminBranchesCache();
   return branch;
 }
 

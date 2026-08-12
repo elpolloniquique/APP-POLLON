@@ -92,15 +92,11 @@ export function AdminDispatch() {
       const deliveryReady = orders.filter(
         (o) => o.orderType === 'delivery' && ['listo', 'preparando', 'confirmado', 'en_cocina', 'en_delivery'].includes(o.estado)
       );
-      let n = 0;
-      for (const o of deliveryReady.slice(0, 30)) {
-        try {
-          await upsertJobFromOrder(o.id);
-          n += 1;
-        } catch {
-          /* pedido sin tabla o sin permisos */
-        }
-      }
+      const batch = deliveryReady.slice(0, 30);
+      const results = await Promise.allSettled(
+        batch.map((o) => upsertJobFromOrder(o.id)),
+      );
+      const n = results.filter((r) => r.status === 'fulfilled').length;
       setMsg(`Sincronizados ${n} pedidos delivery → cola de despacho`);
       await load();
     } catch (err) {

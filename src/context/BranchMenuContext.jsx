@@ -1,4 +1,5 @@
 import { createContext, useContext, useCallback, useEffect, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useBranch } from './BranchContext';
 import { loadBranchMenu, subscribeBranchMenu } from '../services/menuService';
 import { preloadProductImages } from '../utils/media';
@@ -56,14 +57,20 @@ export function prefetchBranchMenus(branchIds) {
   });
 }
 
+function isStoreSurface(pathname = '') {
+  return !pathname.startsWith('/admin') && !pathname.startsWith('/repartidor');
+}
+
 export function BranchMenuProvider({ children }) {
   const { branch, branches } = useBranch();
+  const { pathname } = useLocation();
+  const storeSurface = isStoreSurface(pathname);
   const branchId = branch?.id ?? null;
 
   const cachedInitial = readCache(branchId) || EMPTY_MENU;
   const [menu, setMenu] = useState(cachedInitial);
   const [menuBranchId, setMenuBranchId] = useState(branchId);
-  const [loading, setLoading] = useState(!readCache(branchId));
+  const [loading, setLoading] = useState(storeSurface && !readCache(branchId));
   const requestRef = useRef(0);
 
   const applyMenu = useCallback((id, data) => {
@@ -72,7 +79,7 @@ export function BranchMenuProvider({ children }) {
   }, []);
 
   const refresh = useCallback(async ({ silent = false } = {}) => {
-    if (!branchId) {
+    if (!storeSurface || !branchId) {
       applyMenu(null, EMPTY_MENU);
       setLoading(false);
       return;
@@ -93,9 +100,16 @@ export function BranchMenuProvider({ children }) {
     } finally {
       if (reqId === requestRef.current) setLoading(false);
     }
-  }, [branchId, applyMenu]);
+  }, [branchId, applyMenu, storeSurface]);
 
   useEffect(() => {
+    if (!storeSurface) {
+      requestRef.current += 1;
+      applyMenu(null, EMPTY_MENU);
+      setLoading(false);
+      return undefined;
+    }
+
     if (!branchId) {
       requestRef.current += 1;
       applyMenu(null, EMPTY_MENU);
@@ -125,13 +139,13 @@ export function BranchMenuProvider({ children }) {
       if (reqId === requestRef.current) requestRef.current += 1;
       unsub();
     };
-  }, [branchId, applyMenu, refresh]);
+  }, [branchId, applyMenu, refresh, storeSurface]);
 
   useEffect(() => {
-    if (!branches?.length) return;
+    if (!storeSurface || !branches?.length) return;
     const others = branches.map((b) => b.id).filter((id) => id && id !== branchId);
     prefetchBranchMenus(others);
-  }, [branches, branchId]);
+  }, [branches, branchId, storeSurface]);
 
   const menuReady = menuBranchId === branchId && !loading;
 

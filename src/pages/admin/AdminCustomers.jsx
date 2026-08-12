@@ -15,6 +15,7 @@ export function AdminCustomers() {
   const { branchName, isBranchScoped } = useStaffBranch();
   const [customers, setCustomers] = useState([]);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterPromo, setFilterPromo] = useState('all');
   const [selected, setSelected] = useState(null);
   const [orders, setOrders] = useState([]);
@@ -22,13 +23,18 @@ export function AdminCustomers() {
 
   const branchId = profile?.branchId || profile?.branch_id;
 
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 320);
+    return () => clearTimeout(t);
+  }, [search]);
+
   const load = async () => {
     if (!isSupabaseConfigured()) return;
     setLoading(true);
     try {
       const list = await adminListCustomers({
         branchId: normalizeRole(role) === 'super_admin' ? undefined : branchId,
-        search: search || undefined,
+        search: debouncedSearch || undefined,
         acceptsPromotions: filterPromo === 'promo' ? true : undefined,
       });
       setCustomers(list);
@@ -39,7 +45,7 @@ export function AdminCustomers() {
     }
   };
 
-  useEffect(() => { load(); }, [search, filterPromo, branchId]);
+  useEffect(() => { load(); }, [debouncedSearch, filterPromo, branchId]);
 
   const viewCustomer = async (c) => {
     setSelected(c);

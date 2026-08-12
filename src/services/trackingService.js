@@ -72,7 +72,8 @@ export async function listLiveLocations() {
   const { data, error } = await sb
     .from('ep_driver_location_latest')
     .select('*')
-    .order('updated_at', { ascending: false });
+    .order('updated_at', { ascending: false })
+    .limit(80);
   if (error) throw new Error(error.message || 'Error GPS en vivo');
 
   const byDriver = await loadDriverCards((data || []).map((r) => r.driver_id));
