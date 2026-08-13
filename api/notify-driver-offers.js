@@ -119,10 +119,12 @@ export default async function handler(req, res) {
         const addr = job.customer_address || '';
         const title = 'El Pollón · Pedido nuevo';
         const bodyText = [
-          `Nº ${ticket} · ${name}`,
-          addr ? addr : null,
-          `Delivery ${moneyCLP(fee)} · 3 min para aceptar`,
-        ].filter(Boolean).join('\n');
+          `Nº ${ticket}`,
+          name,
+          addr || null,
+          `Delivery ${moneyCLP(fee)}`,
+          '3 min para aceptar',
+        ].filter(Boolean).join(' · ');
         try {
           const result = await sendFcm(row.token, {
             title,

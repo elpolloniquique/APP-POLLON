@@ -303,7 +303,7 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
       ok: state.gpsOk,
       icon: MapPin,
       title: 'Ubicación · Permitir todo el tiempo',
-      body: 'Obligatorio “Siempre” para que caja y admin te vean con la pantalla apagada.',
+      body: 'Obligatorio “Siempre”. Acepta también “Sin restricciones de batería” para no perder el GPS al apagar la pantalla o abrir otra app.',
       action: runGps,
       actionLabel: 'Autorizar ubicación',
     },

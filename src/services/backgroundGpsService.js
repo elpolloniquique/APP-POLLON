@@ -7,12 +7,47 @@ import { Capacitor } from '@capacitor/core';
 import { Geolocation } from '@capacitor/geolocation';
 import { BackgroundGeolocation } from '@capgo/background-geolocation';
 import { upsertMyLocation, startGpsWatch } from './trackingService';
+import { getSupabase, isSupabaseConfigured } from './supabaseClient';
+import { getDriverGpsPingUrl } from '../utils/driverNativeConstants';
+
+const PING_TOKEN_KEY = 'pollon_gps_ping_token';
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 let webStop = null;
 let nativeRunning = false;
+let startedWithNativeUrl = false;
 let lastPublishAt = 0;
 let heartbeatTimer = null;
 let onUpdateRef = null;
+
+async function ensureGpsPingToken() {
+  try {
+    const cached = localStorage.getItem(PING_TOKEN_KEY);
+    if (cached && UUID_RE.test(cached)) return cached;
+  } catch {
+    /* ignore */
+  }
+  if (!isSupabaseConfigured()) return null;
+  const sb = getSupabase();
+  if (!sb) return null;
+  try {
+    const { data, error } = await sb.rpc('ep_ensure_my_gps_ping_token');
+    if (error || !data) {
+      console.warn('[Pollón] gps ping token:', error?.message || 'sin token');
+      return null;
+    }
+    const tok = String(data);
+    try {
+      localStorage.setItem(PING_TOKEN_KEY, tok);
+    } catch {
+      /* ignore */
+    }
+    return tok;
+  } catch (err) {
+    console.warn('[Pollón] gps ping token:', err?.message || err);
+    return null;
+  }
+}
 
 function stopHeartbeat() {
   if (heartbeatTimer) {
@@ -296,7 +331,11 @@ export async function startDriverBackgroundGps({ onUpdate, forceRestart = false 
     return perm;
   }
 
-  if (nativeRunning && !forceRestart) {
+  const pingToken = await ensureGpsPingToken();
+  const pingUrl = pingToken ? getDriverGpsPingUrl(pingToken) : null;
+  const needUrlRestart = nativeRunning && !startedWithNativeUrl && Boolean(pingUrl);
+
+  if (nativeRunning && !forceRestart && !needUrlRestart) {
     const first = await getAndPublishCurrentFix({ timeoutMs: 8000 });
     if (first) onUpdateRef?.(first, null);
     startHeartbeat();
@@ -304,6 +343,7 @@ export async function startDriverBackgroundGps({ onUpdate, forceRestart = false 
       ok: true,
       mode: 'native',
       alreadyRunning: true,
+      nativePost: startedWithNativeUrl,
       alwaysOk: perm.alwaysOk !== false,
       firstFix: Boolean(first),
       position: first || null,
@@ -316,41 +356,44 @@ export async function startDriverBackgroundGps({ onUpdate, forceRestart = false 
     const first = await getAndPublishCurrentFix({ timeoutMs: 10000 });
     if (first) onUpdateRef?.(first, null);
 
-    await BackgroundGeolocation.start(
-      {
-        backgroundMessage: 'El Pollón · GPS en vivo (pantalla apagada OK). No cierres la app.',
-        backgroundTitle: 'El Pollón · Rastreo activo',
-        requestPermissions: false,
-        stale: true,
-        // 0 = actualizar aunque el moto esté parado (si no, el mapa “pierde” el pin)
-        distanceFilter: 0,
-      },
-      (location, error) => {
-        if (error) {
-          if (error.code === 'NOT_AUTHORIZED') {
-            onUpdateRef?.(null, new Error('Permiso de ubicación denegado'));
-          } else {
-            onUpdateRef?.(null, new Error(error.message || 'Error GPS nativo'));
-          }
-          return;
+    const startOpts = {
+      backgroundMessage: 'GPS activo aunque apagues la pantalla o abras otra app. No detengas esta notificación.',
+      backgroundTitle: 'El Pollón · En ruta',
+      requestPermissions: false,
+      stale: true,
+      // 0 = actualizar aunque el moto esté parado (si no, el mapa “pierde” el pin)
+      distanceFilter: 0,
+    };
+    // POST nativo: no usa el WebView. Sigue con pantalla apagada / otra app / swipe.
+    if (pingUrl) startOpts.url = pingUrl;
+
+    await BackgroundGeolocation.start(startOpts, (location, error) => {
+      if (error) {
+        if (error.code === 'NOT_AUTHORIZED') {
+          onUpdateRef?.(null, new Error('Permiso de ubicación denegado'));
+        } else {
+          onUpdateRef?.(null, new Error(error.message || 'Error GPS nativo'));
         }
-        if (!location) return;
-        const payload = {
-          lat: location.latitude,
-          lng: location.longitude,
-          heading: location.bearing,
-          speed: location.speed,
-          accuracy: location.accuracy,
-        };
-        onUpdateRef?.(payload, null);
-        void publishNativeFix(location);
+        return;
       }
-    );
+      if (!location) return;
+      const payload = {
+        lat: location.latitude,
+        lng: location.longitude,
+        heading: location.bearing,
+        speed: location.speed,
+        accuracy: location.accuracy,
+      };
+      onUpdateRef?.(payload, null);
+      void publishNativeFix(location);
+    });
     nativeRunning = true;
+    startedWithNativeUrl = Boolean(pingUrl);
     startHeartbeat();
     return {
       ok: true,
       mode: 'native',
+      nativePost: startedWithNativeUrl,
       alwaysOk: perm.alwaysOk !== false,
       needsSettings: Boolean(perm.needsSettings),
       canOpenSettings: Boolean(perm.canOpenSettings),
@@ -358,6 +401,7 @@ export async function startDriverBackgroundGps({ onUpdate, forceRestart = false 
       position: first || null,
     };
   } catch (err) {
+    startedWithNativeUrl = false;
     return { ok: false, error: err?.message || 'No se pudo iniciar GPS en segundo plano' };
   }
 }
@@ -375,6 +419,7 @@ export async function stopDriverBackgroundGps() {
       /* ignore */
     }
     nativeRunning = false;
+    startedWithNativeUrl = false;
   }
 }
 

@@ -103,6 +103,12 @@ export async function registerNativePushHandlers({ onOffer } = {}) {
   if (!PushNotifications) return { ok: false, reason: 'no_plugin' };
 
   await ensureOfferNotificationChannel(PushNotifications);
+  import('./driverTrayNotification.js')
+    .then(({ ensureDriverOfferChannel, bindDriverTrayTap }) => {
+      ensureDriverOfferChannel();
+      bindDriverTrayTap();
+    })
+    .catch(() => {});
 
   if (!listenersBound) {
     listenersBound = true;
@@ -132,6 +138,23 @@ export async function registerNativePushHandlers({ onOffer } = {}) {
           window.dispatchEvent(new CustomEvent('pollon-driver-push', { detail: data }));
         } catch {
           /* ignore */
+        }
+        // App en primer plano: FCM no pone bandeja sola → local tipo WhatsApp
+        if (data.type === 'driver_offer' || data.offerId) {
+          import('./driverTrayNotification.js')
+            .then(({ showDriverOfferTray }) =>
+              showDriverOfferTray({
+                offerId: data.offerId,
+                title: notification?.title || data.title || 'El Pollón · Pedido nuevo',
+                body: notification?.body || data.body,
+                ticket: data.ticket,
+                customerName: data.customerName,
+                address: data.address,
+                fee: data.fee,
+                badgeCount: Number(data.badgeCount) || 1,
+              }),
+            )
+            .catch(() => {});
         }
       }),
     ).catch(() => {});

@@ -171,6 +171,11 @@ export async function setDriverAppBadge(count) {
       if (n > 0) await navigator.setAppBadge(n);
       else if (navigator.clearAppBadge) await navigator.clearAppBadge();
     }
+    if (isNativeDriverApp()) {
+      const { setNativeLauncherBadge, clearDriverOfferTrays } = await import('./driverTrayNotification.js');
+      if (n > 0) await setNativeLauncherBadge(n);
+      else await clearDriverOfferTrays();
+    }
     if (n <= 0 && 'serviceWorker' in navigator) {
       const reg = await withTimeout(navigator.serviceWorker.ready, 3000, null);
       reg?.active?.postMessage({ type: 'DRIVER_CLEAR_BADGE' });
