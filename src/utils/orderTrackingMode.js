@@ -6,8 +6,8 @@ export const TRACKING_MODE = {
   STATUS_LINE: 'status_line',
 };
 
-/** GPS se considera vivo si el último ping fue hace ≤ este umbral (segundos). */
-export const GPS_LIVE_MAX_AGE_SEC = 120;
+/** GPS “en vivo” (badge verde). El pin del mapa NO se oculta si hay última coordenada. */
+export const GPS_LIVE_MAX_AGE_SEC = 180;
 
 /** Pasos visibles al cliente en modo barra (sin mapa). */
 export const STATUS_LINE_STEPS = [
@@ -76,18 +76,18 @@ export function resolveTrackingMode(order, liveMeta = null) {
 }
 
 /**
- * Mapa en vivo al cliente SOLO si:
- * - Pedido delivery
- * - Aceptado por repartidor con app (no manual sin GPS)
- * - GPS del repartidor está activo/fresco (como en mapa admin)
- * Si el GPS falla → se oculta el mapa y queda la barra de estados.
+ * Mapa al cliente si hay pedido delivery, aceptación por app y al menos
+ * una coordenada del repartidor. No se oculta el pin por GPS “stale”:
+ * se muestra la última ubicación conocida.
  */
 export function shouldShowLiveMap(order, liveMeta = null) {
   if (order?.orderType && order.orderType !== 'delivery') return false;
   if (order?.estado === 'entregado' || order?.estado === 'cancelado') return false;
   if (!wasAcceptedViaDriverApp(order, liveMeta)) return false;
   if (!liveMeta?.has_driver) return false;
-  return isDriverGpsLive(liveMeta);
+  const lat = liveMeta?.driver?.lat;
+  const lng = liveMeta?.driver?.lng;
+  return lat != null && lng != null && Number.isFinite(Number(lat)) && Number.isFinite(Number(lng));
 }
 
 /** Motivo legible cuando no hay mapa (para el cliente). */
@@ -97,8 +97,8 @@ export function liveMapFallbackReason(order, liveMeta = null) {
   if (!wasAcceptedViaDriverApp(order, liveMeta)) {
     return 'Seguimiento por estados: tu pedido fue gestionado en local (sin ubicación en vivo del repartidor).';
   }
-  if (liveMeta?.has_driver && !isDriverGpsLive(liveMeta)) {
-    return 'El GPS del repartidor no está disponible por ahora. Mientras tanto puedes ver el avance por estados. El mapa volverá cuando la ubicación esté activa.';
+  if (liveMeta?.has_driver && !shouldShowLiveMap(order, liveMeta)) {
+    return 'Esperando la ubicación del repartidor. El mapa aparece en cuanto el GPS envíe el primer punto.';
   }
   return null;
 }

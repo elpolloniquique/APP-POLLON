@@ -14,7 +14,12 @@ import {
   retryDriverPushInBackground,
 } from '../../services/pushService';
 import { ensureNativePushRegistration, registerNativePushHandlers } from '../../services/fcmService';
-import { isNativeDriverApp } from '../../services/backgroundGpsService';
+import {
+  isNativeDriverApp,
+  startDriverBackgroundGps,
+  stopDriverBackgroundGps,
+  driverShouldShareGps,
+} from '../../services/backgroundGpsService';
 import '../../styles/driver-native.css';
 
 const TABS = [
@@ -131,7 +136,49 @@ export function DriverLayout() {
     };
   }, [trackingReady, refreshBadge]);
 
+  // GPS nativo vive aquí (no en Pedidos): sobrevive Mapa/Perfil/otra app.
+  useEffect(() => {
+    if (!trackingReady) return undefined;
+    let cancelled = false;
+
+    const syncGps = async () => {
+      if (cancelled) return;
+      try {
+        const s = await getMyDriverSummary();
+        if (cancelled) return;
+        if (driverShouldShareGps(s)) {
+          await startDriverBackgroundGps();
+        } else {
+          await stopDriverBackgroundGps();
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+
+    void syncGps();
+    const t = setInterval(syncGps, 20000);
+    let resumeHandle = null;
+    if (isNativeDriverApp()) {
+      import('@capacitor/app')
+        .then(async ({ App }) => {
+          resumeHandle = await App.addListener('appStateChange', (state) => {
+            if (state?.isActive) void syncGps();
+          });
+        })
+        .catch(() => {});
+    }
+
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+      try { resumeHandle?.remove(); } catch { /* ignore */ }
+      // No stop() aquí: el FGS nativo debe seguir con pantalla apagada.
+    };
+  }, [trackingReady]);
+
   const handleLogout = async () => {
+    await stopDriverBackgroundGps();
     await clearDriverAppBadge();
     await signOut();
     navigate('/');

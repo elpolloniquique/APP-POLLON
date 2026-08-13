@@ -18,7 +18,38 @@ let nativeRunning = false;
 let startedWithNativeUrl = false;
 let lastPublishAt = 0;
 let heartbeatTimer = null;
-let onUpdateRef = null;
+const gpsListeners = new Set();
+
+export const DRIVER_GPS_TRACK_STATUSES = [
+  'available',
+  'heading_to_branch',
+  'delivering',
+  'carrying_orders',
+  'offered',
+];
+
+export function driverShouldShareGps(summary) {
+  if (!summary) return false;
+  const st = summary?.driver?.operational_status;
+  const actives = (summary?.activeAssignments || []).length > 0;
+  return actives || DRIVER_GPS_TRACK_STATUSES.includes(st);
+}
+
+export function subscribeDriverGpsUpdates(fn) {
+  if (typeof fn !== 'function') return () => {};
+  gpsListeners.add(fn);
+  return () => gpsListeners.delete(fn);
+}
+
+function notifyGps(pos, err) {
+  gpsListeners.forEach((fn) => {
+    try {
+      fn(pos, err);
+    } catch {
+      /* ignore */
+    }
+  });
+}
 
 async function ensureGpsPingToken() {
   try {
@@ -61,7 +92,7 @@ function startHeartbeat() {
   heartbeatTimer = setInterval(() => {
     if (!nativeRunning) return;
     getAndPublishCurrentFix({ timeoutMs: 8000 }).then((fix) => {
-      if (fix) onUpdateRef?.(fix, null);
+      if (fix) notifyGps(fix, null);
     }).catch(() => {});
   }, 15000);
 }
@@ -308,8 +339,7 @@ export async function getAndPublishCurrentFix({ timeoutMs = 12000 } = {}) {
  * Nativo: FGS + notificación persistente → pantalla apagada / otra app.
  * No reinicia el servicio si ya corre (evita caídas cada 2–5 min).
  */
-export async function startDriverBackgroundGps({ onUpdate, forceRestart = false } = {}) {
-  onUpdateRef = onUpdate || onUpdateRef;
+export async function startDriverBackgroundGps({ forceRestart = false } = {}) {
 
   if (!isNativeDriverApp()) {
     if (webStop && !forceRestart) {
@@ -319,7 +349,7 @@ export async function startDriverBackgroundGps({ onUpdate, forceRestart = false 
     const publishRef = { current: true };
     webStop = startGpsWatch(
       (pos, err) => {
-        onUpdateRef?.(pos, err);
+        notifyGps(pos, err);
       },
       { intervalMs: 5000, publishRef }
     );
@@ -337,7 +367,7 @@ export async function startDriverBackgroundGps({ onUpdate, forceRestart = false 
 
   if (nativeRunning && !forceRestart && !needUrlRestart) {
     const first = await getAndPublishCurrentFix({ timeoutMs: 8000 });
-    if (first) onUpdateRef?.(first, null);
+    if (first) notifyGps(first, null);
     startHeartbeat();
     return {
       ok: true,
@@ -354,7 +384,7 @@ export async function startDriverBackgroundGps({ onUpdate, forceRestart = false 
 
   try {
     const first = await getAndPublishCurrentFix({ timeoutMs: 10000 });
-    if (first) onUpdateRef?.(first, null);
+    if (first) notifyGps(first, null);
 
     const startOpts = {
       backgroundMessage: 'GPS activo aunque apagues la pantalla o abras otra app. No detengas esta notificación.',
@@ -370,9 +400,9 @@ export async function startDriverBackgroundGps({ onUpdate, forceRestart = false 
     await BackgroundGeolocation.start(startOpts, (location, error) => {
       if (error) {
         if (error.code === 'NOT_AUTHORIZED') {
-          onUpdateRef?.(null, new Error('Permiso de ubicación denegado'));
+          notifyGps(null, new Error('Permiso de ubicación denegado'));
         } else {
-          onUpdateRef?.(null, new Error(error.message || 'Error GPS nativo'));
+          notifyGps(null, new Error(error.message || 'Error GPS nativo'));
         }
         return;
       }
@@ -384,7 +414,7 @@ export async function startDriverBackgroundGps({ onUpdate, forceRestart = false 
         speed: location.speed,
         accuracy: location.accuracy,
       };
-      onUpdateRef?.(payload, null);
+      notifyGps(payload, null);
       void publishNativeFix(location);
     });
     nativeRunning = true;

@@ -13,7 +13,6 @@ import {
   confirmDelivery,
   subscribeDispatch,
 } from '../../services/dispatchService';
-import { startGpsWatch } from '../../services/trackingService';
 import {
   syncAfterDriverAccept,
   maybeAdvanceNearStore,
@@ -29,8 +28,9 @@ import {
   requestAlwaysLocationPermission,
   openNativeLocationSettings,
   getAndPublishCurrentFix,
-  checkLocationPermissionSnapshot,
   isDriverBackgroundGpsRunning,
+  subscribeDriverGpsUpdates,
+  driverShouldShareGps,
 } from '../../services/backgroundGpsService';
 import { evaluateDriverLiveTrackingReady } from '../../services/driverOnboardingService';
 import { playDriverOrderAlarm, unlockDriverAudio } from '../../utils/orderAlertSound';
@@ -182,9 +182,14 @@ export function DriverHome() {
     };
   }, [scheduleLoad]);
 
+  useEffect(() => subscribeDriverGpsUpdates((pos, err) => {
+    if (pos) setGpsPos(pos);
+    if (err) setError(err.message || 'Error GPS');
+  }), []);
+
   useEffect(() => () => {
+    // No apagar el FGS nativo al salir de Pedidos (Mapa/Perfil). Lo mantiene DriverLayout.
     stopGpsFnRef.current?.();
-    void stopDriverBackgroundGps();
     stopAlarmRef.current?.();
   }, []);
 
@@ -255,136 +260,58 @@ export function DriverHome() {
     await load();
   }, [load, clearGps, summary?.activeAssignments]);
 
-  useEffect(() => {
-    const onlineStatuses = ['available', 'heading_to_branch', 'delivering', 'carrying_orders', 'offered'];
-    const isOnlineNow = onlineStatuses.includes(summary?.driver?.operational_status);
-    const hasActives = (summary?.activeAssignments || []).length > 0;
-    if (!isOnlineNow && !hasActives) return undefined;
-
-    // Nunca desconectar por Notification.permission del WebView (rompe FCM nativo).
-    // Si el FGS se durmió, se relanza. Si el SO negó GPS de verdad, ahí sí avisar.
-    const keepAlive = async () => {
-      try {
-        const snap = await checkLocationPermissionSnapshot();
-        if (snap?.status?.location === 'denied' || snap?.error === 'NOT_AUTHORIZED') {
-          await goOffline('Se desactivó el GPS. Activa ubicación “Siempre” para seguir en línea.');
-          return;
-        }
-      } catch {
-        /* ignore */
-      }
-      if (isNativeDriverApp()) {
-        const res = await startDriverBackgroundGps({
-          onUpdate: (pos) => { if (pos) setGpsPos(pos); },
-        });
-        if (res?.ok && res.position) setGpsPos(res.position);
-      }
-    };
-
-    keepAlive();
-    const t = setInterval(keepAlive, 25000);
-    let resumeHandle = null;
-    if (isNativeDriverApp()) {
-      import('@capacitor/app')
-        .then(async ({ App }) => {
-          resumeHandle = await App.addListener('appStateChange', (state) => {
-            if (state?.isActive) keepAlive();
-          });
-        })
-        .catch(() => {});
-    }
-
-    return () => {
-      clearInterval(t);
-      try { resumeHandle?.remove(); } catch { /* ignore */ }
-    };
-  }, [summary?.driver?.operational_status, summary?.activeAssignments, goOffline]);
-
   const startGps = useCallback(async (publish) => {
     publishRef.current = !!publish;
-
-    // Pedidos activos / disponible en app nativa → GPS segundo plano (pantalla apagada)
-    if (publish && isNativeDriverApp()) {
-      if (isDriverBackgroundGpsRunning() && gpsModeRef.current === 'active') {
-        const fix = await getAndPublishCurrentFix({ timeoutMs: 8000 });
-        if (fix) setGpsPos(fix);
-        setGpsOn(true);
-        return { ok: true, mode: 'native', alreadyRunning: true, position: fix };
-      }
-      stopGpsFnRef.current?.();
-      stopGpsFnRef.current = null;
-      const res = await startDriverBackgroundGps({
-        onUpdate: (pos, err) => {
-          if (pos) setGpsPos(pos);
-          if (err) setError(err.message || 'Error GPS');
-        },
-      });
-      if (!res.ok) {
-        setError(
-          `${res.error || 'No se pudo activar GPS en segundo plano'}${
-            res.canOpenSettings
-              ? ' Abre ajustes y elige “Permitir todo el tiempo”.'
-              : ''
-          }`
-        );
-        // En nativo NO fingir OK con watchPosition web (pantalla apagada fallaría)
-        setGpsOn(false);
-        gpsModeRef.current = null;
-        return res;
-      }
-      if (res.needsSettings) {
-        setError(
-          'GPS activo. Para no perderte con pantalla apagada: Ajustes → Ubicación → Permitir todo el tiempo.'
-        );
-      }
-      const stopNative = () => { void stopDriverBackgroundGps(); };
-      stopGpsFnRef.current = stopNative;
-      setGpsOn(true);
-      gpsModeRef.current = 'active';
-      return res;
+    if (!publish) {
+      setGpsOn(false);
+      return { ok: true };
     }
 
-    const stop = startGpsWatch(
-      (pos, err) => {
-        if (pos) setGpsPos(pos);
-        if (err) {
-          setError(err.message || 'Error GPS');
-          if (err?.code === 1) {
-            void goOffline('Permiso de ubicación denegado. Activa el GPS para trabajar.');
-          }
-        }
-      },
-      { publishRef, intervalMs: 5000 }
-    );
-    stopGpsFnRef.current = stop;
+    if (isDriverBackgroundGpsRunning() && gpsModeRef.current === 'active') {
+      const fix = await getAndPublishCurrentFix({ timeoutMs: 8000 });
+      if (fix) setGpsPos(fix);
+      setGpsOn(true);
+      return { ok: true, mode: isNativeDriverApp() ? 'native' : 'web', alreadyRunning: true, position: fix };
+    }
+
+    stopGpsFnRef.current?.();
+    stopGpsFnRef.current = null;
+    const res = await startDriverBackgroundGps();
+    if (!res.ok) {
+      setError(
+        `${res.error || 'No se pudo activar GPS en segundo plano'}${
+          res.canOpenSettings
+            ? ' Abre ajustes y elige “Permitir todo el tiempo”.'
+            : ''
+        }`
+      );
+      setGpsOn(false);
+      gpsModeRef.current = null;
+      return res;
+    }
+    if (res.needsSettings) {
+      setError(
+        'GPS activo. Para no perderte con pantalla apagada: Ajustes → Ubicación → Permitir todo el tiempo.'
+      );
+    }
+    if (res.position) setGpsPos(res.position);
     setGpsOn(true);
-    gpsModeRef.current = publish ? 'active' : 'idle';
-    return { ok: true, mode: 'web' };
-  }, [goOffline]);
+    gpsModeRef.current = 'active';
+    return res;
+  }, []);
 
-  // GPS ON: disponible/en ruta O con assignments activos.
-  // GPS OFF solo sin activos y offline (último entregado + offline).
+  // Arranque GPS al estar disponible / con pedidos. No apagar al desmontar Pedidos.
   useEffect(() => {
-    const onlineStatuses = ['available', 'heading_to_branch', 'delivering', 'carrying_orders', 'offered'];
-    const isOnlineNow = onlineStatuses.includes(summary?.driver?.operational_status);
-    const hasActives = (summary?.activeAssignments || []).length > 0;
-    const shouldTrack = isOnlineNow || hasActives;
-
-    if (!shouldTrack) {
+    if (!summary) return undefined;
+    if (!driverShouldShareGps(summary)) {
       if (gpsModeRef.current) void clearGps();
       return undefined;
     }
-
     if (gpsModeRef.current !== 'active') {
       void startGps(true);
     }
     return undefined;
-  }, [
-    summary?.driver?.operational_status,
-    summary?.activeAssignments,
-    startGps,
-    clearGps,
-  ]);
+  }, [summary, startGps, clearGps]);
 
   // ~5 min de la sucursal → estado "En cocina" (preparando)
   useEffect(() => {

@@ -17,6 +17,8 @@ import {
   wasAcceptedViaDriverApp,
   liveMapFallbackReason,
   TRACKING_MODE,
+  isDriverGpsLive,
+  gpsAgeSeconds,
 } from '../../utils/orderTrackingMode';
 import { money, formatDateTime } from '../../utils/format';
 import { isSupabaseConfigured } from '../../services/supabaseClient';
@@ -84,7 +86,27 @@ export function OrderTracking() {
     if (!orderId) return;
     try {
       const data = await getCustomerOrderLiveTracking(orderId);
-      setLive(data);
+      setLive((prev) => {
+        const nextLat = data?.driver?.lat;
+        const nextLng = data?.driver?.lng;
+        if (
+          prev?.driver?.lat != null
+          && prev?.driver?.lng != null
+          && (nextLat == null || nextLng == null)
+        ) {
+          return {
+            ...data,
+            driver: {
+              ...(data?.driver || {}),
+              lat: prev.driver.lat,
+              lng: prev.driver.lng,
+              updated_at: data?.driver?.updated_at || prev.driver.updated_at,
+            },
+            has_driver: true,
+          };
+        }
+        return data;
+      });
       setLiveError('');
     } catch (e) {
       setLiveError(e?.message || 'No se pudo cargar el mapa en vivo');
@@ -119,8 +141,7 @@ export function OrderTracking() {
       await refreshLive();
     });
 
-    // GPS en vivo: refresco frecuente mientras el pedido está activo
-    const poll = setInterval(() => { void refreshLive(); }, 5000);
+    const poll = setInterval(() => { void refreshLive(); }, 3000);
     return () => {
       unsub();
       clearInterval(poll);
@@ -271,6 +292,15 @@ export function OrderTracking() {
               autoFit
             />
           </div>
+          {!isDriverGpsLive(live) && (
+            <p className="border-t border-amber-100 bg-amber-50 px-4 py-2 text-[11px] font-semibold text-amber-900">
+              Última ubicación conocida
+              {live?.driver?.updated_at
+                ? ` (hace ${Math.max(1, Math.round(gpsAgeSeconds(live.driver.updated_at) / 60))} min)`
+                : ''}
+              . El pin se actualiza en cuanto el GPS del repartidor envíe un punto nuevo.
+            </p>
+          )}
           {live?.customer?.address && (
             <p className="flex items-start gap-2 border-t border-gray-100 px-4 py-3 text-xs text-gray-600">
               <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />

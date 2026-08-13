@@ -1,8 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { ensureMyDriverProfile, updateDriverProfile, setMyOperationalStatus } from '../../services/driverService';
+import { ensureMyDriverProfile, updateDriverProfile, setMyOperationalStatus, getMyDriverSummary } from '../../services/driverService';
 import { Button } from '../../components/ui/Button';
-import { isNativeDriverApp, getNativePlatform } from '../../services/backgroundGpsService';
+import {
+  isNativeDriverApp,
+  getNativePlatform,
+  stopDriverBackgroundGps,
+  driverShouldShareGps,
+} from '../../services/backgroundGpsService';
 import {
   DRIVER_APP_VERSION_NAME,
   DRIVER_APP_VERSION_CODE,
@@ -43,6 +48,8 @@ export function DriverProfile() {
   const goOffline = async () => {
     try {
       await setMyOperationalStatus('offline');
+      const s = await getMyDriverSummary().catch(() => null);
+      if (!driverShouldShareGps(s)) await stopDriverBackgroundGps();
       setMsg('Ahora estás offline');
     } catch (err) {
       setError(err.message);
