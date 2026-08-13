@@ -412,7 +412,13 @@ export function AdminOrders() {
   const handleSearchDriver = async (order) => {
     setSearchingDriver((s) => ({ ...s, [order.id]: true }));
     try {
-      await manualSearchDrivers(order.id);
+      const res = await manualSearchDrivers(order.id);
+      const n = Number(res?.offered) || 0;
+      if (n > 0) {
+        alert(`Oferta enviada a ${n} repartidor(es). Deben sonar alarma y aparecer el pedido en la app.`);
+      } else {
+        alert(res?.message || 'Ningún repartidor disponible con GPS en vivo. El moto debe estar Disponible y GPS no puede decir “Buscando…”.');
+      }
       setTimeout(refreshDelivery, 2000);
     } catch (e) {
       alert(e.message || 'No se encontraron repartidores disponibles');

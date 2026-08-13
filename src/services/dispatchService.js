@@ -125,8 +125,13 @@ export async function startDriverSearch(jobId) {
   if (data?.reason === 'dispatch_disabled') {
     throw new Error(data.message || 'Despacho desactivado en esta sucursal');
   }
-  if (data?.offered > 0 || data?.ok) {
+  if (data?.offered > 0) {
     notifyDriversForJob(jobId).catch(() => {});
+  } else {
+    throw new Error(
+      data?.message
+      || 'Ningún repartidor con GPS en vivo. Deben estar Disponible y el GPS no puede decir “Buscando…”.',
+    );
   }
   return data;
 }

@@ -145,7 +145,11 @@ export async function manualSearchDrivers(orderId) {
     throw new Error(data.message || 'Despacho desactivado en esta sucursal');
   }
 
-  notifyDriversForJob(jobId).catch(() => {});
+  if (data?.offered > 0) {
+    notifyDriversForJob(jobId).catch(() => {});
+  } else if (data?.message) {
+    throw new Error(data.message);
+  }
 
   lastFetch = 0;
   return data;

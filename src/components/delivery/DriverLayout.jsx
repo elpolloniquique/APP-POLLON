@@ -79,7 +79,16 @@ export function DriverLayout() {
     retryDriverPushInBackground().catch(() => {});
     if (isNativeDriverApp()) {
       registerNativePushHandlers({
-        onOffer: () => refreshBadge(),
+        onOffer: () => {
+          refreshBadge();
+          try {
+            window.dispatchEvent(new CustomEvent('pollon-driver-push', {
+              detail: { type: 'driver_offer' },
+            }));
+          } catch {
+            /* ignore */
+          }
+        },
       }).catch(() => {});
       ensureNativePushRegistration().catch(() => {});
       import('@capacitor/status-bar')

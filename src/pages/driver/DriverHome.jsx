@@ -29,9 +29,11 @@ import {
   isNativeDriverApp,
   requestAlwaysLocationPermission,
   openNativeLocationSettings,
+  getAndPublishCurrentFix,
 } from '../../services/backgroundGpsService';
 import { evaluateDriverLiveTrackingReady } from '../../services/driverOnboardingService';
 import { playDriverOrderAlarm, unlockDriverAudio } from '../../utils/orderAlertSound';
+import { kickoffNativePushRegistration } from '../../services/fcmService';
 import { getSupabase, isSupabaseConfigured } from '../../services/supabaseClient';
 import { useAuth } from '../../context/AuthContext';
 import { setDriverAppBadge, clearDriverAppBadge } from '../../services/pushService';
@@ -72,10 +74,16 @@ export function DriverHome() {
     stopAlarmRef.current?.();
     unlockDriverAudio().then(() => {
       stopAlarmRef.current?.();
-      // Una sola campanada por ronda (aunque lleguen varios a la vez)
-      stopAlarmRef.current = playDriverOrderAlarm({ loops: 1 });
+      stopAlarmRef.current = playDriverOrderAlarm({ loops: 2 });
     });
-    try { navigator.vibrate?.([200, 100, 400]); } catch { /* ignore */ }
+    try { navigator.vibrate?.([220, 80, 320, 80, 420]); } catch { /* ignore */ }
+    if (isNativeDriverApp()) {
+      import('@capacitor/haptics')
+        .then(({ Haptics }) => {
+          Haptics.vibrate({ duration: 450 }).catch(() => {});
+        })
+        .catch(() => {});
+    }
   }, []);
 
   const load = useCallback(async () => {
@@ -128,7 +136,7 @@ export function DriverHome() {
   useEffect(() => {
     load();
     const unsub = subscribeDispatch(() => scheduleLoad());
-    const pollMs = () => (document.visibilityState === 'visible' ? 4000 : 12000);
+    const pollMs = () => (document.visibilityState === 'visible' ? 2500 : 8000);
     let t = setInterval(scheduleLoad, pollMs());
     const onVis = () => {
       clearInterval(t);
@@ -147,16 +155,28 @@ export function DriverHome() {
     };
   }, [load, scheduleLoad]);
 
-  // Push: solo refrescar lista; la alarma in-app la dispara el efecto de ofertas (1 vez)
+  // Push nativo + SW: refrescar lista; la alarma la dispara el efecto de ofertas
   useEffect(() => {
-    if (!('serviceWorker' in navigator)) return undefined;
-    const onMsg = (event) => {
-      const data = event.data;
-      if (!data || data.type !== 'DRIVER_NEW_OFFER') return;
-      scheduleLoad();
+    const onNativePush = (event) => {
+      const data = event?.detail || {};
+      if (data.type === 'driver_offer' || data.offerId || data.type === 'DRIVER_NEW_OFFER') {
+        scheduleLoad();
+      }
     };
-    navigator.serviceWorker.addEventListener('message', onMsg);
-    return () => navigator.serviceWorker.removeEventListener('message', onMsg);
+    window.addEventListener('pollon-driver-push', onNativePush);
+    let onSw = null;
+    if ('serviceWorker' in navigator) {
+      onSw = (event) => {
+        const data = event.data;
+        if (!data || data.type !== 'DRIVER_NEW_OFFER') return;
+        scheduleLoad();
+      };
+      navigator.serviceWorker.addEventListener('message', onSw);
+    }
+    return () => {
+      window.removeEventListener('pollon-driver-push', onNativePush);
+      if (onSw) navigator.serviceWorker.removeEventListener('message', onSw);
+    };
   }, [scheduleLoad]);
 
   useEffect(() => () => {
@@ -394,6 +414,7 @@ export function DriverHome() {
           throw new Error('En Ajustes elige ubicación “Permitir todo el tiempo”.');
         }
         await ensureDriverPushSubscription().catch(() => {});
+        kickoffNativePushRegistration();
         if (isNativeDriverApp()) {
           const gps = await requestAlwaysLocationPermission();
           if (!gps.ok) {
@@ -402,15 +423,26 @@ export function DriverHome() {
           if (!gps.alwaysOk && !ready.alwaysOk) {
             throw new Error('GPS “Siempre” obligatorio para que el local te vea en vivo.');
           }
+          const started = await startGps(true);
+          if (!started?.ok) {
+            throw new Error(started?.error || 'No se pudo activar el GPS en vivo.');
+          }
+          let fix = started.position || gpsPos;
+          if (!fix) fix = await getAndPublishCurrentFix({ timeoutMs: 12000 });
+          if (!fix) {
+            throw new Error('Sin señal GPS. Sal al aire libre, espera 10 s e inténtalo de nuevo. Sin GPS no te llegan pedidos.');
+          }
+          setGpsPos(fix);
         } else {
           const gps = await requestGpsFix();
           if (!gps.ok) throw new Error(gps.error || 'GPS obligatorio');
+          await startGps(true);
         }
       }
 
       await setMyOperationalStatus(next);
       if (next === 'available') {
-        await startGps(true);
+        if (!isNativeDriverApp()) await startGps(true);
       } else if (!(summary?.activeAssignments || []).length) {
         // Con pedidos activos el GPS sigue hasta entregar el último
         await clearGps();

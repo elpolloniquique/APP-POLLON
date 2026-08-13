@@ -196,21 +196,56 @@ export async function openNativeAppSettings() {
   return openNativeLocationSettings();
 }
 
-async function publishNativeFix(location) {
-  if (!location) return;
+async function publishNativeFix(location, { force = false } = {}) {
+  if (!location) return null;
+  const lat = Number(location.latitude ?? location.lat);
+  const lng = Number(location.longitude ?? location.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
   const now = Date.now();
-  if (now - lastPublishAt < 4000) return;
+  if (!force && lastPublishAt && now - lastPublishAt < 4000) return null;
   lastPublishAt = now;
   try {
     await upsertMyLocation({
-      lat: location.latitude,
-      lng: location.longitude,
-      heading: location.bearing ?? null,
+      lat,
+      lng,
+      heading: location.bearing ?? location.heading ?? null,
       speed: location.speed ?? null,
       accuracy: location.accuracy ?? null,
     });
+    return { lat, lng, accuracy: location.accuracy ?? null };
   } catch (err) {
     console.warn('[Pollón] GPS background publish:', err?.message || err);
+    return null;
+  }
+}
+
+/** Primer punto GPS inmediato (sin esperar a moverse 18 m). Obligatorio para ofertas. */
+export async function getAndPublishCurrentFix({ timeoutMs = 12000 } = {}) {
+  try {
+    const pos = await withTimeout(
+      Geolocation.getCurrentPosition({
+        enableHighAccuracy: true,
+        timeout: timeoutMs,
+        maximumAge: 20000,
+      }),
+      timeoutMs + 500,
+      null,
+    );
+    if (!pos?.coords) return null;
+    const payload = {
+      latitude: pos.coords.latitude,
+      longitude: pos.coords.longitude,
+      lat: pos.coords.latitude,
+      lng: pos.coords.longitude,
+      heading: pos.coords.heading,
+      speed: pos.coords.speed,
+      accuracy: pos.coords.accuracy,
+    };
+    const published = await publishNativeFix(payload, { force: true });
+    return published ? { lat: payload.lat, lng: payload.lng, accuracy: payload.accuracy } : null;
+  } catch (err) {
+    console.warn('[Pollón] getCurrentPosition:', err?.message || err);
+    return null;
   }
 }
 
@@ -238,13 +273,17 @@ export async function startDriverBackgroundGps({ onUpdate } = {}) {
   }
 
   try {
+    // Primer fix YA (Capgo con distanceFilter no dispara si el moto está parado)
+    const first = await getAndPublishCurrentFix({ timeoutMs: 10000 });
+    if (first) onUpdate?.(first, null);
+
     await BackgroundGeolocation.start(
       {
         backgroundMessage: 'El Pollón · Compartiendo ubicación en vivo con el local',
         backgroundTitle: 'El Pollón · GPS activo',
         requestPermissions: true,
-        stale: false,
-        distanceFilter: 18,
+        stale: true,
+        distanceFilter: 5,
       },
       (location, error) => {
         if (error) {
@@ -274,6 +313,8 @@ export async function startDriverBackgroundGps({ onUpdate } = {}) {
       alwaysOk: perm.alwaysOk !== false,
       needsSettings: Boolean(perm.needsSettings),
       canOpenSettings: Boolean(perm.canOpenSettings),
+      firstFix: Boolean(first),
+      position: first || null,
     };
   } catch (err) {
     return { ok: false, error: err?.message || 'No se pudo iniciar GPS en segundo plano' };
