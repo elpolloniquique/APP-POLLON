@@ -389,9 +389,9 @@ export function DriverHome() {
         const ready = await evaluateDriverLiveTrackingReady(userId);
         if (!ready.ready) {
           throw new Error(
-            ready.needsInstall || ready.mustNative
-              ? 'Debes usar la app nativa El Pollón Repartidor (APK). Descárgala desde el aviso de instalación.'
-              : 'Debes autorizar ubicación “Siempre” y notificaciones para trabajar.'
+            isNativeDriverApp()
+              ? 'Debes autorizar ubicación “Siempre” y notificaciones para trabajar.'
+              : 'Activa notificaciones y ubicación para ponerte Disponible.'
           );
         }
         if (isNativeDriverApp() && !ready.alwaysOk) {

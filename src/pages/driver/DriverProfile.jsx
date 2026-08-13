@@ -11,7 +11,6 @@ import {
 import {
   DRIVER_APP_VERSION_NAME,
   DRIVER_APP_VERSION_CODE,
-  getDriverApkDownloadUrl,
 } from '../../utils/driverNativeConstants';
 
 export function DriverProfile() {
@@ -68,18 +67,13 @@ export function DriverProfile() {
         )}
         <div className="mt-3 rounded-xl bg-black px-3 py-2 text-[11px] text-white/80">
           <p>
-            App: <strong className="text-white">{isNativeDriverApp() ? 'Nativa Android' : 'Web (bloqueada)'}</strong>
+            App: <strong className="text-white">{isNativeDriverApp() ? 'Nativa Android · GPS' : 'Clientes · avisos WhatsApp'}</strong>
             {' · '}{getNativePlatform()}
           </p>
           <p className="mt-0.5">
             Versión <strong className="text-white">v{DRIVER_APP_VERSION_NAME}</strong>
             {' '}({DRIVER_APP_VERSION_CODE})
           </p>
-          {!isNativeDriverApp() && (
-            <a className="mt-1 inline-block font-bold text-[#fca5a5] underline" href={getDriverApkDownloadUrl()}>
-              Descargar APK
-            </a>
-          )}
         </div>
       </div>
 

@@ -2,14 +2,11 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   Bell,
   MapPin,
-  Smartphone,
   CheckCircle2,
   Settings,
   Radio,
-  Download,
   Battery,
   ShieldCheck,
-  ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { unlockDriverAudio } from '../../utils/orderAlertSound';
@@ -19,6 +16,7 @@ import {
   markDriverOnboardingComplete,
 } from '../../services/driverOnboardingService';
 import { ensureNativePushRegistration, markNativeNotifOk, kickoffNativePushRegistration } from '../../services/fcmService';
+import { ensureDriverPushSubscription } from '../../services/pushService';
 import {
   openNativeLocationSettings,
   openNativeAppSettings,
@@ -31,14 +29,12 @@ import {
   DRIVER_APP_VERSION_NAME,
   DRIVER_APP_VERSION_CODE,
   getDriverApkDownloadUrl,
-  openNativeDriverApp,
-  shouldSkipNativeAutoOpen,
 } from '../../utils/driverNativeConstants';
 import '../../styles/driver-native.css';
 
 /**
- * Onboarding / NativeGate obligatorio para repartidores.
- * Sin APK Capacitor → bloqueo + descarga. Con APK → notifs + GPS Always.
+ * Onboarding repartidor: notificaciones + GPS, luego panel.
+ * PWA de clientes y APK nativa (mismo correo).
  */
 export function DriverLiveTrackingOnboarding({ onReadyChange }) {
   const { user, profile, role } = useAuth();
@@ -63,9 +59,10 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
       console.warn('[Pollón][DriverNative] onboarding evaluate:', err);
       setState({
         ready: false,
-        installed: false,
-        needsInstall: true,
-        mustNative: true,
+        installed: true,
+        needsInstall: false,
+        mustNative: false,
+        native: isNativeDriverApp(),
         notifOk: false,
         gpsOk: false,
         apkUrl: getDriverApkDownloadUrl(),
@@ -94,39 +91,7 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
     };
   }, [refresh, driverRole, onReadyChange]);
 
-  useEffect(() => {
-    if (!driverRole || isNativeDriverApp()) return undefined;
-    if (shouldSkipNativeAutoOpen()) return undefined;
-    const key = 'pollon_tried_native_open';
-    try {
-      if (sessionStorage.getItem(key) === '1') return undefined;
-      sessionStorage.setItem(key, '1');
-    } catch {
-      /* ignore */
-    }
-    setMsg('Abriendo tu app nativa de repartidor…');
-    const t = setTimeout(() => openNativeDriverApp(), 250);
-    return () => clearTimeout(t);
-  }, [driverRole]);
-
   if (!driverRole) return null;
-
-  const apkUrl = state?.apkUrl || getDriverApkDownloadUrl();
-
-  const runOpenNative = () => {
-    setMsg('Abriendo tu app nativa…');
-    openNativeDriverApp();
-  };
-
-  const runDownloadApk = () => {
-    setMsg('Si ya tienes la app nativa, pulsa “Abrir panel”. Si no, permitiendo la descarga…');
-    try {
-      const w = window.open(apkUrl, '_blank', 'noopener');
-      if (!w) window.location.assign(apkUrl);
-    } catch {
-      window.location.assign(apkUrl);
-    }
-  };
 
   const runNotif = async () => {
     setStepBusy('notif');
@@ -134,25 +99,31 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
     // Auto-liberar el botón sí o sí (evita “Espera…” eterno en v1.2.2 y OEM rotos)
     const unlockBtn = setTimeout(() => setStepBusy(''), 3500);
     try {
-      const res = await Promise.race([
-        ensureNativePushRegistration(),
-        new Promise((resolve) => setTimeout(() => resolve({ softTimeout: true }), 3000)),
-      ]);
-
-      // Desbloquear onboarding aunque FCM no responda: el token sigue en background
-      markNativeNotifOk();
-      kickoffNativePushRegistration();
-
-      if (res?.reason === 'denied' && !res?.softTimeout && res?.permission?.receive === 'denied') {
-        setMsg('Notificaciones bloqueadas. Ábrelas en Ajustes o pulsa “Ya las activé”.');
-      } else if (res?.ok || res?.permissionGranted) {
-        setMsg(
-          res.token
-            ? 'Notificaciones listas.'
-            : 'Permiso OK. Puedes entrar al panel; el aviso push se completa en segundo plano.'
-        );
+      if (isNativeDriverApp()) {
+        const res = await Promise.race([
+          ensureNativePushRegistration(),
+          new Promise((resolve) => setTimeout(() => resolve({ softTimeout: true }), 3000)),
+        ]);
+        markNativeNotifOk();
+        kickoffNativePushRegistration();
+        if (res?.reason === 'denied' && !res?.softTimeout && res?.permission?.receive === 'denied') {
+          setMsg('Notificaciones bloqueadas. Ábrelas en Ajustes o pulsa “Ya las activé”.');
+        } else if (res?.ok || res?.permissionGranted) {
+          setMsg(res.token ? 'Notificaciones listas.' : 'Permiso OK. El aviso push se completa en segundo plano.');
+        } else {
+          setMsg('Si no viste el diálogo: Ajustes → El Pollón → Notificaciones → Activar, luego “Ya las activé”.');
+        }
       } else {
-        setMsg('Si no viste el diálogo: Ajustes → El Pollón → Notificaciones → Activar, luego “Ya las activé”.');
+        const res = await Promise.race([
+          ensureDriverPushSubscription(),
+          new Promise((resolve) => setTimeout(() => resolve({ softTimeout: true }), 8000)),
+        ]);
+        markNativeNotifOk();
+        if (res?.ok || res?.deferred || res?.softTimeout || Notification.permission === 'granted') {
+          setMsg('Notificaciones listas. Recibirás avisos de pedido nuevo tipo WhatsApp.');
+        } else {
+          setMsg('Permite las notificaciones cuando Android lo pida.');
+        }
       }
       await refresh();
     } catch (err) {
@@ -172,7 +143,8 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
       /* ignore */
     }
     markNativeNotifOk();
-    kickoffNativePushRegistration();
+    if (isNativeDriverApp()) kickoffNativePushRegistration();
+    else void ensureDriverPushSubscription().catch(() => {});
     setMsg('Notificaciones confirmadas. Puedes entrar al panel.');
     await refresh();
   };
@@ -184,10 +156,10 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
       await unlockDriverAudio();
       const res = await requestAlwaysLocationPermission();
       if (!res.ok) throw new Error(res.error || 'GPS denegado');
-      if (!res.alwaysOk) {
+      if (isNativeDriverApp() && !res.alwaysOk) {
         setMsg('Casi listo: Ajustes → El Pollón → Ubicación → “Permitir todo el tiempo”.');
       } else {
-        setMsg('Ubicación “Siempre” autorizada.');
+        setMsg(isNativeDriverApp() ? 'Ubicación “Siempre” autorizada.' : 'Ubicación autorizada.');
       }
       await refresh();
     } catch (err) {
@@ -262,64 +234,16 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
 
   if (state.ready) return null;
 
-  const email = user?.email || profile?.email || '';
-  const name = profile?.fullName || profile?.full_name || 'Repartidor';
-  const needsApk = state.needsInstall || !state.native;
-
-  // ─── GATE: sin APK nativa ───
-  if (needsApk) {
-    return (
-      <div className="driver-native-gate">
-        <div className="driver-native-gate__card">
-          <img src="/img/logo pollon.png" alt="El Pollón" className="driver-native-gate__logo" />
-          <p className="driver-native-gate__brand">EL POLLÓN</p>
-          <p className="driver-native-gate__badge">App nativa repartidor</p>
-          <h1 className="driver-native-gate__title">Abre tu panel de repartidor</h1>
-          <p className="driver-native-gate__lead">
-            Hola <strong>{name}</strong>
-            {email ? <> (<span>{email}</span>)</> : null}.
-            Esta es la app de <strong>clientes</strong>. Si ya tienes instalada la APK nativa
-            en este teléfono, ábrela: ahí está tu panel (GPS y pedidos).
-          </p>
-
-          <ul className="driver-native-gate__benefits">
-            <li>Si ya la instalaste, no vuelvas a descargar: ábrela</li>
-            <li>GPS y alertas de pedido viven en la app nativa</li>
-            <li>Entra con el mismo correo de repartidor</li>
-          </ul>
-
-          <button type="button" className="driver-native-gate__cta" onClick={runOpenNative}>
-            <ExternalLink className="h-5 w-5" />
-            Abrir panel de repartidor
-          </button>
-          <button type="button" className="driver-native-gate__cta driver-native-gate__cta--ghost" onClick={runDownloadApk}>
-            <Download className="h-5 w-5" />
-            Descargar APK (solo si no la tienes)
-          </button>
-
-          <ol className="driver-native-gate__howto">
-            <li>Pulsa <strong>Abrir panel de repartidor</strong> si la app nativa ya está instalada.</li>
-            <li>Si Android pregunta, elige <strong>El Pollón</strong> (app nativa, no el navegador).</li>
-            <li>Solo si no la tienes: descarga la APK, instálala y entra con este correo.</li>
-          </ol>
-
-          <p className="driver-native-gate__meta">
-            v{DRIVER_APP_VERSION_NAME} ({DRIVER_APP_VERSION_CODE}) · Android
-          </p>
-          {msg && <p className="driver-native-gate__msg">{msg}</p>}
-        </div>
-      </div>
-    );
-  }
-
-  // ─── ONBOARDING nativo ───
+  const native = isNativeDriverApp();
   const steps = [
     {
       id: 'notif',
       ok: state.notifOk,
       icon: Bell,
       title: 'Notificaciones',
-      body: 'Permiso del sistema para avisos de pedido nuevo (bandeja, con pantalla apagada).',
+      body: native
+        ? 'Permiso del sistema para avisos de pedido nuevo (bandeja, con pantalla apagada).'
+        : 'Avisos de pedido nuevo en la bandeja, tipo WhatsApp. Mismo correo que en la app nativa.',
       action: runNotif,
       actionLabel: 'Activar notificaciones',
     },
@@ -327,8 +251,10 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
       id: 'gps',
       ok: state.gpsOk,
       icon: MapPin,
-      title: 'Ubicación · Permitir todo el tiempo',
-      body: 'Obligatorio “Siempre”. Acepta también “Sin restricciones de batería” para no perder el GPS al apagar la pantalla o abrir otra app.',
+      title: native ? 'Ubicación · Permitir todo el tiempo' : 'Ubicación',
+      body: native
+        ? 'Obligatorio “Siempre”. Acepta también “Sin restricciones de batería” para no perder el GPS al apagar la pantalla o abrir otra app.'
+        : 'Activa la ubicación para ponerte Disponible. El GPS al 100% con pantalla apagada sigue en la app nativa.',
       action: runGps,
       actionLabel: 'Autorizar ubicación',
     },
@@ -342,15 +268,18 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
         <p className="driver-native-gate__badge">Configuración obligatoria</p>
         <h1 className="driver-native-gate__title">Listo para salir a ruta</h1>
         <p className="driver-native-gate__lead">
-          App nativa detectada · v{state.versionName || DRIVER_APP_VERSION_NAME}
+          {native
+            ? `App nativa · v${state.versionName || DRIVER_APP_VERSION_NAME}`
+            : 'App de clientes · panel repartidor'}
           {state.evaluateTimedOut ? ' · (reintento de permisos disponible)' : ''}
         </p>
 
         <div className="driver-native-gate__hint">
           <Radio className="h-4 w-4 shrink-0" />
           <p>
-            Al conectar <strong>Disponible</strong>, el local verá tu GPS en vivo.
-            Completa notificaciones y ubicación “Siempre”.
+            {native
+              ? 'Al conectar Disponible, el local verá tu GPS en vivo. Completa notificaciones y ubicación “Siempre”.'
+              : 'Activa notificaciones y GPS, luego Disponible. Aquí recibes el aviso tipo WhatsApp; el rastreo continuo está en la app nativa.'}
           </p>
         </div>
 
@@ -376,9 +305,11 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
                         {stepBusy === s.id ? 'Espera…' : s.actionLabel}
                       </button>
                       <div className="driver-native-gate__oem-actions" style={{ marginTop: 10 }}>
-                        <button type="button" onClick={() => openNativeAppSettings()}>
-                          Abrir ajustes
-                        </button>
+                        {native && (
+                          <button type="button" onClick={() => openNativeAppSettings()}>
+                            Abrir ajustes
+                          </button>
+                        )}
                         <button type="button" onClick={confirmNotifManual}>
                           Ya las activé
                         </button>
@@ -402,7 +333,7 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
           })}
         </ol>
 
-        {state.locationOk && !state.alwaysOk && (
+        {native && state.locationOk && !state.alwaysOk && (
           <div className="driver-native-gate__oem">
             <Settings className="h-4 w-4" />
             <div>
@@ -422,13 +353,15 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
           </div>
         )}
 
-        <div className="driver-native-gate__oem driver-native-gate__oem--battery">
-          <Battery className="h-4 w-4" />
-          <p>
-            Xiaomi / Huawei / Samsung: desactiva la optimización de batería para El Pollón
-            (si no, el GPS puede pausarse).
-          </p>
-        </div>
+        {native && (
+          <div className="driver-native-gate__oem driver-native-gate__oem--battery">
+            <Battery className="h-4 w-4" />
+            <p>
+              Xiaomi / Huawei / Samsung: desactiva la optimización de batería para El Pollón
+              (si no, el GPS puede pausarse).
+            </p>
+          </div>
+        )}
 
         <button
           type="button"

@@ -1,6 +1,6 @@
 /**
- * Onboarding obligatorio repartidores — NATIVE-ONLY (APK Capacitor).
- * En Chrome/PWA: bloqueo + descarga APK. Sin operar en web.
+ * Onboarding obligatorio repartidores.
+ * Nativa (APK): GPS en vivo al 100%. PWA de clientes: panel + avisos tipo WhatsApp.
  */
 import {
   isNativeDriverApp,
@@ -50,14 +50,14 @@ function writeStore(data) {
   }
 }
 
-/** Solo cuenta como instalada la app nativa Capacitor (no PWA). */
+/** Nativa Capacitor o PWA de clientes (mismo correo). */
 export function isDriverAppInstalled() {
-  return isNativeDriverApp();
+  return true;
 }
 
-/** En cualquier navegador/PWA: debe instalar APK. */
+/** Ya no se obliga a descargar APK para usar el panel en la app de clientes. */
 export function driverNeedsInstall() {
-  return !isNativeDriverApp();
+  return false;
 }
 
 export function getDriverOnboardingRecord(userId) {
@@ -88,42 +88,13 @@ export function clearDriverOnboarding(userId) {
 
 export async function evaluateDriverLiveTrackingReady(userId) {
   const native = isNativeDriverApp();
-  const needsInstall = !native;
-  const installed = native;
   const apkUrl = getDriverApkDownloadUrl();
 
-  // Gate web: no listo hasta APK
-  if (!native) {
-    return {
-      native: false,
-      platform: getNativePlatform(),
-      needsInstall: true,
-      mustNative: true,
-      installed: false,
-      notifOk: false,
-      hasPushSub: false,
-      pushDeferred: false,
-      notifState: 'unsupported',
-      gpsOk: false,
-      locationOk: false,
-      alwaysOk: false,
-      needsSettings: false,
-      canOpenSettings: false,
-      isIos: isIosSafari(),
-      isAndroid: isAndroidChrome(),
-      savedCompletedAt: getDriverOnboardingRecord(userId)?.completedAt || null,
-      ready: false,
-      apkUrl,
-      versionName: DRIVER_APP_VERSION_NAME,
-      versionCode: DRIVER_APP_VERSION_CODE,
-    };
-  }
-
   const base = {
-    native: true,
+    native,
     platform: getNativePlatform(),
     needsInstall: false,
-    mustNative: true,
+    mustNative: false,
     installed: true,
     apkUrl,
     versionName: DRIVER_APP_VERSION_NAME,
@@ -185,8 +156,10 @@ export async function evaluateDriverLiveTrackingReady(userId) {
         /* ignore */
       }
 
-      const gpsOk = Boolean(location.locationOk && (location.alwaysOk || userConfirmedAlways));
-      const ready = Boolean(native && notifOk && gpsOk);
+      const gpsOk = native
+        ? Boolean(location.locationOk && (location.alwaysOk || userConfirmedAlways))
+        : Boolean(location.locationOk || location.ok);
+      const ready = Boolean(notifOk && gpsOk);
 
       return {
         ...base,
@@ -225,15 +198,7 @@ export async function evaluateDriverLiveTrackingReady(userId) {
 }
 
 export async function completeDriverLiveTrackingSetup(userId) {
-  if (!isNativeDriverApp()) {
-    return {
-      ok: false,
-      error: 'Debes instalar y abrir la app nativa El Pollón Repartidor (APK).',
-      needsInstall: true,
-      mustNative: true,
-      apkUrl: getDriverApkDownloadUrl(),
-    };
-  }
+  const native = isNativeDriverApp();
 
   await ensureDriverPushSubscription().catch(() => {});
 
@@ -253,14 +218,14 @@ export async function completeDriverLiveTrackingSetup(userId) {
   if (!notifGranted) {
     return {
       ok: false,
-      error: 'Activa las notificaciones para recibir pedidos con la pantalla apagada.',
+      error: 'Activa las notificaciones para recibir pedidos (aviso tipo WhatsApp).',
       needsNotif: true,
     };
   }
 
   const gps = await requestAlwaysLocationPermission();
   if (!gps.ok) {
-    return { ok: false, error: gps.error || 'GPS denegado', canOpenSettings: true };
+    return { ok: false, error: gps.error || 'GPS denegado', canOpenSettings: native };
   }
 
   let userConfirmedAlways = false;
@@ -270,7 +235,7 @@ export async function completeDriverLiveTrackingSetup(userId) {
     /* ignore */
   }
 
-  if (!gps.alwaysOk && !userConfirmedAlways) {
+  if (native && !gps.alwaysOk && !userConfirmedAlways) {
     return {
       ok: false,
       error: 'En Ajustes elige ubicación “Permitir todo el tiempo” / “Siempre”.',
@@ -287,7 +252,7 @@ export async function completeDriverLiveTrackingSetup(userId) {
   return { ok: true, gps };
 }
 
-/** True si el flujo exige APK (siempre en este producto). */
+/** La APK nativa es para GPS 100%; el panel también funciona en la PWA de clientes. */
 export function driverMustUseNativeApp() {
-  return true;
+  return false;
 }
