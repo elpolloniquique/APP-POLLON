@@ -1,5 +1,6 @@
 /**
  * Push nativo FCM (Capacitor) para repartidores.
+ * Importante: nunca bloquear la UI — Firebase register/getToken a veces no responde.
  */
 import { Capacitor } from '@capacitor/core';
 import { getSupabase, isSupabaseConfigured } from './supabaseClient';
@@ -8,6 +9,29 @@ import { DRIVER_APP_VERSION_NAME } from '../utils/driverNativeConstants';
 
 let listenersBound = false;
 let lastToken = null;
+const OFFER_CHANNEL_ID = 'pollon_driver_offers';
+
+function withTimeout(promise, ms, fallback) {
+  let timer;
+  return Promise.race([
+    Promise.resolve(promise).catch(() => fallback),
+    new Promise((resolve) => {
+      timer = setTimeout(() => resolve(fallback), ms);
+    }),
+  ]).finally(() => clearTimeout(timer));
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function markNotifOk() {
+  try {
+    localStorage.setItem('pollon_native_notif_ok', '1');
+  } catch {
+    /* ignore */
+  }
+}
 
 export function isNativePushAvailable() {
   return isNativeDriverApp() && Capacitor.isPluginAvailable('PushNotifications');
@@ -48,35 +72,37 @@ export async function upsertMyFcmToken(token) {
   lastToken = String(token);
   try {
     localStorage.setItem('pollon_fcm_token', String(token));
-    localStorage.setItem('pollon_native_notif_ok', '1');
+    markNotifOk();
   } catch {
     /* ignore */
   }
   return data;
 }
 
-const OFFER_CHANNEL_ID = 'pollon_driver_offers';
-
 async function ensureOfferNotificationChannel(PushNotifications) {
   if (!PushNotifications?.createChannel) return;
   try {
-    await PushNotifications.createChannel({
-      id: OFFER_CHANNEL_ID,
-      name: 'Ofertas El Pollón',
-      description: 'Pedidos nuevos para repartidores',
-      importance: 5,
-      visibility: 1,
-      sound: 'default',
-      vibration: true,
-      lights: true,
-    });
+    await withTimeout(
+      PushNotifications.createChannel({
+        id: OFFER_CHANNEL_ID,
+        name: 'Ofertas El Pollón',
+        description: 'Pedidos nuevos para repartidores',
+        importance: 5,
+        visibility: 1,
+        sound: 'default',
+        vibration: true,
+        lights: true,
+      }),
+      3000,
+      undefined,
+    );
   } catch (err) {
     console.warn('[Pollón][DriverNative] createChannel:', err?.message || err);
   }
 }
 
 export async function registerNativePushHandlers({ onOffer } = {}) {
-  const PushNotifications = await getPushPlugin();
+  const PushNotifications = await withTimeout(getPushPlugin(), 4000, null);
   if (!PushNotifications) return { ok: false, reason: 'no_plugin' };
 
   await ensureOfferNotificationChannel(PushNotifications);
@@ -84,96 +110,132 @@ export async function registerNativePushHandlers({ onOffer } = {}) {
   if (!listenersBound) {
     listenersBound = true;
 
-    await PushNotifications.addListener('registration', async (token) => {
-      const value = token?.value || token?.token || null;
-      if (value) await upsertMyFcmToken(value);
-    });
+    await withTimeout(
+      PushNotifications.addListener('registration', (token) => {
+        const value = token?.value || token?.token || null;
+        if (value) {
+          upsertMyFcmToken(value).catch((err) => {
+            console.warn('[Pollón][DriverNative] upsert token:', err?.message || err);
+          });
+        }
+      }),
+      3000,
+      null,
+    );
 
-    await PushNotifications.addListener('registrationError', (err) => {
-      console.warn('[Pollón][DriverNative] FCM registrationError:', err);
-    });
+    await withTimeout(
+      PushNotifications.addListener('registrationError', (err) => {
+        console.warn('[Pollón][DriverNative] FCM registrationError:', err);
+      }),
+      3000,
+      null,
+    );
 
-    await PushNotifications.addListener('pushNotificationReceived', (notification) => {
-      const data = notification?.data || {};
-      if (data.type === 'driver_offer' || data.offerId) onOffer?.(data);
-      try {
-        window.dispatchEvent(new CustomEvent('pollon-driver-push', { detail: data }));
-      } catch {
-        /* ignore */
-      }
-    });
+    await withTimeout(
+      PushNotifications.addListener('pushNotificationReceived', (notification) => {
+        const data = notification?.data || {};
+        if (data.type === 'driver_offer' || data.offerId) onOffer?.(data);
+        try {
+          window.dispatchEvent(new CustomEvent('pollon-driver-push', { detail: data }));
+        } catch {
+          /* ignore */
+        }
+      }),
+      3000,
+      null,
+    );
 
-    await PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
-      const data = action?.notification?.data || {};
-      try {
-        window.dispatchEvent(new CustomEvent('pollon-driver-push-action', { detail: data }));
-      } catch {
-        /* ignore */
-      }
-      const path = String(data.deepLink || data.url || '');
-      if (path.startsWith('/')) {
-        window.history.pushState({}, '', path);
-        window.dispatchEvent(new PopStateEvent('popstate'));
-      }
-    });
+    await withTimeout(
+      PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
+        const data = action?.notification?.data || {};
+        try {
+          window.dispatchEvent(new CustomEvent('pollon-driver-push-action', { detail: data }));
+        } catch {
+          /* ignore */
+        }
+        const path = String(data.deepLink || data.url || '');
+        if (path.startsWith('/')) {
+          window.history.pushState({}, '', path);
+          window.dispatchEvent(new PopStateEvent('popstate'));
+        }
+      }),
+      3000,
+      null,
+    );
   }
 
   return { ok: true };
 }
 
+/**
+ * Pide permiso + registra FCM sin colgar la UI.
+ * Si Firebase tarda/falla, con permiso concedido igual marcamos el paso OK.
+ */
 export async function ensureNativePushRegistration(opts = {}) {
-  const PushNotifications = await getPushPlugin();
+  const PushNotifications = await withTimeout(getPushPlugin(), 4000, null);
   if (!PushNotifications) {
     return { ok: false, reason: 'web_or_missing_plugin' };
   }
 
-  await registerNativePushHandlers(opts);
+  await withTimeout(registerNativePushHandlers(opts), 8000, { ok: false, reason: 'handlers_timeout' });
 
-  let perm = await PushNotifications.checkPermissions();
-  if (perm.receive !== 'granted') {
-    perm = await PushNotifications.requestPermissions();
+  let perm = await withTimeout(
+    PushNotifications.checkPermissions(),
+    4000,
+    { receive: 'prompt' },
+  );
+
+  if (perm?.receive !== 'granted') {
+    // El usuario puede tardar en tocar Permitir; tope duro para no dejar “Espera…” eterno
+    perm = await withTimeout(
+      PushNotifications.requestPermissions(),
+      15000,
+      perm || { receive: 'prompt' },
+    );
   }
-  if (perm.receive !== 'granted') {
+
+  if (perm?.receive !== 'granted') {
     return { ok: false, reason: 'denied', permission: perm };
   }
 
-  try {
-    await PushNotifications.register();
-  } catch (err) {
-    console.warn('[Pollón][DriverNative] FCM register:', err?.message || err);
-    return {
-      ok: false,
-      reason: 'register_failed',
-      error: err?.message || 'FCM no disponible (falta google-services.json)',
-      permissionGranted: true,
-    };
+  // Permiso OK → desbloquear onboarding YA (el token puede llegar después)
+  markNotifOk();
+
+  // register() / getToken de FCM a menudo se cuelga en algunos OEM — no bloquear
+  const registered = await withTimeout(
+    PushNotifications.register().then(() => true),
+    6000,
+    false,
+  );
+
+  if (!registered) {
+    console.warn('[Pollón][DriverNative] FCM register timeout — reintento en background');
+    PushNotifications.register().catch((err) => {
+      console.warn('[Pollón][DriverNative] FCM register bg:', err?.message || err);
+    });
+  }
+
+  // Esperar un instante al evento registration (no crítico)
+  const deadline = Date.now() + 2500;
+  while (Date.now() < deadline && !(lastToken || getCachedFcmToken())) {
+    await sleep(200);
   }
 
   try {
     const pending = localStorage.getItem('pollon_fcm_token_pending') || localStorage.getItem('pollon_fcm_token');
-    if (pending) await upsertMyFcmToken(pending);
+    if (pending) {
+      await withTimeout(upsertMyFcmToken(pending), 4000, null);
+    }
   } catch {
     /* ignore */
   }
 
-  // Solo marcar OK con permiso concedido; el token FCM puede llegar un instante después
-  try {
-    localStorage.setItem('pollon_native_notif_ok', '1');
-  } catch {
-    /* ignore */
-  }
-
-  return { ok: true, permission: perm, token: lastToken || getCachedFcmToken() || null };
-}
-
-function withTimeout(promise, ms, fallback) {
-  let timer;
-  return Promise.race([
-    Promise.resolve(promise),
-    new Promise((resolve) => {
-      timer = setTimeout(() => resolve(fallback), ms);
-    }),
-  ]).finally(() => clearTimeout(timer));
+  return {
+    ok: true,
+    permission: perm,
+    token: lastToken || getCachedFcmToken() || null,
+    registerOk: Boolean(registered),
+  };
 }
 
 export async function getNativeNotificationPermissionState() {

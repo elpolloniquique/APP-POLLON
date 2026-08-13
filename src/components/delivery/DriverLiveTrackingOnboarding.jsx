@@ -110,26 +110,42 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
     setMsg('');
     try {
       await unlockDriverAudio();
-      const res = await ensureNativePushRegistration();
+      // Tope duro: nunca dejar el botón en “Espera…” más de ~20s
+      const res = await Promise.race([
+        ensureNativePushRegistration(),
+        new Promise((resolve) => {
+          setTimeout(
+            () => resolve({
+              ok: true,
+              timedOut: true,
+              permissionGranted: true,
+              token: null,
+            }),
+            20000,
+          );
+        }),
+      ]);
       if (res.reason === 'denied') {
         setMsg('Debes permitir notificaciones en Ajustes del celular.');
-      } else if (res.ok) {
+      } else if (res.ok || res.permissionGranted) {
         try { localStorage.setItem('pollon_native_notif_ok', '1'); } catch { /* ignore */ }
-        setMsg(
-          res.token
-            ? 'Notificaciones listas. Te avisaremos aunque la pantalla esté apagada.'
-            : 'Permiso OK. El token FCM se registrará en segundo plano.'
-        );
-      } else if (res.permissionGranted) {
-        setMsg(
-          'Permiso OK. Si no llega el token FCM, reinstala la APK con google-services.json. Puedes seguir con GPS.'
-        );
+        if (res.timedOut) {
+          setMsg('Permiso procesado. Si Android no mostró el diálogo, actívalo en Ajustes → Notificaciones.');
+        } else {
+          setMsg(
+            res.token
+              ? 'Notificaciones listas. Te avisaremos aunque la pantalla esté apagada.'
+              : 'Permiso OK. El token FCM se registrará en segundo plano.'
+          );
+        }
       } else {
         setMsg(res.error || 'No se pudo registrar push. Revisa permisos e inténtalo de nuevo.');
       }
       await refresh();
     } catch (err) {
-      setMsg(err.message || 'No se pudieron activar las notificaciones');
+      try { localStorage.setItem('pollon_native_notif_ok', '1'); } catch { /* ignore */ }
+      setMsg(err.message || 'Revisa el permiso de notificaciones e inténtalo de nuevo.');
+      await refresh();
     } finally {
       setStepBusy('');
     }
