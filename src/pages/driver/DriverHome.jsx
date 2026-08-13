@@ -20,7 +20,6 @@ import {
 } from '../../services/orderStatusSyncService';
 import {
   ensureDriverPushSubscription,
-  getNotificationPermission,
   requestGpsFix,
 } from '../../services/pushService';
 import {
@@ -30,6 +29,8 @@ import {
   requestAlwaysLocationPermission,
   openNativeLocationSettings,
   getAndPublishCurrentFix,
+  checkLocationPermissionSnapshot,
+  isDriverBackgroundGpsRunning,
 } from '../../services/backgroundGpsService';
 import { evaluateDriverLiveTrackingReady } from '../../services/driverOnboardingService';
 import { playDriverOrderAlarm, unlockDriverAudio } from '../../utils/orderAlertSound';
@@ -96,7 +97,9 @@ export function DriverHome() {
       setError('');
 
       const hasActive = (s?.activeAssignments || []).length > 0;
-      publishRef.current = hasActive;
+      const onlineNow = ['available', 'heading_to_branch', 'delivering', 'carrying_orders', 'offered']
+        .includes(s?.driver?.operational_status);
+      publishRef.current = hasActive || onlineNow;
 
       if (isSupabaseConfigured()) {
         const sb = getSupabase();
@@ -255,37 +258,61 @@ export function DriverHome() {
   useEffect(() => {
     const onlineStatuses = ['available', 'heading_to_branch', 'delivering', 'carrying_orders', 'offered'];
     const isOnlineNow = onlineStatuses.includes(summary?.driver?.operational_status);
-    if (!isOnlineNow) return undefined;
+    const hasActives = (summary?.activeAssignments || []).length > 0;
+    if (!isOnlineNow && !hasActives) return undefined;
 
-    const check = async () => {
-      if (getNotificationPermission() !== 'granted') {
-        await goOffline('Se desactivaron las notificaciones. Vuelve a autorizarlas para trabajar.');
-        return;
-      }
+    // Nunca desconectar por Notification.permission del WebView (rompe FCM nativo).
+    // Si el FGS se durmió, se relanza. Si el SO negó GPS de verdad, ahí sí avisar.
+    const keepAlive = async () => {
       try {
-        if (navigator.permissions?.query) {
-          const st = await navigator.permissions.query({ name: 'geolocation' });
-          if (st.state === 'denied') {
-            await goOffline('Se desactivó el GPS. Activa la ubicación para seguir en línea.');
-          }
+        const snap = await checkLocationPermissionSnapshot();
+        if (snap?.status?.location === 'denied' || snap?.error === 'NOT_AUTHORIZED') {
+          await goOffline('Se desactivó el GPS. Activa ubicación “Siempre” para seguir en línea.');
+          return;
         }
       } catch {
         /* ignore */
       }
+      if (isNativeDriverApp()) {
+        const res = await startDriverBackgroundGps({
+          onUpdate: (pos) => { if (pos) setGpsPos(pos); },
+        });
+        if (res?.ok && res.position) setGpsPos(res.position);
+      }
     };
 
-    const t = setInterval(check, 30000);
-    return () => clearInterval(t);
-  }, [summary?.driver?.operational_status, goOffline]);
+    keepAlive();
+    const t = setInterval(keepAlive, 25000);
+    let resumeHandle = null;
+    if (isNativeDriverApp()) {
+      import('@capacitor/app')
+        .then(async ({ App }) => {
+          resumeHandle = await App.addListener('appStateChange', (state) => {
+            if (state?.isActive) keepAlive();
+          });
+        })
+        .catch(() => {});
+    }
+
+    return () => {
+      clearInterval(t);
+      try { resumeHandle?.remove(); } catch { /* ignore */ }
+    };
+  }, [summary?.driver?.operational_status, summary?.activeAssignments, goOffline]);
 
   const startGps = useCallback(async (publish) => {
     publishRef.current = !!publish;
-    stopGpsFnRef.current?.();
-    stopGpsFnRef.current = null;
-    await stopDriverBackgroundGps();
 
-    // Pedidos activos en app nativa → GPS segundo plano (pantalla apagada)
+    // Pedidos activos / disponible en app nativa → GPS segundo plano (pantalla apagada)
     if (publish && isNativeDriverApp()) {
+      if (isDriverBackgroundGpsRunning() && gpsModeRef.current === 'active') {
+        const fix = await getAndPublishCurrentFix({ timeoutMs: 8000 });
+        if (fix) setGpsPos(fix);
+        setGpsOn(true);
+        return { ok: true, mode: 'native', alreadyRunning: true, position: fix };
+      }
+      stopGpsFnRef.current?.();
+      stopGpsFnRef.current = null;
       const res = await startDriverBackgroundGps({
         onUpdate: (pos, err) => {
           if (pos) setGpsPos(pos);
@@ -482,8 +509,8 @@ export function DriverHome() {
       await load();
     } catch (err) {
       const msg = err.message || '';
-      if (/tomado por otro|ya no disponible|expirad/i.test(msg)) {
-        setError('Ese pedido ya no está disponible.');
+      if (/tomado por otro|ya no disponible|expirad|otro repartidor/i.test(msg)) {
+        setError('Este pedido ya fue aceptado por otro repartidor.');
         await load();
       } else {
         setError(msg);

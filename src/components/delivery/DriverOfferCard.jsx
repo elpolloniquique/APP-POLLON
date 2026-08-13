@@ -67,7 +67,11 @@ export function DriverOfferCard({
           </span>
           <div className="flex items-center gap-2">
             {secsLeft != null && (
-              <span className="text-xs font-bold text-pollon-orange">{secsLeft}s</span>
+              <span className="text-xs font-bold text-pollon-orange">
+                {secsLeft > 0
+                  ? `${Math.floor(secsLeft / 60)}:${String(secsLeft % 60).padStart(2, '0')}`
+                  : 'Expiró'}
+              </span>
             )}
             <button
               type="button"

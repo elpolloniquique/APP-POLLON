@@ -322,7 +322,7 @@ export function AdminDriverConfig() {
                     />
                     <span className="dcfg-field__unit">seg</span>
                   </div>
-                  <em>Visible en el celular. Ideal: 120</em>
+                  <em>Visible en el celular. Ideal: 180 (3 min)</em>
                 </label>
                 <label className="dcfg-field">
                   <span>Re-ofertar</span>
@@ -336,7 +336,7 @@ export function AdminDriverConfig() {
                     />
                     <span className="dcfg-field__unit">seg</span>
                   </div>
-                  <em>Si nadie acepta. Ideal: 180</em>
+                  <em>Desde la oferta. Ideal: 240 (3 min + 1 min de pausa)</em>
                 </label>
                 <label className="dcfg-field">
                   <span>Radio búsqueda</span>

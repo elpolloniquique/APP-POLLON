@@ -11,6 +11,25 @@ import { upsertMyLocation, startGpsWatch } from './trackingService';
 let webStop = null;
 let nativeRunning = false;
 let lastPublishAt = 0;
+let heartbeatTimer = null;
+let onUpdateRef = null;
+
+function stopHeartbeat() {
+  if (heartbeatTimer) {
+    clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
+  }
+}
+
+function startHeartbeat() {
+  stopHeartbeat();
+  heartbeatTimer = setInterval(() => {
+    if (!nativeRunning) return;
+    getAndPublishCurrentFix({ timeoutMs: 8000 }).then((fix) => {
+      if (fix) onUpdateRef?.(fix, null);
+    }).catch(() => {});
+  }, 15000);
+}
 
 export function isNativeDriverApp() {
   try {
@@ -251,16 +270,21 @@ export async function getAndPublishCurrentFix({ timeoutMs = 12000 } = {}) {
 
 /**
  * Inicia seguimiento continuo en vivo (publica a Supabase).
- * Nativo: FGS + notificación → pantalla apagada / otra app.
+ * Nativo: FGS + notificación persistente → pantalla apagada / otra app.
+ * No reinicia el servicio si ya corre (evita caídas cada 2–5 min).
  */
-export async function startDriverBackgroundGps({ onUpdate } = {}) {
-  await stopDriverBackgroundGps();
+export async function startDriverBackgroundGps({ onUpdate, forceRestart = false } = {}) {
+  onUpdateRef = onUpdate || onUpdateRef;
 
   if (!isNativeDriverApp()) {
+    if (webStop && !forceRestart) {
+      return { ok: true, mode: 'web', alreadyRunning: true };
+    }
+    await stopDriverBackgroundGps();
     const publishRef = { current: true };
     webStop = startGpsWatch(
       (pos, err) => {
-        onUpdate?.(pos, err);
+        onUpdateRef?.(pos, err);
       },
       { intervalMs: 5000, publishRef }
     );
@@ -272,25 +296,41 @@ export async function startDriverBackgroundGps({ onUpdate } = {}) {
     return perm;
   }
 
+  if (nativeRunning && !forceRestart) {
+    const first = await getAndPublishCurrentFix({ timeoutMs: 8000 });
+    if (first) onUpdateRef?.(first, null);
+    startHeartbeat();
+    return {
+      ok: true,
+      mode: 'native',
+      alreadyRunning: true,
+      alwaysOk: perm.alwaysOk !== false,
+      firstFix: Boolean(first),
+      position: first || null,
+    };
+  }
+
+  await stopDriverBackgroundGps();
+
   try {
-    // Primer fix YA (Capgo con distanceFilter no dispara si el moto está parado)
     const first = await getAndPublishCurrentFix({ timeoutMs: 10000 });
-    if (first) onUpdate?.(first, null);
+    if (first) onUpdateRef?.(first, null);
 
     await BackgroundGeolocation.start(
       {
-        backgroundMessage: 'El Pollón · Compartiendo ubicación en vivo con el local',
-        backgroundTitle: 'El Pollón · GPS activo',
-        requestPermissions: true,
+        backgroundMessage: 'El Pollón · GPS en vivo (pantalla apagada OK). No cierres la app.',
+        backgroundTitle: 'El Pollón · Rastreo activo',
+        requestPermissions: false,
         stale: true,
-        distanceFilter: 5,
+        // 0 = actualizar aunque el moto esté parado (si no, el mapa “pierde” el pin)
+        distanceFilter: 0,
       },
       (location, error) => {
         if (error) {
           if (error.code === 'NOT_AUTHORIZED') {
-            onUpdate?.(null, new Error('Permiso de ubicación denegado'));
+            onUpdateRef?.(null, new Error('Permiso de ubicación denegado'));
           } else {
-            onUpdate?.(null, new Error(error.message || 'Error GPS nativo'));
+            onUpdateRef?.(null, new Error(error.message || 'Error GPS nativo'));
           }
           return;
         }
@@ -302,11 +342,12 @@ export async function startDriverBackgroundGps({ onUpdate } = {}) {
           speed: location.speed,
           accuracy: location.accuracy,
         };
-        onUpdate?.(payload, null);
+        onUpdateRef?.(payload, null);
         void publishNativeFix(location);
       }
     );
     nativeRunning = true;
+    startHeartbeat();
     return {
       ok: true,
       mode: 'native',
@@ -322,6 +363,7 @@ export async function startDriverBackgroundGps({ onUpdate } = {}) {
 }
 
 export async function stopDriverBackgroundGps() {
+  stopHeartbeat();
   if (webStop) {
     try { webStop(); } catch { /* ignore */ }
     webStop = null;

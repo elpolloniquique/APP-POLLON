@@ -116,8 +116,13 @@ export default async function handler(req, res) {
         const fee = offer.offered_fee ?? job.delivery_fee ?? 0;
         const ticket = ticketShort(job.ticket_code);
         const name = job.customer_name || 'Cliente';
-        const title = 'El Pollón · Nuevo pedido';
-        const bodyText = `Pedido Nº ${ticket} · ${name} · Delivery ${moneyCLP(fee)}`;
+        const addr = job.customer_address || '';
+        const title = 'El Pollón · Pedido nuevo';
+        const bodyText = [
+          `Nº ${ticket} · ${name}`,
+          addr ? addr : null,
+          `Delivery ${moneyCLP(fee)} · 3 min para aceptar`,
+        ].filter(Boolean).join('\n');
         try {
           const result = await sendFcm(row.token, {
             title,
@@ -129,7 +134,11 @@ export default async function handler(req, res) {
               deepLink: '/repartidor',
               url: '/repartidor',
               tag: `pollon-offer-${offer.id}`,
-              badgeCount: '1',
+              badgeCount: String(offers.length || 1),
+              ticket,
+              customerName: name,
+              address: addr,
+              fee: String(fee),
             },
           });
           if (result.ok) fcmSent += 1;

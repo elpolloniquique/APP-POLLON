@@ -36,10 +36,14 @@ function toApplicationServerKey(base64String) {
 }
 
 export function getNotificationPermission() {
-  if (typeof Notification === 'undefined') {
+  try {
     if (isNativeDriverApp() && typeof localStorage !== 'undefined' && localStorage.getItem(NATIVE_NOTIF_FLAG) === '1') {
       return 'granted';
     }
+  } catch {
+    /* ignore */
+  }
+  if (typeof Notification === 'undefined') {
     return isNativeDriverApp() ? 'prompt' : 'unsupported';
   }
   return Notification.permission;

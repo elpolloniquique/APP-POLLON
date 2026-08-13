@@ -238,8 +238,8 @@ export async function getDispatchReport(branchId = null, from = null, to = null)
 export const DISPATCH_SETTINGS_DEFAULTS = {
   enabled: true,
   auto_offer: true,
-  offer_ttl_seconds: 120,
-  retry_after_seconds: 180,
+  offer_ttl_seconds: 180,
+  retry_after_seconds: 240,
   max_search_radius_km: 8,
   arrival_radius_m: 80,
   customer_arrival_radius_m: 60,
@@ -262,8 +262,8 @@ export function normalizeDispatchSettings(raw = {}) {
   return {
     enabled: raw.enabled !== false,
     auto_offer: raw.auto_offer !== false,
-    offer_ttl_seconds: Math.min(300, Math.max(15, n(raw.offer_ttl_seconds, 120))),
-    retry_after_seconds: Math.min(900, Math.max(60, n(raw.retry_after_seconds, 180))),
+    offer_ttl_seconds: Math.min(300, Math.max(15, n(raw.offer_ttl_seconds, 180))),
+    retry_after_seconds: Math.min(900, Math.max(60, n(raw.retry_after_seconds, 240))),
     max_search_radius_km: Math.min(30, Math.max(1, n(raw.max_search_radius_km, 8))),
     arrival_radius_m: Math.min(300, Math.max(20, n(raw.arrival_radius_m, 80))),
     customer_arrival_radius_m: Math.min(300, Math.max(20, n(raw.customer_arrival_radius_m, 60))),
