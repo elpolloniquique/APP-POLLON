@@ -316,27 +316,27 @@ export function AdminDriverConfig() {
                     <input
                       type="number"
                       min={15}
-                      max={300}
+                      max={900}
                       value={form.offer_ttl_seconds}
                       onChange={(e) => update('offer_ttl_seconds', Number(e.target.value))}
                     />
                     <span className="dcfg-field__unit">seg</span>
                   </div>
-                  <em>Visible en el celular. Ideal: 180 (3 min)</em>
+                  <em>Visible en el celular. Ideal: 600 (10 min)</em>
                 </label>
                 <label className="dcfg-field">
                   <span>Re-ofertar</span>
                   <div className="dcfg-field__control">
                     <input
                       type="number"
-                      min={60}
+                      min={30}
                       max={900}
                       value={form.retry_after_seconds}
                       onChange={(e) => update('retry_after_seconds', Number(e.target.value))}
                     />
                     <span className="dcfg-field__unit">seg</span>
                   </div>
-                  <em>Desde la oferta. Ideal: 240 (3 min + 1 min de pausa)</em>
+                  <em>Reaviso / nueva ola. Ideal: 60 (cada 1 min hasta aceptar)</em>
                 </label>
                 <label className="dcfg-field">
                   <span>Radio búsqueda</span>

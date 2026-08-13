@@ -156,7 +156,7 @@ export async function manualSearchDrivers(orderId) {
 }
 
 /**
- * Re-oferta jobs sin aceptación tras ~3 min (TTL oferta ya expiró).
+ * Re-oferta / reaviso cada ~1 min si nadie aceptó (TTL panel 10 min).
  * Dispara push a los repartidores de nuevo.
  */
 export async function retryStaleDriverSearches() {

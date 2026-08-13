@@ -8,35 +8,33 @@ import android.os.Looper;
 import android.os.PowerManager;
 
 /**
- * Alarma nativa de pedido nuevo. No usa WebView: suena con pantalla apagada
- * u otra app abierta (el FGS de GPS deja el proceso vivo y FCM llega aquí).
- * Sigue hasta que el repartidor abre y acepta/rechaza, o hasta el TTL (3 min).
+ * Alarma nativa de pedido nuevo: 3 tonos fuertes.
+ * La notificación sticky permanece en bandeja hasta aceptar/rechazar.
  */
 final class OfferAlarmPlayer {
-    private static final int BEAT_MS = 1200;
-    private static final int TONE_MS = 850;
-    private static final long MAX_MS = 180_000L;
+    private static final int BEATS = 3;
+    private static final int BEAT_MS = 1400;
+    private static final int TONE_MS = 900;
 
     private static ToneGenerator tone;
     private static Handler handler;
     private static PowerManager.WakeLock wakeLock;
-    private static long deadline;
-    private static Context appCtx;
+    private static int remaining;
     private static final Runnable beat = OfferAlarmPlayer::playBeat;
 
     private OfferAlarmPlayer() {}
 
     static synchronized void start(Context context) {
         stopInternal(false);
-        appCtx = context.getApplicationContext();
-        deadline = System.currentTimeMillis() + MAX_MS;
+        Context app = context.getApplicationContext();
+        remaining = BEATS;
 
         try {
-            PowerManager pm = (PowerManager) appCtx.getSystemService(Context.POWER_SERVICE);
+            PowerManager pm = (PowerManager) app.getSystemService(Context.POWER_SERVICE);
             if (pm != null) {
                 wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "ElPollon::OfferAlarm");
                 wakeLock.setReferenceCounted(false);
-                wakeLock.acquire(MAX_MS + 3000L);
+                wakeLock.acquire(BEATS * BEAT_MS + 3000L);
             }
         } catch (Exception ignored) {}
 
@@ -50,8 +48,8 @@ final class OfferAlarmPlayer {
         stopInternal(true);
     }
 
-    private static void stopInternal(boolean releaseCtx) {
-        deadline = 0;
+    private static void stopInternal(boolean releaseAll) {
+        remaining = 0;
         if (handler != null) {
             handler.removeCallbacks(beat);
             handler = null;
@@ -69,7 +67,6 @@ final class OfferAlarmPlayer {
             } catch (Exception ignored) {}
             wakeLock = null;
         }
-        if (releaseCtx) appCtx = null;
     }
 
     private static void ensureTone() {
@@ -84,7 +81,7 @@ final class OfferAlarmPlayer {
     }
 
     private static synchronized void playBeat() {
-        if (deadline <= 0 || System.currentTimeMillis() >= deadline) {
+        if (remaining <= 0) {
             stop();
             return;
         }
@@ -93,19 +90,20 @@ final class OfferAlarmPlayer {
             stop();
             return;
         }
+        remaining -= 1;
         try {
             tone.startTone(ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, TONE_MS);
         } catch (Exception e) {
             try {
-                if (tone != null) {
-                    tone.release();
-                }
+                if (tone != null) tone.release();
             } catch (Exception ignored) {}
             tone = null;
             ensureTone();
         }
-        if (handler != null) {
+        if (remaining > 0 && handler != null) {
             handler.postDelayed(beat, BEAT_MS);
+        } else if (handler != null) {
+            handler.postDelayed(OfferAlarmPlayer::stop, 1000);
         }
     }
 }

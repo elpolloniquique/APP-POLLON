@@ -74,7 +74,7 @@ export function AdminDispatch() {
     const t = setInterval(() => {
       load();
       retryStaleDriverSearches().catch(() => {});
-    }, 20000);
+    }, 15000);
     return () => { unsub(); clearInterval(t); };
   }, [load]);
 

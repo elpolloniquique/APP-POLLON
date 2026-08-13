@@ -128,7 +128,7 @@ export default async function handler(req, res) {
           name,
           addr || null,
           `Delivery ${moneyCLP(fee)}`,
-          '3 min para aceptar',
+          '10 min para aceptar',
         ].filter(Boolean).join(' · ');
         try {
           const result = await sendFcm(row.token, {

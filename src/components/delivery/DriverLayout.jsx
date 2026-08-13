@@ -140,6 +140,7 @@ export function DriverLayout() {
   useEffect(() => {
     if (!trackingReady) return undefined;
     let cancelled = false;
+    let stopMisses = 0;
 
     const syncGps = async () => {
       if (cancelled) return;
@@ -147,17 +148,23 @@ export function DriverLayout() {
         const s = await getMyDriverSummary();
         if (cancelled) return;
         if (driverShouldShareGps(s)) {
+          stopMisses = 0;
           await startDriverBackgroundGps();
         } else {
-          await stopDriverBackgroundGps();
+          // Evitar apagar el FGS por un poll incompleto: exige 3 lecturas seguidas offline
+          stopMisses += 1;
+          if (stopMisses >= 3) {
+            await stopDriverBackgroundGps();
+            stopMisses = 0;
+          }
         }
       } catch {
-        /* ignore */
+        /* ignore — no parar GPS por error de red */
       }
     };
 
     void syncGps();
-    const t = setInterval(syncGps, 20000);
+    const t = setInterval(syncGps, 2000);
     let resumeHandle = null;
     if (isNativeDriverApp()) {
       import('@capacitor/app')

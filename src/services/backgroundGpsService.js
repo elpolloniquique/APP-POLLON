@@ -89,12 +89,13 @@ function stopHeartbeat() {
 
 function startHeartbeat() {
   stopHeartbeat();
+  // ≤2s: si el FGS cae o el WebView despierta, el fix vuelve al servidor al instante
   heartbeatTimer = setInterval(() => {
     if (!nativeRunning) return;
-    getAndPublishCurrentFix({ timeoutMs: 8000 }).then((fix) => {
+    getAndPublishCurrentFix({ timeoutMs: 4000 }).then((fix) => {
       if (fix) notifyGps(fix, null);
     }).catch(() => {});
-  }, 15000);
+  }, 2000);
 }
 
 export function isNativeDriverApp() {
@@ -287,7 +288,7 @@ async function publishNativeFix(location, { force = false } = {}) {
   const lng = Number(location.longitude ?? location.lng);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
   const now = Date.now();
-  if (!force && lastPublishAt && now - lastPublishAt < 4000) return null;
+  if (!force && lastPublishAt && now - lastPublishAt < 2000) return null;
   lastPublishAt = now;
   try {
     await upsertMyLocation({
@@ -351,7 +352,7 @@ export async function startDriverBackgroundGps({ forceRestart = false } = {}) {
       (pos, err) => {
         notifyGps(pos, err);
       },
-      { intervalMs: 5000, publishRef }
+      { intervalMs: 2000, publishRef }
     );
     return { ok: true, mode: 'web' };
   }
@@ -387,8 +388,8 @@ export async function startDriverBackgroundGps({ forceRestart = false } = {}) {
     if (first) notifyGps(first, null);
 
     const startOpts = {
-      backgroundMessage: 'GPS activo aunque apagues la pantalla o abras otra app. No detengas esta notificación.',
-      backgroundTitle: 'El Pollón · En ruta',
+      backgroundMessage: 'GPS siempre activo. No detengas esta notificación aunque apagues la pantalla.',
+      backgroundTitle: 'El Pollón · GPS en vivo',
       requestPermissions: false,
       stale: true,
       // 0 = actualizar aunque el moto esté parado (si no, el mapa “pierde” el pin)

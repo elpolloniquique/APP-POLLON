@@ -117,7 +117,7 @@ async function sendFcmV1(sa, deviceToken, { title, body, data }) {
           ),
           android: {
             priority: 'HIGH',
-            ttl: '180s',
+            ttl: '600s',
             notification: {
               channelId: 'pollon_driver_alarm_v3',
               sound: 'default',

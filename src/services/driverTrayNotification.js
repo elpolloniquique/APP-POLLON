@@ -129,7 +129,7 @@ export async function showDriverOfferTray({
     customerName || null,
     address || null,
     fee ? `Delivery ${fee}` : null,
-    '3 min para aceptar',
+    '10 min para aceptar',
   ].filter(Boolean).join(' · '));
 
   try {

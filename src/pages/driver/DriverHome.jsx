@@ -79,7 +79,7 @@ export function DriverHome() {
     stopAlarmRef.current?.();
     unlockDriverAudio().then(() => {
       stopAlarmRef.current?.();
-      stopAlarmRef.current = playDriverOrderAlarm({ loops: 8 });
+      stopAlarmRef.current = playDriverOrderAlarm({ loops: 3 });
     });
     try { navigator.vibrate?.([220, 80, 320, 80, 420]); } catch { /* ignore */ }
     if (isNativeDriverApp()) {
@@ -412,9 +412,14 @@ export function DriverHome() {
             throw new Error(started?.error || 'No se pudo activar el GPS en vivo.');
           }
           let fix = started.position || gpsPos;
-          if (!fix) fix = await getAndPublishCurrentFix({ timeoutMs: 12000 });
+          if (!fix) fix = await getAndPublishCurrentFix({ timeoutMs: 8000 });
+          // Segundo ping inmediato: evita “en línea pero GPS no llega al servidor”
+          if (fix) {
+            const again = await getAndPublishCurrentFix({ timeoutMs: 5000 });
+            if (again) fix = again;
+          }
           if (!fix) {
-            throw new Error('Sin señal GPS. Sal al aire libre, espera 10 s e inténtalo de nuevo. Sin GPS no te llegan pedidos.');
+            throw new Error('Sin señal GPS. Sal al aire libre, espera unos segundos e inténtalo de nuevo. Sin GPS no te llegan pedidos.');
           }
           setGpsPos(fix);
         } else {

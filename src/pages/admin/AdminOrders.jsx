@@ -208,7 +208,7 @@ export function AdminOrders() {
         .catch(() => {});
     };
     tick();
-    const t = setInterval(tick, 20000);
+    const t = setInterval(tick, 15000);
     return () => clearInterval(t);
   }, [ready, refreshDelivery]);
 
