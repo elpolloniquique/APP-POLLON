@@ -1,21 +1,21 @@
 /**
- * POST nativo (Capgo FGS) — no depende del WebView.
- * Body Capgo Location: { latitude, longitude, accuracy, bearing, speed, source }
- * Query: ?k=<gps_ping_token>
+ * POST nativo Capgo (pantalla apagada / otra app).
+ * Query ?k=<gps_ping_token>
+ * Vive en _lib para no gastar una función extra del plan Hobby (máx. 12).
  */
 import { createClient } from '@supabase/supabase-js';
-
-function env(...keys) {
-  for (const k of keys) {
-    const v = process.env[k];
-    if (v) return v;
-  }
-  return '';
-}
+import { env } from './fcmSend.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export default async function handler(req, res) {
+export function isGpsPingRequest(req) {
+  const token = String(req.query?.k || req.query?.token || '').trim();
+  if (UUID_RE.test(token)) return true;
+  const url = String(req.url || '');
+  return url.includes('driver-gps-ping');
+}
+
+export async function handleGpsPing(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');

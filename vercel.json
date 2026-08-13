@@ -9,7 +9,10 @@
       "schedule": "0 15 * * *"
     }
   ],
-  "rewrites": [{ "source": "/((?!api/|robots\\.txt|sitemap\\.xml|sitemap-vercel\\.xml|manifest\\.json|sw\\.js|workbox-.*\\.js|.*\\..*).*)", "destination": "/index.html" }],
+  "rewrites": [
+    { "source": "/api/driver-gps-ping", "destination": "/api/notify-driver-offers" },
+    { "source": "/((?!api/|robots\\.txt|sitemap\\.xml|sitemap-vercel\\.xml|manifest\\.json|sw\\.js|workbox-.*\\.js|.*\\..*).*)", "destination": "/index.html" }
+  ],
   "headers": [
     {
       "source": "/DESCARGAR-APK/(.*)",
