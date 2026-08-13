@@ -10,7 +10,7 @@ import { DRIVER_APP_VERSION_NAME } from '../utils/driverNativeConstants';
 let listenersBound = false;
 let lastToken = null;
 let registrationKickoff = null;
-const OFFER_CHANNEL_ID = 'pollon_driver_offers';
+const OFFER_CHANNEL_ID = 'pollon_driver_alarm_v3';
 
 function withTimeout(promise, ms, fallback) {
   let timer;
@@ -85,8 +85,8 @@ async function ensureOfferNotificationChannel(PushNotifications) {
   await withTimeout(
     PushNotifications.createChannel({
       id: OFFER_CHANNEL_ID,
-      name: 'Ofertas El Pollón',
-      description: 'Pedidos nuevos para repartidores',
+      name: 'Pedidos nuevos · alarma',
+      description: 'Suena aunque la pantalla esté apagada o estés en otra app',
       importance: 5,
       visibility: 1,
       sound: 'default',

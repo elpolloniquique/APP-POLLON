@@ -117,8 +117,9 @@ async function sendFcmV1(sa, deviceToken, { title, body, data }) {
           ),
           android: {
             priority: 'HIGH',
+            ttl: '180s',
             notification: {
-              channelId: 'pollon_driver_offers',
+              channelId: 'pollon_driver_alarm_v3',
               sound: 'default',
               defaultVibrateTimings: true,
               defaultSound: true,
@@ -127,6 +128,7 @@ async function sendFcmV1(sa, deviceToken, { title, body, data }) {
               tag: data.tag || 'pollon-offer',
               notificationCount: Math.max(1, Number(data.badgeCount) || 1),
               ticker: title,
+              sticky: true,
               clickAction: 'FCM_PLUGIN_ACTIVITY',
             },
           },
@@ -164,7 +166,7 @@ async function sendFcmLegacy(token, { title, body, data }) {
         sound: 'default',
         click_action: 'FCM_PLUGIN_ACTIVITY',
         tag: data.tag || 'pollon-offer',
-        android_channel_id: 'pollon_driver_offers',
+        android_channel_id: 'pollon_driver_alarm_v3',
       },
       data: {
         ...data,

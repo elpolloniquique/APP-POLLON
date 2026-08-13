@@ -23,4 +23,15 @@ public class DriverBadgePlugin extends Plugin {
         BadgeHelper.apply(getContext(), 0);
         call.resolve();
     }
+
+    @PluginMethod
+    public void stopOfferAlarm(PluginCall call) {
+        OfferAlarmPlayer.stop();
+        try {
+            android.app.NotificationManager nm =
+                (android.app.NotificationManager) getContext().getSystemService(android.content.Context.NOTIFICATION_SERVICE);
+            if (nm != null) nm.cancel(PollonMessagingService.NOTIF_ID);
+        } catch (Exception ignored) {}
+        call.resolve();
+    }
 }

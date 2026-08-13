@@ -5,13 +5,14 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { isNativeDriverApp } from './backgroundGpsService';
 
-const OFFER_CHANNEL_ID = 'pollon_driver_offers';
+const OFFER_CHANNEL_ID = 'pollon_driver_alarm_v3';
 const OFFER_NOTIF_BASE = 71001;
 
 const DriverBadge = registerPlugin('DriverBadge', {
   web: {
     set: async () => {},
     clear: async () => {},
+    stopOfferAlarm: async () => {},
   },
 });
 
@@ -64,8 +65,8 @@ export async function ensureDriverOfferChannel() {
   try {
     await LocalNotifications.createChannel({
       id: OFFER_CHANNEL_ID,
-      name: 'Pedidos nuevos',
-      description: 'Avisos de pedido para repartidores (bandeja, como WhatsApp)',
+      name: 'Pedidos nuevos · alarma',
+      description: 'Suena aunque la pantalla esté apagada o estés en otra app',
       importance: 5,
       visibility: 1,
       sound: 'default',
@@ -75,6 +76,15 @@ export async function ensureDriverOfferChannel() {
     });
   } catch {
     /* canal ya existe */
+  }
+}
+
+export async function stopNativeOfferAlarm() {
+  if (!isNativeDriverApp()) return;
+  try {
+    await DriverBadge.stopOfferAlarm();
+  } catch {
+    /* ignore */
   }
 }
 

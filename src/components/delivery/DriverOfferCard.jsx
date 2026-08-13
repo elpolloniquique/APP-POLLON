@@ -120,8 +120,12 @@ export function DriverOfferCard({
           <button
             type="button"
             disabled={loading}
-            onClick={() => onReject?.(offer)}
-            className="inline-flex items-center justify-center gap-1.5 rounded-xl border-2 border-pollon-red bg-white py-3 text-sm font-bold text-pollon-red disabled:opacity-50"
+            onPointerDown={(e) => {
+              if (loading) return;
+              e.preventDefault();
+              onReject?.(offer);
+            }}
+            className="inline-flex touch-manipulation items-center justify-center gap-1.5 rounded-xl border-2 border-pollon-red bg-white py-3 text-sm font-bold text-pollon-red active:scale-95 disabled:opacity-50"
           >
             <X className="h-4 w-4" />
             Rechazar
@@ -129,8 +133,12 @@ export function DriverOfferCard({
           <button
             type="button"
             disabled={loading}
-            onClick={() => onAccept?.(offer)}
-            className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-pollon-red py-3 text-sm font-bold text-white disabled:opacity-50"
+            onPointerDown={(e) => {
+              if (loading) return;
+              e.preventDefault();
+              onAccept?.(offer);
+            }}
+            className="inline-flex touch-manipulation items-center justify-center gap-1.5 rounded-xl bg-pollon-red py-3 text-sm font-bold text-white active:scale-95 disabled:opacity-50"
           >
             <Check className="h-4 w-4" />
             Aceptar

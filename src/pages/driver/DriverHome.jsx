@@ -49,6 +49,10 @@ export function DriverHome() {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [offerBusyId, setOfferBusyId] = useState(null);
+  const offerBusyRef = useRef(null);
+  const dismissedOffersRef = useRef(new Set());
+  const optimisticAssignRef = useRef(null);
   const [gpsOn, setGpsOn] = useState(false);
   const [gpsPos, setGpsPos] = useState(null);
   const [error, setError] = useState('');
@@ -75,7 +79,7 @@ export function DriverHome() {
     stopAlarmRef.current?.();
     unlockDriverAudio().then(() => {
       stopAlarmRef.current?.();
-      stopAlarmRef.current = playDriverOrderAlarm({ loops: 2 });
+      stopAlarmRef.current = playDriverOrderAlarm({ loops: 8 });
     });
     try { navigator.vibrate?.([220, 80, 320, 80, 420]); } catch { /* ignore */ }
     if (isNativeDriverApp()) {
@@ -87,13 +91,39 @@ export function DriverHome() {
     }
   }, []);
 
+  const applyServerSummary = useCallback((s) => {
+    if (!s) {
+      setSummary(s);
+      return;
+    }
+    const dismissed = dismissedOffersRef.current;
+    const pending = (s.pendingOffers || []).filter((o) => !dismissed.has(o.id));
+    let actives = s.activeAssignments || [];
+    const opt = optimisticAssignRef.current;
+    if (opt) {
+      const jobId = opt.job_id || opt.ep_delivery_jobs?.id;
+      const orderId = opt.ep_delivery_jobs?.source_order_id;
+      const hasReal = actives.some((a) => {
+        const j = a.ep_delivery_jobs || {};
+        return (jobId && (a.job_id === jobId || j.id === jobId))
+          || (orderId && j.source_order_id === orderId);
+      });
+      if (hasReal) optimisticAssignRef.current = null;
+      else actives = [opt, ...actives.filter((a) => a.id !== opt.id)];
+    }
+    for (const id of [...dismissed]) {
+      if (!(s.pendingOffers || []).some((o) => o.id === id)) dismissed.delete(id);
+    }
+    setSummary({ ...s, pendingOffers: pending, activeAssignments: actives });
+  }, []);
+
   const load = useCallback(async () => {
     if (loadingRef.current) return;
     loadingRef.current = true;
     try {
       await ensureMyDriverProfile();
       const s = await getMyDriverSummary();
-      setSummary(s);
+      applyServerSummary(s);
       setError('');
 
       const hasActive = (s?.activeAssignments || []).length > 0;
@@ -129,7 +159,7 @@ export function DriverHome() {
       setLoading(false);
       loadingRef.current = false;
     }
-  }, []);
+  }, [applyServerSummary]);
 
   const scheduleLoad = useCallback(() => {
     if (loadTimerRef.current) clearTimeout(loadTimerRef.current);
@@ -409,57 +439,96 @@ export function DriverHome() {
     }
   };
 
-  const onAccept = async (offer) => {
-    setBusy(true);
-    try {
-      stopAlarmRef.current?.();
-      stopAlarmRef.current = null;
-      // Al primer accept: pedir “Siempre” y arrancar background
-      if (isNativeDriverApp()) {
-        const perm = await requestAlwaysLocationPermission();
-        if (perm.needsSettings) {
-          setError(
-            'Elige ubicación “Permitir todo el tiempo” para que el mapa te vea con la pantalla apagada.'
-          );
-        }
-      }
-      await acceptOffer(offer.id);
-      const orderId = offer?.ep_delivery_jobs?.source_order_id
-        || offer?.job?.source_order_id
-        || offer?.source_order_id
-        || null;
-      if (orderId) {
-        await syncAfterDriverAccept(orderId);
-      }
-      publishRef.current = true;
-      await startGps(true);
-      await load();
-    } catch (err) {
-      const msg = err.message || '';
-      if (/tomado por otro|ya no disponible|expirad|otro repartidor/i.test(msg)) {
-        setError('Este pedido ya fue aceptado por otro repartidor.');
-        await load();
-      } else {
-        setError(msg);
-      }
-    } finally {
-      setBusy(false);
-    }
+  const hushOfferUi = (offerId) => {
+    stopAlarmRef.current?.();
+    stopAlarmRef.current = null;
+    import('../../services/driverTrayNotification.js')
+      .then(({ stopNativeOfferAlarm, cancelDriverOfferTray }) => {
+        stopNativeOfferAlarm();
+        cancelDriverOfferTray(offerId);
+      })
+      .catch(() => {});
   };
 
-  const onReject = async (offer) => {
-    setBusy(true);
-    try {
-      await rejectOffer(offer.id);
-      await load();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
-    }
+  const onAccept = (offer) => {
+    if (!offer?.id || dismissedOffersRef.current.has(offer.id) || offerBusyRef.current) return;
+    dismissedOffersRef.current.add(offer.id);
+    offerBusyRef.current = offer.id;
+    hushOfferUi(offer.id);
+
+    const job = offer.ep_delivery_jobs || offer.job || {};
+    const optimistic = {
+      id: `opt-${offer.id}`,
+      phase: 'to_store',
+      status: 'accepted',
+      job_id: job.id,
+      ep_delivery_jobs: job,
+    };
+    optimisticAssignRef.current = optimistic;
+    publishRef.current = true;
+    setSummary((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        pendingOffers: (prev.pendingOffers || []).filter((o) => o.id !== offer.id),
+        activeAssignments: [
+          optimistic,
+          ...(prev.activeAssignments || []).filter((a) => a.id !== optimistic.id),
+        ],
+      };
+    });
+    setOfferBusyId(null);
+    void startGps(true);
+
+    const orderId = job.source_order_id || offer.source_order_id || null;
+    void acceptOffer(offer.id)
+      .then(() => {
+        if (orderId) void syncAfterDriverAccept(orderId);
+        offerBusyRef.current = null;
+        void load();
+      })
+      .catch((err) => {
+        dismissedOffersRef.current.delete(offer.id);
+        if (optimisticAssignRef.current?.id === optimistic.id) optimisticAssignRef.current = null;
+        offerBusyRef.current = null;
+        const msg = err.message || '';
+        if (/tomado por otro|ya no disponible|expirad|otro repartidor/i.test(msg)) {
+          setError('Este pedido ya fue aceptado por otro repartidor.');
+        } else {
+          setError(msg);
+        }
+        void load();
+      });
+  };
+
+  const onReject = (offer) => {
+    if (!offer?.id || dismissedOffersRef.current.has(offer.id) || offerBusyRef.current) return;
+    dismissedOffersRef.current.add(offer.id);
+    offerBusyRef.current = offer.id;
+    hushOfferUi(offer.id);
+    setSummary((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        pendingOffers: (prev.pendingOffers || []).filter((o) => o.id !== offer.id),
+      };
+    });
+    setOfferBusyId(null);
+    void rejectOffer(offer.id)
+      .then(() => {
+        offerBusyRef.current = null;
+        void load();
+      })
+      .catch((err) => {
+        dismissedOffersRef.current.delete(offer.id);
+        offerBusyRef.current = null;
+        setError(err.message);
+        void load();
+      });
   };
 
   const onPickup = async (assignment) => {
+    if (String(assignment?.id || '').startsWith('opt-')) return;
     setBusy(true);
     try {
       // confirmPickup ya sincroniza pedido → en_delivery
@@ -562,7 +631,7 @@ export function DriverHome() {
             offer={offer}
             onAccept={onAccept}
             onReject={onReject}
-            loading={busy}
+            loading={offerBusyId === offer.id}
             driverName={driverName}
             branchCity={branchCity}
           />
@@ -577,7 +646,7 @@ export function DriverHome() {
             branch={branch}
             driverName={driverName}
             branchCity={branchCity}
-            loading={busy}
+            loading={busy || String(active.id || '').startsWith('opt-')}
             onPickup={onPickup}
             onDelivered={onDelivered}
           />
