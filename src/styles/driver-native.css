@@ -149,6 +149,14 @@
   box-shadow: none;
 }
 
+.driver-native-gate__cta--ghost {
+  margin-top: 0.65rem;
+  background: transparent;
+  color: #fecaca;
+  border: 1px solid rgb(255 255 255 / 0.18);
+  box-shadow: none;
+}
+
 .driver-native-gate__howto {
   margin: 1rem 0 0;
   padding-left: 1.15rem;

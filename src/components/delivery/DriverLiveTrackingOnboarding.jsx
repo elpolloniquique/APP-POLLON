@@ -9,6 +9,7 @@ import {
   Download,
   Battery,
   ShieldCheck,
+  ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { unlockDriverAudio } from '../../utils/orderAlertSound';
@@ -30,6 +31,8 @@ import {
   DRIVER_APP_VERSION_NAME,
   DRIVER_APP_VERSION_CODE,
   getDriverApkDownloadUrl,
+  openNativeDriverApp,
+  shouldSkipNativeAutoOpen,
 } from '../../utils/driverNativeConstants';
 import '../../styles/driver-native.css';
 
@@ -91,19 +94,38 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
     };
   }, [refresh, driverRole, onReadyChange]);
 
+  useEffect(() => {
+    if (!driverRole || isNativeDriverApp()) return undefined;
+    if (shouldSkipNativeAutoOpen()) return undefined;
+    const key = 'pollon_tried_native_open';
+    try {
+      if (sessionStorage.getItem(key) === '1') return undefined;
+      sessionStorage.setItem(key, '1');
+    } catch {
+      /* ignore */
+    }
+    setMsg('Abriendo tu app nativa de repartidor…');
+    const t = setTimeout(() => openNativeDriverApp(), 250);
+    return () => clearTimeout(t);
+  }, [driverRole]);
+
   if (!driverRole) return null;
 
   const apkUrl = state?.apkUrl || getDriverApkDownloadUrl();
 
+  const runOpenNative = () => {
+    setMsg('Abriendo tu app nativa…');
+    openNativeDriverApp();
+  };
+
   const runDownloadApk = () => {
-    setMsg('Descargando APK… Si Android bloquea, permite “Instalar apps desconocidas”.');
-    const a = document.createElement('a');
-    a.href = apkUrl;
-    a.download = 'El-Pollon-repartidor.apk';
-    a.rel = 'noopener';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    setMsg('Si ya tienes la app nativa, pulsa “Abrir panel”. Si no, permitiendo la descarga…');
+    try {
+      const w = window.open(apkUrl, '_blank', 'noopener');
+      if (!w) window.location.assign(apkUrl);
+    } catch {
+      window.location.assign(apkUrl);
+    }
   };
 
   const runNotif = async () => {
@@ -252,30 +274,33 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
           <img src="/img/logo pollon.png" alt="El Pollón" className="driver-native-gate__logo" />
           <p className="driver-native-gate__brand">EL POLLÓN</p>
           <p className="driver-native-gate__badge">App nativa repartidor</p>
-          <h1 className="driver-native-gate__title">Instala la app oficial</h1>
+          <h1 className="driver-native-gate__title">Abre tu panel de repartidor</h1>
           <p className="driver-native-gate__lead">
             Hola <strong>{name}</strong>
             {email ? <> (<span>{email}</span>)</> : null}.
-            Los repartidores deben usar la <strong>APK nativa</strong> para GPS con pantalla apagada
-            y notificaciones tipo WhatsApp. La PWA de clientes no alcanza.
+            Esta es la app de <strong>clientes</strong>. Si ya tienes instalada la APK nativa
+            en este teléfono, ábrela: ahí está tu panel (GPS y pedidos).
           </p>
 
           <ul className="driver-native-gate__benefits">
-            <li>GPS en vivo aunque apagues la pantalla</li>
-            <li>Avisos de pedido a la bandeja del celular</li>
-            <li>El local te ve en el mapa En vivo</li>
+            <li>Si ya la instalaste, no vuelvas a descargar: ábrela</li>
+            <li>GPS y alertas de pedido viven en la app nativa</li>
+            <li>Entra con el mismo correo de repartidor</li>
           </ul>
 
-          <button type="button" className="driver-native-gate__cta" onClick={runDownloadApk}>
+          <button type="button" className="driver-native-gate__cta" onClick={runOpenNative}>
+            <ExternalLink className="h-5 w-5" />
+            Abrir panel de repartidor
+          </button>
+          <button type="button" className="driver-native-gate__cta driver-native-gate__cta--ghost" onClick={runDownloadApk}>
             <Download className="h-5 w-5" />
-            Descargar El-Pollon-repartidor.apk
+            Descargar APK (solo si no la tienes)
           </button>
 
           <ol className="driver-native-gate__howto">
-            <li>Descarga e instala la APK (permite apps desconocidas si Android lo pide).</li>
-            <li>Abre <strong>El Pollón</strong> desde el ícono de la app.</li>
-            <li>Inicia sesión con este mismo correo de repartidor.</li>
-            <li>Activa notificaciones + ubicación “Permitir todo el tiempo”.</li>
+            <li>Pulsa <strong>Abrir panel de repartidor</strong> si la app nativa ya está instalada.</li>
+            <li>Si Android pregunta, elige <strong>El Pollón</strong> (app nativa, no el navegador).</li>
+            <li>Solo si no la tienes: descarga la APK, instálala y entra con este correo.</li>
           </ol>
 
           <p className="driver-native-gate__meta">

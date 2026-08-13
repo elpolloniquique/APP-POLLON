@@ -17,3 +17,56 @@ export function getDriverApkDownloadUrl() {
 export function getDriverGpsPingUrl(token) {
   return `${DRIVER_SITE_ORIGIN}/api/driver-gps-ping?k=${encodeURIComponent(token)}`;
 }
+
+export function shouldSkipNativeAutoOpen() {
+  if (typeof window === 'undefined') return true;
+  try {
+    return new URLSearchParams(window.location.search).get('native_miss') === '1';
+  } catch {
+    return false;
+  }
+}
+
+function nativeMissFallbackUrl() {
+  if (typeof window === 'undefined') return `${DRIVER_SITE_ORIGIN}/repartidor?native_miss=1`;
+  try {
+    const u = new URL(window.location.href);
+    u.searchParams.set('native_miss', '1');
+    return u.toString();
+  } catch {
+    return `${DRIVER_SITE_ORIGIN}/repartidor?native_miss=1`;
+  }
+}
+
+/** Chrome Android: abre cl.elpollon.app si está instalada; si no, vuelve al gate. */
+export function getNativeDriverLaunchUrl() {
+  const fallback = encodeURIComponent(nativeMissFallbackUrl());
+  return (
+    'intent://launch/#Intent;'
+    + `package=${DRIVER_APP_ID};`
+    + 'action=android.intent.action.MAIN;'
+    + 'category=android.intent.category.LAUNCHER;'
+    + `S.browser_fallback_url=${fallback};`
+    + 'end'
+  );
+}
+
+export function openNativeDriverApp() {
+  if (typeof window === 'undefined') return;
+  const url = getNativeDriverLaunchUrl();
+  try {
+    const a = document.createElement('a');
+    a.href = url;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } catch {
+    /* ignore */
+  }
+  try {
+    window.location.href = url;
+  } catch {
+    /* ignore */
+  }
+}
