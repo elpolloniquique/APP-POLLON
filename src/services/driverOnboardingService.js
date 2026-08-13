@@ -149,7 +149,8 @@ export async function evaluateDriverLiveTrackingReady(userId) {
       let notifOk = notifState === 'granted';
       if (!notifOk) {
         try {
-          notifOk = localStorage.getItem('pollon_native_notif_ok') === '1';
+          notifOk = localStorage.getItem('pollon_native_notif_ok') === '1'
+            || localStorage.getItem(`pollon_driver_notif_confirmed_${userId}`) === '1';
         } catch {
           /* ignore */
         }

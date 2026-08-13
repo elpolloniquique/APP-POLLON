@@ -191,6 +191,11 @@ export async function openNativeLocationSettings() {
   }
 }
 
+/** Ajustes de la app (notificaciones / permisos) en Android. */
+export async function openNativeAppSettings() {
+  return openNativeLocationSettings();
+}
+
 async function publishNativeFix(location) {
   if (!location) return;
   const now = Date.now();

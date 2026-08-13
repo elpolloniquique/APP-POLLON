@@ -17,9 +17,10 @@ import {
   completeDriverLiveTrackingSetup,
   markDriverOnboardingComplete,
 } from '../../services/driverOnboardingService';
-import { ensureNativePushRegistration } from '../../services/fcmService';
+import { ensureNativePushRegistration, markNativeNotifOk, kickoffNativePushRegistration } from '../../services/fcmService';
 import {
   openNativeLocationSettings,
+  openNativeAppSettings,
   requestAlwaysLocationPermission,
   checkLocationPermissionSnapshot,
   isNativeDriverApp,
@@ -107,48 +108,51 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
 
   const runNotif = async () => {
     setStepBusy('notif');
-    setMsg('');
+    setMsg('Si Android muestra el diálogo, toca Permitir…');
+    // Auto-liberar el botón sí o sí (evita “Espera…” eterno en v1.2.2 y OEM rotos)
+    const unlockBtn = setTimeout(() => setStepBusy(''), 3500);
     try {
-      await unlockDriverAudio();
-      // Tope duro: nunca dejar el botón en “Espera…” más de ~20s
       const res = await Promise.race([
         ensureNativePushRegistration(),
-        new Promise((resolve) => {
-          setTimeout(
-            () => resolve({
-              ok: true,
-              timedOut: true,
-              permissionGranted: true,
-              token: null,
-            }),
-            20000,
-          );
-        }),
+        new Promise((resolve) => setTimeout(() => resolve({ softTimeout: true }), 3000)),
       ]);
-      if (res.reason === 'denied') {
-        setMsg('Debes permitir notificaciones en Ajustes del celular.');
-      } else if (res.ok || res.permissionGranted) {
-        try { localStorage.setItem('pollon_native_notif_ok', '1'); } catch { /* ignore */ }
-        if (res.timedOut) {
-          setMsg('Permiso procesado. Si Android no mostró el diálogo, actívalo en Ajustes → Notificaciones.');
-        } else {
-          setMsg(
-            res.token
-              ? 'Notificaciones listas. Te avisaremos aunque la pantalla esté apagada.'
-              : 'Permiso OK. El token FCM se registrará en segundo plano.'
-          );
-        }
+
+      // Desbloquear onboarding aunque FCM no responda: el token sigue en background
+      markNativeNotifOk();
+      kickoffNativePushRegistration();
+
+      if (res?.reason === 'denied' && !res?.softTimeout && res?.permission?.receive === 'denied') {
+        setMsg('Notificaciones bloqueadas. Ábrelas en Ajustes o pulsa “Ya las activé”.');
+      } else if (res?.ok || res?.permissionGranted) {
+        setMsg(
+          res.token
+            ? 'Notificaciones listas.'
+            : 'Permiso OK. Puedes entrar al panel; el aviso push se completa en segundo plano.'
+        );
       } else {
-        setMsg(res.error || 'No se pudo registrar push. Revisa permisos e inténtalo de nuevo.');
+        setMsg('Si no viste el diálogo: Ajustes → El Pollón → Notificaciones → Activar, luego “Ya las activé”.');
       }
       await refresh();
     } catch (err) {
-      try { localStorage.setItem('pollon_native_notif_ok', '1'); } catch { /* ignore */ }
-      setMsg(err.message || 'Revisa el permiso de notificaciones e inténtalo de nuevo.');
+      markNativeNotifOk();
+      setMsg(err.message || 'Revisa notificaciones en Ajustes y pulsa “Ya las activé”.');
       await refresh();
     } finally {
+      clearTimeout(unlockBtn);
       setStepBusy('');
     }
+  };
+
+  const confirmNotifManual = async () => {
+    try {
+      localStorage.setItem(`pollon_driver_notif_confirmed_${userId}`, '1');
+    } catch {
+      /* ignore */
+    }
+    markNativeNotifOk();
+    kickoffNativePushRegistration();
+    setMsg('Notificaciones confirmadas. Puedes entrar al panel.');
+    await refresh();
   };
 
   const runGps = async () => {
@@ -336,7 +340,27 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
                 <div className="min-w-0 flex-1">
                   <p className="driver-native-step__title">{idx + 1}. {s.title}</p>
                   <p className="driver-native-step__body">{s.body}</p>
-                  {!s.ok && (
+                  {!s.ok && s.id === 'notif' && (
+                    <>
+                      <button
+                        type="button"
+                        className="driver-native-step__btn"
+                        disabled={stepBusy === 'notif' || busy}
+                        onClick={s.action}
+                      >
+                        {stepBusy === s.id ? 'Espera…' : s.actionLabel}
+                      </button>
+                      <div className="driver-native-gate__oem-actions" style={{ marginTop: 10 }}>
+                        <button type="button" onClick={() => openNativeAppSettings()}>
+                          Abrir ajustes
+                        </button>
+                        <button type="button" onClick={confirmNotifManual}>
+                          Ya las activé
+                        </button>
+                      </div>
+                    </>
+                  )}
+                  {!s.ok && s.id !== 'notif' && (
                     <button
                       type="button"
                       className="driver-native-step__btn"

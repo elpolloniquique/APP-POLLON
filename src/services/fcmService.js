@@ -1,6 +1,6 @@
 /**
  * Push nativo FCM (Capacitor) para repartidores.
- * Importante: nunca bloquear la UI — Firebase register/getToken a veces no responde.
+ * Nunca bloquear la UI: en varios OEM requestPermissions/register no resuelven.
  */
 import { Capacitor } from '@capacitor/core';
 import { getSupabase, isSupabaseConfigured } from './supabaseClient';
@@ -9,6 +9,7 @@ import { DRIVER_APP_VERSION_NAME } from '../utils/driverNativeConstants';
 
 let listenersBound = false;
 let lastToken = null;
+let registrationKickoff = null;
 const OFFER_CHANNEL_ID = 'pollon_driver_offers';
 
 function withTimeout(promise, ms, fallback) {
@@ -25,7 +26,7 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function markNotifOk() {
+export function markNativeNotifOk() {
   try {
     localStorage.setItem('pollon_native_notif_ok', '1');
   } catch {
@@ -72,7 +73,7 @@ export async function upsertMyFcmToken(token) {
   lastToken = String(token);
   try {
     localStorage.setItem('pollon_fcm_token', String(token));
-    markNotifOk();
+    markNativeNotifOk();
   } catch {
     /* ignore */
   }
@@ -81,28 +82,24 @@ export async function upsertMyFcmToken(token) {
 
 async function ensureOfferNotificationChannel(PushNotifications) {
   if (!PushNotifications?.createChannel) return;
-  try {
-    await withTimeout(
-      PushNotifications.createChannel({
-        id: OFFER_CHANNEL_ID,
-        name: 'Ofertas El Pollón',
-        description: 'Pedidos nuevos para repartidores',
-        importance: 5,
-        visibility: 1,
-        sound: 'default',
-        vibration: true,
-        lights: true,
-      }),
-      3000,
-      undefined,
-    );
-  } catch (err) {
-    console.warn('[Pollón][DriverNative] createChannel:', err?.message || err);
-  }
+  await withTimeout(
+    PushNotifications.createChannel({
+      id: OFFER_CHANNEL_ID,
+      name: 'Ofertas El Pollón',
+      description: 'Pedidos nuevos para repartidores',
+      importance: 5,
+      visibility: 1,
+      sound: 'default',
+      vibration: true,
+      lights: true,
+    }),
+    2000,
+    undefined,
+  );
 }
 
 export async function registerNativePushHandlers({ onOffer } = {}) {
-  const PushNotifications = await withTimeout(getPushPlugin(), 4000, null);
+  const PushNotifications = await withTimeout(getPushPlugin(), 2500, null);
   if (!PushNotifications) return { ok: false, reason: 'no_plugin' };
 
   await ensureOfferNotificationChannel(PushNotifications);
@@ -110,7 +107,7 @@ export async function registerNativePushHandlers({ onOffer } = {}) {
   if (!listenersBound) {
     listenersBound = true;
 
-    await withTimeout(
+    void Promise.resolve(
       PushNotifications.addListener('registration', (token) => {
         const value = token?.value || token?.token || null;
         if (value) {
@@ -119,19 +116,15 @@ export async function registerNativePushHandlers({ onOffer } = {}) {
           });
         }
       }),
-      3000,
-      null,
-    );
+    ).catch(() => {});
 
-    await withTimeout(
+    void Promise.resolve(
       PushNotifications.addListener('registrationError', (err) => {
         console.warn('[Pollón][DriverNative] FCM registrationError:', err);
       }),
-      3000,
-      null,
-    );
+    ).catch(() => {});
 
-    await withTimeout(
+    void Promise.resolve(
       PushNotifications.addListener('pushNotificationReceived', (notification) => {
         const data = notification?.data || {};
         if (data.type === 'driver_offer' || data.offerId) onOffer?.(data);
@@ -141,11 +134,9 @@ export async function registerNativePushHandlers({ onOffer } = {}) {
           /* ignore */
         }
       }),
-      3000,
-      null,
-    );
+    ).catch(() => {});
 
-    await withTimeout(
+    void Promise.resolve(
       PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
         const data = action?.notification?.data || {};
         try {
@@ -159,90 +150,84 @@ export async function registerNativePushHandlers({ onOffer } = {}) {
           window.dispatchEvent(new PopStateEvent('popstate'));
         }
       }),
-      3000,
-      null,
-    );
+    ).catch(() => {});
   }
 
   return { ok: true };
 }
 
 /**
- * Pide permiso + registra FCM sin colgar la UI.
- * Si Firebase tarda/falla, con permiso concedido igual marcamos el paso OK.
+ * Intenta permiso + FCM en background. Resuelve rápido (≤ ~3s) para no congelar UI.
+ * El registro FCM sigue en segundo plano aunque esta promesa ya haya terminado.
  */
 export async function ensureNativePushRegistration(opts = {}) {
-  const PushNotifications = await withTimeout(getPushPlugin(), 4000, null);
+  const PushNotifications = await withTimeout(getPushPlugin(), 2500, null);
   if (!PushNotifications) {
     return { ok: false, reason: 'web_or_missing_plugin' };
   }
 
-  await withTimeout(registerNativePushHandlers(opts), 8000, { ok: false, reason: 'handlers_timeout' });
+  registerNativePushHandlers(opts).catch(() => {});
 
   let perm = await withTimeout(
     PushNotifications.checkPermissions(),
-    4000,
+    2000,
     { receive: 'prompt' },
   );
 
   if (perm?.receive !== 'granted') {
-    // El usuario puede tardar en tocar Permitir; tope duro para no dejar “Espera…” eterno
+    // No esperar al usuario más de 2.5s aquí: el diálogo puede no aparecer
     perm = await withTimeout(
       PushNotifications.requestPermissions(),
-      15000,
+      2500,
       perm || { receive: 'prompt' },
     );
   }
 
-  if (perm?.receive !== 'granted') {
-    return { ok: false, reason: 'denied', permission: perm };
-  }
+  const granted = perm?.receive === 'granted';
+  if (granted) markNativeNotifOk();
 
-  // Permiso OK → desbloquear onboarding YA (el token puede llegar después)
-  markNotifOk();
-
-  // register() / getToken de FCM a menudo se cuelga en algunos OEM — no bloquear
-  const registered = await withTimeout(
-    PushNotifications.register().then(() => true),
-    6000,
-    false,
-  );
-
-  if (!registered) {
-    console.warn('[Pollón][DriverNative] FCM register timeout — reintento en background');
-    PushNotifications.register().catch((err) => {
-      console.warn('[Pollón][DriverNative] FCM register bg:', err?.message || err);
+  // register() en background — esta es la llamada que más se cuelga en OEM
+  if (!registrationKickoff) {
+    registrationKickoff = (async () => {
+      try {
+        await withTimeout(PushNotifications.register(), 5000, null);
+      } catch (err) {
+        console.warn('[Pollón][DriverNative] FCM register:', err?.message || err);
+      }
+      try {
+        const pending = localStorage.getItem('pollon_fcm_token_pending') || localStorage.getItem('pollon_fcm_token');
+        if (pending) await upsertMyFcmToken(pending);
+      } catch {
+        /* ignore */
+      }
+    })().finally(() => {
+      registrationKickoff = null;
     });
   }
 
-  // Esperar un instante al evento registration (no crítico)
-  const deadline = Date.now() + 2500;
-  while (Date.now() < deadline && !(lastToken || getCachedFcmToken())) {
-    await sleep(200);
-  }
-
-  try {
-    const pending = localStorage.getItem('pollon_fcm_token_pending') || localStorage.getItem('pollon_fcm_token');
-    if (pending) {
-      await withTimeout(upsertMyFcmToken(pending), 4000, null);
-    }
-  } catch {
-    /* ignore */
-  }
+  await sleep(400);
 
   return {
-    ok: true,
+    ok: granted,
+    permissionGranted: granted,
     permission: perm,
     token: lastToken || getCachedFcmToken() || null,
-    registerOk: Boolean(registered),
+    reason: granted ? undefined : 'denied_or_pending',
   };
 }
 
+/** Dispara FCM sin esperar resultado (para onboarding). */
+export function kickoffNativePushRegistration(opts = {}) {
+  ensureNativePushRegistration(opts).catch((err) => {
+    console.warn('[Pollón][DriverNative] kickoff push:', err?.message || err);
+  });
+}
+
 export async function getNativeNotificationPermissionState() {
-  const PushNotifications = await withTimeout(getPushPlugin(), 4000, null);
+  const PushNotifications = await withTimeout(getPushPlugin(), 2500, null);
   if (!PushNotifications) return 'unsupported';
   try {
-    const perm = await withTimeout(PushNotifications.checkPermissions(), 4000, null);
+    const perm = await withTimeout(PushNotifications.checkPermissions(), 2500, null);
     if (!perm) return 'prompt';
     if (perm.receive === 'granted') return 'granted';
     if (perm.receive === 'denied') return 'denied';
