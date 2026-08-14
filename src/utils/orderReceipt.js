@@ -146,11 +146,18 @@ function buildReceiptCore(m, { customerBlock, itemsBlock, footerExtra = [], comp
     ...footerExtra,
   ].filter(Boolean).join('\n');
 
+  const titleBranch = String(m.sucursal || 'El Pollón')
+    .replace(/^Pollería\s+/i, '')
+    .trim()
+    .toUpperCase();
+  const title = `${m.orderTypeLabel.toUpperCase()} – ${titleBranch}`;
+
   const header = [
-    `${m.orderTypeLabel.toUpperCase()} - POLLERÍA EL POLLÓN`,
+    title,
     compact ? null : '',
     `Sucursal: ${m.sucursal}`,
-    `${m.ticketShort}  ${m.fechaStr}  ${m.horaStr}`,
+    `${m.ticketShort}        ${m.fechaStr}       ${m.horaStr}`,
+    `CODIGO DE SEGUIMIENTO: ${m.ticket}`,
     RECEIPT_RULE,
     'DATOS DEL CLIENTE',
     RECEIPT_RULE,

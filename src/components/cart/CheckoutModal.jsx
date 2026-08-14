@@ -6,7 +6,7 @@ import { WhatsAppIcon } from '../ui/WhatsAppIcon';
 import { useCart } from '../../context/CartContext';
 import { useBranch } from '../../context/BranchContext';
 import { useAuth } from '../../context/AuthContext';
-import { money, formatDateTime, normalizeChilePhone } from '../../utils/format';
+import { money, formatDateTime, normalizeChilePhone, buildWhatsappMessage } from '../../utils/format';
 import { PAYMENT_METHODS, ORDER_TYPE_LABELS } from '../../utils/constants';
 import {
   getAvailableOrderTypes,
@@ -262,10 +262,11 @@ export function CheckoutModal() {
 
   const handleWhatsApp = () => {
     if (!confirmedOrder || !whatsapp) return;
-    const name = confirmedOrder.customer?.name || '';
-    const code = confirmedOrder.ticketNumber || confirmedOrder.codigo_pedido || '';
-    const msg = `Hola, soy ${name}, pedido #${code}. Quiero avisos de estado.`;
-    window.open(`https://wa.me/${whatsapp}?text=${encodeURIComponent(msg)}`, '_blank');
+    const msg = buildWhatsappMessage(confirmedOrder, branch);
+    const phone = String(whatsapp).replace(/\D/g, '');
+    const url = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
+    const opened = window.open(url, '_blank');
+    if (!opened) window.location.assign(url);
   };
 
   if (step === 'success' && confirmedOrder) {
@@ -342,10 +343,10 @@ export function CheckoutModal() {
                 </span>
                 <span className="checkout-wa-btn__copy">
                   <span className="checkout-wa-btn__title">
-                    Activar avisos de mi pedido por WhatsApp
+                    Enviar comprobante de mi pedido por WhatsApp
                   </span>
                   <span className="checkout-wa-btn__hint">
-                    Te confirmaremos el pedido y te avisaremos cocina, reparto y entrega.
+                    Se abre WhatsApp con el detalle completo listo para enviar a El Pollón.
                   </span>
                 </span>
               </button>

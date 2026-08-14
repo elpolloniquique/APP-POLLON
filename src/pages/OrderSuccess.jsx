@@ -52,9 +52,9 @@ export function OrderSuccess() {
               <WhatsAppIcon className="checkout-wa-btn__icon" />
             </span>
             <span className="checkout-wa-btn__copy">
-              <span className="checkout-wa-btn__title">Enviar el detalle de mi pedido por WhatsApp</span>
+              <span className="checkout-wa-btn__title">Enviar comprobante de mi pedido por WhatsApp</span>
               <span className="checkout-wa-btn__hint">
-                Al enviar tendrás una atención más rápida y te contactarán de inmediato.
+                Se abre WhatsApp con el detalle completo listo para enviar a El Pollón.
               </span>
             </span>
           </button>
