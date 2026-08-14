@@ -134,11 +134,24 @@ export async function evaluateDriverLiveTrackingReady(userId) {
       } catch {
         /* ignore */
       }
+      let pushDeferred = false;
+      try {
+        pushDeferred = localStorage.getItem('pollon_push_deferred_ok') === '1';
+      } catch {
+        /* ignore */
+      }
       if (!hasPushSub && !native && notifState === 'granted' && hasWebPushSupport()) {
         try {
           hasPushSub = Boolean(await getExistingPushSubscription());
         } catch {
           hasPushSub = false;
+        }
+      }
+      if (!hasPushSub && !native) {
+        try {
+          hasPushSub = localStorage.getItem('pollon_push_subscribed_ok') === '1';
+        } catch {
+          /* ignore */
         }
       }
 
@@ -158,14 +171,17 @@ export async function evaluateDriverLiveTrackingReady(userId) {
 
       const gpsOk = native
         ? Boolean(location.locationOk && (location.alwaysOk || userConfirmedAlways))
-        : true; // PWA: no exige GPS (solo notificaciones)
-      const ready = native ? Boolean(notifOk && gpsOk) : Boolean(notifOk);
+        : true;
+      // PWA: listo solo si hay permiso Y suscripción Web Push real (o flag guardado)
+      const ready = native
+        ? Boolean(notifOk && gpsOk)
+        : Boolean(notifOk && (hasPushSub || pushDeferred));
 
       return {
         ...base,
         notifOk,
         hasPushSub,
-        pushDeferred: false,
+        pushDeferred,
         notifState,
         gpsOk,
         locationOk: Boolean(location.locationOk),
@@ -173,6 +189,9 @@ export async function evaluateDriverLiveTrackingReady(userId) {
         needsSettings: Boolean(location.needsSettings && !userConfirmedAlways),
         canOpenSettings: Boolean(location.canOpenSettings) || native,
         ready,
+        vapidConfigured: hasWebPushSupport() || Boolean(
+          typeof import.meta !== 'undefined' && import.meta.env?.VITE_VAPID_PUBLIC_KEY
+        ),
       };
     })(),
     7000,
@@ -230,10 +249,23 @@ export async function completeDriverLiveTrackingSetup(userId) {
     };
   }
 
-  // PWA de clientes: listo solo con notificaciones
+  // PWA de clientes: listo solo con notificaciones + suscripción
   if (!native) {
-    markDriverOnboardingComplete(userId, { alwaysOk: false, mode: 'web_notify', pushOk: true });
-    return { ok: true, mode: 'web_notify' };
+    const subRes = await ensureDriverPushSubscription().catch((err) => ({ ok: false, error: err?.message }));
+    if (!subRes?.ok && !subRes?.deferred && !subRes?.endpoint) {
+      return {
+        ok: false,
+        error: subRes?.error || 'No se pudo activar el aviso en bandeja. Revisa el permiso de notificaciones.',
+        needsNotif: true,
+      };
+    }
+    markDriverOnboardingComplete(userId, {
+      alwaysOk: false,
+      mode: 'web_notify',
+      pushOk: true,
+      subscribed: Boolean(subRes?.endpoint || subRes?.deferred),
+    });
+    return { ok: true, mode: 'web_notify', push: subRes };
   }
 
   const gps = await requestAlwaysLocationPermission();

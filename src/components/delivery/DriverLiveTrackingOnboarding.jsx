@@ -16,7 +16,11 @@ import {
   markDriverOnboardingComplete,
 } from '../../services/driverOnboardingService';
 import { ensureNativePushRegistration, markNativeNotifOk, kickoffNativePushRegistration } from '../../services/fcmService';
-import { ensureDriverPushSubscription } from '../../services/pushService';
+import {
+  ensureDriverPushSubscription,
+  hasVapidPublicKey,
+  getDriverWebPushStatus,
+} from '../../services/pushService';
 import {
   openNativeLocationSettings,
   openNativeAppSettings,
@@ -114,20 +118,31 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
           setMsg('Si no viste el diálogo: Ajustes → El Pollón → Notificaciones → Activar, luego “Ya las activé”.');
         }
       } else {
+        if (!hasVapidPublicKey()) {
+          setMsg('Falta configurar VAPID en el servidor. Los avisos de bandeja no pueden activarse.');
+          await refresh();
+          return;
+        }
         const res = await Promise.race([
           ensureDriverPushSubscription(),
           new Promise((resolve) => setTimeout(() => resolve({ softTimeout: true }), 8000)),
         ]);
-        markNativeNotifOk();
-        if (res?.ok || res?.deferred || res?.softTimeout || Notification.permission === 'granted') {
-          setMsg('Notificaciones listas. Recibirás avisos de pedido nuevo tipo WhatsApp.');
+        const st = await getDriverWebPushStatus().catch(() => null);
+        if (st?.ready || res?.endpoint) {
+          setMsg('Avisos activos. Pedido nuevo → bandeja del sistema (tipo WhatsApp).');
+        } else if (res?.deferred) {
+          setMsg(res.warn || 'Permiso OK, pero la suscripción quedó pendiente. Pulsa de nuevo en unos segundos.');
+        } else if (res?.softTimeout) {
+          setMsg('Sigue activando… Si no aparece el diálogo: Ajustes → Chrome → Notificaciones.');
+        } else if (typeof Notification !== 'undefined' && Notification.permission === 'denied') {
+          setMsg('Notificaciones bloqueadas. Ajustes → Chrome / El Pollón → Notificaciones → Permitir.');
         } else {
           setMsg('Permite las notificaciones cuando Android lo pida.');
         }
       }
       await refresh();
     } catch (err) {
-      markNativeNotifOk();
+      if (isNativeDriverApp()) markNativeNotifOk();
       setMsg(err.message || 'Revisa notificaciones en Ajustes y pulsa “Ya las activé”.');
       await refresh();
     } finally {
@@ -278,6 +293,14 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
           {state.evaluateTimedOut ? ' · (reintento de permisos disponible)' : ''}
         </p>
 
+        {!native && !hasVapidPublicKey() && (
+          <div className="driver-native-gate__hint" style={{ borderColor: '#fecaca', background: '#fef2f2', color: '#991b1b' }}>
+            <p>
+              Falta VITE_VAPID_PUBLIC_KEY en el build. No se pueden activar avisos de bandeja hasta que el admin lo corrija y redespliegue.
+            </p>
+          </div>
+        )}
+
         <div className="driver-native-gate__hint">
           <Radio className="h-4 w-4 shrink-0" />
           <p>
@@ -303,7 +326,7 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
                       <button
                         type="button"
                         className="driver-native-step__btn"
-                        disabled={stepBusy === 'notif' || busy}
+                        disabled={stepBusy === 'notif' || busy || (!native && !hasVapidPublicKey())}
                         onClick={s.action}
                       >
                         {stepBusy === s.id ? 'Espera…' : s.actionLabel}

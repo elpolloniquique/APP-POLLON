@@ -11,6 +11,10 @@ export function isPushConfigured() {
   return hasWebPushSupport();
 }
 
+export function hasVapidPublicKey() {
+  return Boolean(VAPID_PUBLIC);
+}
+
 export function hasWebPushSupport() {
   return Boolean(
     VAPID_PUBLIC
@@ -162,6 +166,77 @@ export async function getExistingPushSubscription() {
   } catch {
     return null;
   }
+}
+
+/** Estado real de avisos PWA (no fingir OK solo con permission). */
+export async function getDriverWebPushStatus() {
+  const permission = getNotificationPermission();
+  const vapidOk = hasVapidPublicKey();
+  const swOk = typeof navigator !== 'undefined' && 'serviceWorker' in navigator;
+  const pushApiOk = typeof window !== 'undefined' && 'PushManager' in window;
+  let subscription = null;
+  let swActive = false;
+  if (vapidOk && swOk) {
+    try {
+      const reg = await ensureServiceWorkerRegistration();
+      swActive = Boolean(reg?.active);
+      if (reg?.pushManager && permission === 'granted') {
+        subscription = await reg.pushManager.getSubscription();
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  const subscribed = Boolean(subscription?.endpoint);
+  let pushSavedOk = false;
+  try {
+    pushSavedOk = localStorage.getItem(PUSH_OK_FLAG) === '1';
+  } catch {
+    /* ignore */
+  }
+  return {
+    vapidOk,
+    swOk,
+    swActive,
+    pushApiOk,
+    permission,
+    subscribed,
+    pushSavedOk,
+    ready: vapidOk && permission === 'granted' && subscribed,
+    missingVapid: !vapidOk,
+  };
+}
+
+/** Prueba inmediata en bandeja (sin servidor) para validar permiso + SW. */
+export async function showLocalTrayTestNotification({
+  title = 'El Pollón · Prueba de aviso',
+  body = 'Si ves esto en la bandeja, las notificaciones del sistema están. Los pedidos reales llegarán igual.',
+  badgeCount = 1,
+} = {}) {
+  if (typeof Notification === 'undefined') {
+    throw new Error('Este celular no soporta notificaciones del sistema.');
+  }
+  if (Notification.permission !== 'granted') {
+    throw new Error('Primero permite las notificaciones.');
+  }
+  const reg = await ensureServiceWorkerRegistration();
+  if (reg?.showNotification) {
+    await reg.showNotification(title, {
+      body,
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      tag: 'pollon-push-test',
+      renotify: true,
+      requireInteraction: true,
+      vibrate: [200, 100, 200],
+      data: { url: '/repartidor', badgeCount },
+    });
+  } else {
+    // eslint-disable-next-line no-new
+    new Notification(title, { body, icon: '/icons/icon-192.png' });
+  }
+  await setDriverAppBadge(badgeCount);
+  return { ok: true };
 }
 
 export async function setDriverAppBadge(count) {

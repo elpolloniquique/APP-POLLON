@@ -167,6 +167,25 @@ export default async function handler(req, res) {
       .select('id, driver_id, endpoint, p256dh, auth')
       .in('driver_id', driverIds);
 
+    const pendingByDriver = {};
+    try {
+      const { data: allPending } = await admin
+        .from('ep_delivery_offers')
+        .select('driver_id')
+        .in('driver_id', driverIds)
+        .eq('status', 'pending')
+        .gt('expires_at', new Date().toISOString());
+      for (const row of allPending || []) {
+        if (!row.driver_id) continue;
+        pendingByDriver[row.driver_id] = (pendingByDriver[row.driver_id] || 0) + 1;
+      }
+    } catch {
+      for (const o of offers) {
+        if (!o.driver_id) continue;
+        pendingByDriver[o.driver_id] = (pendingByDriver[o.driver_id] || 0) + 1;
+      }
+    }
+
     if (subs?.length) {
       webpush.setVapidDetails(vapidSubject, vapidPublic, vapidPrivate);
       await Promise.all(
@@ -178,6 +197,7 @@ export default async function handler(req, res) {
           const ticket = ticketShort(job.ticket_code);
           const name = job.customer_name || 'Cliente';
           const addr = job.customer_address || '';
+          const badgeCount = Math.max(1, Number(pendingByDriver[sub.driver_id]) || 1);
           const payload = JSON.stringify({
             title: 'El Pollón · Nuevo pedido',
             body: [
@@ -185,14 +205,14 @@ export default async function handler(req, res) {
               name,
               addr || null,
               `Delivery ${moneyCLP(fee)}`,
-              'Acepta en la app nativa',
+              'Acepta en app nativa',
             ].filter(Boolean).join(' · '),
             address: addr,
             url: '/repartidor',
             offerId: offer.id,
             jobId,
             tag: `pollon-offer-${offer.id}`,
-            badgeCount: 1,
+            badgeCount,
             type: 'driver_offer',
           });
           try {
@@ -222,6 +242,7 @@ export default async function handler(req, res) {
     offers: offers.length,
     fcmConfigured: hasFcm,
     fcmMode: fcmModeLabel(),
+    webConfigured: Boolean(vapidPublic && vapidPrivate),
     projectId: parseServiceAccount()?.project_id || null,
   });
 }

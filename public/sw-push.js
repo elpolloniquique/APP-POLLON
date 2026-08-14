@@ -67,13 +67,14 @@ self.addEventListener('push', (event) => {
     }
     await updateAppBadge(badgeN);
 
-    const detailBits = [
-      payload.body,
-      payload.address || payload.customerAddress || null,
-    ].filter(Boolean);
-    const bodyText = detailBits.length
-      ? detailBits.join('\n')
-      : 'Nuevo pedido · Ábrelo en la app nativa para aceptar';
+    const bodyText = payload.body
+      || [
+        payload.ticket ? `Pedido Nº ${payload.ticket}` : null,
+        payload.customerName || null,
+        payload.address || payload.customerAddress || null,
+        'Acepta en app nativa',
+      ].filter(Boolean).join(' · ')
+      || 'Nuevo pedido · Ábrelo en la app nativa para aceptar';
 
     await self.registration.showNotification(payload.title || 'El Pollón · Nuevo pedido', {
       body: bodyText,
