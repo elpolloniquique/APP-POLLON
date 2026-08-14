@@ -126,8 +126,23 @@ export async function startDriverSearch(jobId) {
     throw new Error(data.message || 'Despacho desactivado en esta sucursal');
   }
   if (data?.offered > 0) {
-    notifyDriversForJob(jobId).catch(() => {});
+    await notifyDriversForJob(jobId).catch(() => {});
   } else {
+    // Reavisar si ya hay ofertas pending (botón reasignar / buscar de nuevo)
+    try {
+      const { data: pending } = await sb
+        .from('ep_delivery_offers')
+        .select('id')
+        .eq('job_id', jobId)
+        .eq('status', 'pending')
+        .limit(1);
+      if (pending?.length) {
+        await notifyDriversForJob(jobId).catch(() => {});
+        return { ...data, offered: pending.length, renotified: true };
+      }
+    } catch {
+      /* ignore */
+    }
     throw new Error(
       data?.message
       || 'Ningún repartidor con GPS en vivo. Deben estar Disponible y el GPS no puede decir “Buscando…”.',

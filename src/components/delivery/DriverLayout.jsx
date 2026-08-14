@@ -204,11 +204,6 @@ export function DriverLayout() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {pendingOffers > 0 && (
-              <span className="rounded-full bg-[#c00000] px-2.5 py-1 text-[11px] font-bold text-white shadow-sm">
-                {pendingOffers}
-              </span>
-            )}
             <button
               type="button"
               onClick={handleLogout}

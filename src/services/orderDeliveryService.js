@@ -146,8 +146,30 @@ export async function manualSearchDrivers(orderId) {
   }
 
   if (data?.offered > 0) {
-    notifyDriversForJob(jobId).catch(() => {});
-  } else if (data?.message) {
+    // Siempre reenviar push (PWA bandeja + FCM nativa), también al reasignar
+    const notifyRes = await notifyDriversForJob(jobId).catch(() => null);
+    lastFetch = 0;
+    return { ...data, notify: notifyRes };
+  }
+  // Si no hubo nuevas filas pero ya hay ofertas pending del job, reavisar igual
+  const { data: pendingOffers } = await sb
+    .from('ep_delivery_offers')
+    .select('id')
+    .eq('job_id', jobId)
+    .eq('status', 'pending')
+    .limit(1);
+  if (pendingOffers?.length) {
+    const notifyRes = await notifyDriversForJob(jobId).catch(() => null);
+    lastFetch = 0;
+    return {
+      ok: true,
+      offered: pendingOffers.length,
+      renotified: true,
+      message: 'Se reenvió el aviso a los repartidores con oferta pendiente.',
+      notify: notifyRes,
+    };
+  }
+  if (data?.message) {
     throw new Error(data.message);
   }
 

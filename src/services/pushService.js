@@ -535,3 +535,26 @@ export async function notifyDriversForJob(jobId) {
     return { ok: false, error: err?.message };
   }
 }
+
+/** Prueba real Web Push (servidor → bandeja), igual que un pedido ofertado. */
+export async function sendDriverSelfTestPush() {
+  if (!isSupabaseConfigured()) return { skipped: true };
+  const sb = getSupabase();
+  const { data: sessionData } = await sb.auth.getSession();
+  const token = sessionData?.session?.access_token;
+  if (!token) throw new Error('Sin sesión. Vuelve a iniciar sesión.');
+
+  const res = await fetch('/api/notify-driver-offers', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ selfTest: true }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(json?.error || `Error ${res.status}`);
+  }
+  return json;
+}

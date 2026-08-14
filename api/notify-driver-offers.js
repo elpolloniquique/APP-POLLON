@@ -65,7 +65,7 @@ export default async function handler(req, res) {
 
   const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
   const jobId = body.jobId;
-  if (!jobId) return res.status(400).json({ error: 'jobId requerido' });
+  const selfTest = Boolean(body.selfTest);
 
   const userClient = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: `Bearer ${token}` } },
@@ -75,6 +75,83 @@ export default async function handler(req, res) {
   const { data: userData, error: userErr } = await userClient.auth.getUser();
   if (userErr || !userData?.user) return res.status(401).json({ error: 'Token inválido' });
 
+  const admin = createClient(supabaseUrl, serviceKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  // Prueba Web Push del propio repartidor (PWA pollito → bandeja)
+  if (selfTest) {
+    const { data: driver } = await admin
+      .from('ep_driver_profiles')
+      .select('id')
+      .eq('profile_id', userData.user.id)
+      .maybeSingle();
+    if (!driver?.id) {
+      return res.status(403).json({ error: 'No eres repartidor' });
+    }
+    if (!vapidPublic || !vapidPrivate) {
+      return res.status(200).json({ ok: false, webConfigured: false, webSent: 0, error: 'VAPID no configurado' });
+    }
+    const { data: subs } = await admin
+      .from('ep_driver_push_subscriptions')
+      .select('id, endpoint, p256dh, auth')
+      .eq('driver_id', driver.id);
+    if (!subs?.length) {
+      return res.status(200).json({
+        ok: false,
+        webConfigured: true,
+        webSent: 0,
+        error: 'Sin suscripción guardada. Activa notificaciones en la PWA.',
+      });
+    }
+    const { count: pendingCount } = await admin
+      .from('ep_delivery_offers')
+      .select('id', { count: 'exact', head: true })
+      .eq('driver_id', driver.id)
+      .eq('status', 'pending')
+      .gt('expires_at', new Date().toISOString());
+    const badgeCount = Math.max(1, Number(pendingCount) || 1);
+    const stamp = Date.now();
+    webpush.setVapidDetails(vapidSubject, vapidPublic, vapidPrivate);
+    let webSent = 0;
+    const staleWeb = [];
+    await Promise.all(
+      subs.map(async (sub) => {
+        const payload = JSON.stringify({
+          title: 'El Pollón · Nuevo pedido',
+          body: 'Prueba de bandeja · Desliza desde arriba · El número va en el ícono del pollito · Acepta en app nativa',
+          url: '/repartidor',
+          tag: `pollon-selftest-${stamp}`,
+          badgeCount,
+          type: 'driver_offer_test',
+        });
+        try {
+          await webpush.sendNotification(
+            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+            payload,
+            { urgency: 'high', TTL: 3600 },
+          );
+          webSent += 1;
+        } catch (err) {
+          const code = err?.statusCode;
+          if (code === 404 || code === 410) staleWeb.push(sub.id);
+        }
+      }),
+    );
+    if (staleWeb.length) {
+      await admin.from('ep_driver_push_subscriptions').delete().in('id', staleWeb);
+    }
+    return res.status(200).json({
+      ok: webSent > 0,
+      webSent,
+      webConfigured: true,
+      badgeCount,
+      selfTest: true,
+    });
+  }
+
+  if (!jobId) return res.status(400).json({ error: 'jobId requerido' });
+
   const { data: jobVisible, error: jobVisErr } = await userClient
     .from('ep_delivery_jobs')
     .select('id')
@@ -83,10 +160,6 @@ export default async function handler(req, res) {
   if (jobVisErr || !jobVisible) {
     return res.status(403).json({ error: 'Sin permiso para este pedido' });
   }
-
-  const admin = createClient(supabaseUrl, serviceKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
 
   const { data: offers, error: offersErr } = await admin
     .from('ep_delivery_offers')
@@ -140,7 +213,7 @@ export default async function handler(req, res) {
               jobId: String(jobId),
               deepLink: '/repartidor',
               url: '/repartidor',
-              tag: `pollon-offer-${offer.id}`,
+              tag: `pollon-offer-${offer.id}-${Date.now()}`,
               badgeCount: String(offers.length || 1),
               ticket,
               customerName: name,
@@ -188,6 +261,7 @@ export default async function handler(req, res) {
 
     if (subs?.length) {
       webpush.setVapidDetails(vapidSubject, vapidPublic, vapidPrivate);
+      const stamp = Date.now();
       await Promise.all(
         subs.map(async (sub) => {
           const offer = byDriver[sub.driver_id];
@@ -211,9 +285,10 @@ export default async function handler(req, res) {
             url: '/repartidor',
             offerId: offer.id,
             jobId,
-            tag: `pollon-offer-${offer.id}`,
+            tag: `pollon-offer-${offer.id}-${stamp}`,
             badgeCount,
             type: 'driver_offer',
+            renotify: true,
           });
           try {
             await webpush.sendNotification(

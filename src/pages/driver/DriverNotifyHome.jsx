@@ -17,6 +17,7 @@ import {
   getDriverWebPushStatus,
   showLocalTrayTestNotification,
   hasVapidPublicKey,
+  sendDriverSelfTestPush,
 } from '../../services/pushService';
 import { getMyDriverSummary, ensureMyDriverProfile } from '../../services/driverService';
 import { subscribeDispatch } from '../../services/dispatchService';
@@ -125,8 +126,24 @@ export function DriverNotifyHome() {
     setBusy('test');
     setMsg('');
     try {
-      await showLocalTrayTestNotification({ badgeCount: Math.max(1, pending || 1) });
-      setMsg('Prueba enviada. Desliza desde arriba: debes ver el aviso de El Pollón.');
+      const n = Math.max(1, pending || 1);
+      // 1) Prueba local inmediata (bandeja)
+      await showLocalTrayTestNotification({ badgeCount: n });
+      // 2) Push real por servidor (igual que un pedido / reasignación)
+      const remote = await sendDriverSelfTestPush().catch(() => null);
+      await setDriverAppBadge(n);
+      if (remote?.webSent > 0) {
+        setMsg(
+          'Listo. Minimiza la app y desliza desde arriba: debe aparecer el aviso. '
+          + 'En el ícono del pollito (pantalla de inicio) debe verse el número.',
+        );
+      } else if (remote?.webConfigured === false) {
+        setMsg('Prueba local OK, pero el servidor no tiene VAPID. Avisa al admin.');
+      } else {
+        setMsg(
+          'Prueba local enviada a la bandeja. Si no ves aviso con la app cerrada, pulsa Reconectar avisos y revisa batería de Chrome.',
+        );
+      }
     } catch (err) {
       setMsg(err.message || 'No se pudo mostrar la prueba.');
     } finally {
@@ -233,7 +250,7 @@ export function DriverNotifyHome() {
                     onClick={testTray}
                     className="rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm font-bold text-gray-800 disabled:opacity-50"
                   >
-                    {busy === 'test' ? 'Enviando…' : 'Probar bandeja'}
+                    {busy === 'test' ? 'Enviando…' : 'Probar bandeja + ícono'}
                   </button>
                 )}
                 {pushOk && (
@@ -251,15 +268,17 @@ export function DriverNotifyHome() {
           </div>
 
           <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-3">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-bold text-gray-900">Pedidos nuevos (badge)</p>
-              <span className="rounded-full bg-pollon-red px-2.5 py-1 text-xs font-bold text-white">
-                {pending}
-              </span>
-            </div>
-            <p className="mt-1 text-xs text-gray-500">
-              Como WhatsApp: el número aparece en el ícono. Aquí no se aceptan pedidos.
-            </p>
+            <p className="text-sm font-bold text-gray-900">Dónde ver el aviso (como WhatsApp)</p>
+            <ul className="mt-1.5 list-disc space-y-1 pl-4 text-xs text-gray-600">
+              <li>Desliza desde arriba → bandeja del sistema (pedido nuevo).</li>
+              <li>En la pantalla de inicio → número rojo sobre el ícono del pollito.</li>
+              <li>Aquí dentro de la app no mostramos ese número a propósito.</li>
+            </ul>
+            {pending > 0 && (
+              <p className="mt-2 text-[11px] font-medium text-gray-500">
+                Hay pedidos pendientes: el número va al ícono de inicio (no aquí).
+              </p>
+            )}
           </div>
 
           <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3">

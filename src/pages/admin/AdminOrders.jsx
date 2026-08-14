@@ -414,8 +414,14 @@ export function AdminOrders() {
     try {
       const res = await manualSearchDrivers(order.id);
       const n = Number(res?.offered) || 0;
-      if (n > 0) {
-        alert(`Oferta enviada a ${n} repartidor(es). Deben sonar alarma y aparecer el pedido en la app.`);
+      const web = Number(res?.notify?.webSent) || 0;
+      const fcm = Number(res?.notify?.fcmSent) || 0;
+      if (n > 0 || res?.renotified) {
+        alert(
+          `Aviso enviado a repartidor(es)${n ? ` (${n})` : ''}.`
+          + `\nPush web (pollito): ${web} · App nativa: ${fcm}.`
+          + '\nDeben ver la notificación en la bandeja (deslizar desde arriba).',
+        );
       } else {
         alert(res?.message || 'Ningún repartidor disponible con GPS en vivo. El moto debe estar Disponible y GPS no puede decir “Buscando…”.');
       }
@@ -662,7 +668,9 @@ export function AdminOrders() {
               const isDelivery = o.orderType === 'delivery';
               const driver = driverDisplay(driverName, isDelivery);
               const isNew = o.estado === 'pendiente';
-              const canSearch = isDelivery && (!info?.driverId || isNew);
+              const canSearch = isDelivery
+                && !info?.driverId
+                && !['entregado', 'cancelado', 'anulado'].includes(String(o.estado || '').toLowerCase());
               const parts = orderMoneyParts(o);
               const phone = o.customer?.phone || '';
               const time = formatOrderTime(o.createdAt);
@@ -783,7 +791,9 @@ export function AdminOrders() {
                   const isDelivery = o.orderType === 'delivery';
                   const driver = driverDisplay(driverName, isDelivery);
                   const isNew = o.estado === 'pendiente';
-                  const canSearch = isDelivery && (!info?.driverId || isNew);
+                  const canSearch = isDelivery
+                    && !info?.driverId
+                    && !['entregado', 'cancelado', 'anulado'].includes(String(o.estado || '').toLowerCase());
                   const parts = orderMoneyParts(o);
                   const phone = o.customer?.phone || '';
                   const time = formatOrderTime(o.createdAt);
