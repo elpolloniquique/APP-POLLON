@@ -67,7 +67,7 @@ export function DriverProfile() {
         )}
         <div className="mt-3 rounded-xl bg-black px-3 py-2 text-[11px] text-white/80">
           <p>
-            App: <strong className="text-white">{isNativeDriverApp() ? 'Nativa Android · GPS' : 'Clientes · avisos WhatsApp'}</strong>
+            App: <strong className="text-white">{isNativeDriverApp() ? 'Nativa · aceptar + GPS' : 'Clientes · solo avisos'}</strong>
             {' · '}{getNativePlatform()}
           </p>
           <p className="mt-0.5">

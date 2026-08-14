@@ -243,34 +243,38 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
       title: 'Notificaciones',
       body: native
         ? 'Permiso del sistema para avisos de pedido nuevo (bandeja, con pantalla apagada).'
-        : 'Avisos de pedido nuevo en la bandeja, tipo WhatsApp. Mismo correo que en la app nativa.',
+        : 'Avisos en la bandeja tipo WhatsApp, con detalle del pedido y número en el ícono. Aquí no se aceptan pedidos.',
       action: runNotif,
       actionLabel: 'Activar notificaciones',
     },
-    {
+  ];
+  if (native) {
+    steps.push({
       id: 'gps',
       ok: state.gpsOk,
       icon: MapPin,
-      title: native ? 'Ubicación · Permitir todo el tiempo' : 'Ubicación',
-      body: native
-        ? 'Obligatorio “Siempre”. Acepta también “Sin restricciones de batería” para no perder el GPS al apagar la pantalla o abrir otra app.'
-        : 'Activa la ubicación para ponerte Disponible. El GPS al 100% con pantalla apagada sigue en la app nativa.',
+      title: 'Ubicación · Permitir todo el tiempo',
+      body: 'Obligatorio “Siempre”. Acepta también “Sin restricciones de batería” para no perder el GPS al apagar la pantalla o abrir otra app.',
       action: runGps,
       actionLabel: 'Autorizar ubicación',
-    },
-  ];
+    });
+  }
 
   return (
     <div className="driver-native-gate driver-native-gate--onboard">
       <div className="driver-native-gate__card">
         <img src="/img/logo pollon.png" alt="" className="driver-native-gate__logo driver-native-gate__logo--sm" />
         <p className="driver-native-gate__brand">EL POLLÓN</p>
-        <p className="driver-native-gate__badge">Configuración obligatoria</p>
-        <h1 className="driver-native-gate__title">Listo para salir a ruta</h1>
+        <p className="driver-native-gate__badge">
+          {native ? 'Configuración obligatoria' : 'Avisos de pedidos'}
+        </p>
+        <h1 className="driver-native-gate__title">
+          {native ? 'Listo para salir a ruta' : 'Activa notificaciones'}
+        </h1>
         <p className="driver-native-gate__lead">
           {native
             ? `App nativa · v${state.versionName || DRIVER_APP_VERSION_NAME}`
-            : 'App de clientes · panel repartidor'}
+            : 'App de clientes · solo bandeja (tipo WhatsApp)'}
           {state.evaluateTimedOut ? ' · (reintento de permisos disponible)' : ''}
         </p>
 
@@ -279,7 +283,7 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
           <p>
             {native
               ? 'Al conectar Disponible, el local verá tu GPS en vivo. Completa notificaciones y ubicación “Siempre”.'
-              : 'Activa notificaciones y GPS, luego Disponible. Aquí recibes el aviso tipo WhatsApp; el rastreo continuo está en la app nativa.'}
+              : 'Con la sesión de repartidor, cada pedido nuevo llega a la bandeja. Para aceptar usa la app nativa.'}
           </p>
         </div>
 
@@ -366,11 +370,13 @@ export function DriverLiveTrackingOnboarding({ onReadyChange }) {
         <button
           type="button"
           className="driver-native-gate__cta"
-          disabled={busy || !state.notifOk || !state.gpsOk}
+          disabled={busy || !state.notifOk || (native && !state.gpsOk)}
           onClick={finishAll}
         >
           <ShieldCheck className="h-5 w-5" />
-          {busy ? 'Guardando…' : 'Entrar al panel repartidor'}
+          {busy
+            ? 'Guardando…'
+            : (native ? 'Entrar al panel repartidor' : 'Listo · recibir avisos')}
         </button>
 
         {msg && <p className="driver-native-gate__msg">{msg}</p>}

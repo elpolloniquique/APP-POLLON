@@ -1,6 +1,6 @@
 /**
  * Onboarding obligatorio repartidores.
- * Nativa (APK): GPS en vivo al 100%. PWA de clientes: panel + avisos tipo WhatsApp.
+ * Nativa (APK): GPS + notifs + aceptar. PWA clientes: solo avisos tipo WhatsApp.
  */
 import {
   isNativeDriverApp,
@@ -158,8 +158,8 @@ export async function evaluateDriverLiveTrackingReady(userId) {
 
       const gpsOk = native
         ? Boolean(location.locationOk && (location.alwaysOk || userConfirmedAlways))
-        : Boolean(location.locationOk || location.ok);
-      const ready = Boolean(notifOk && gpsOk);
+        : true; // PWA: no exige GPS (solo notificaciones)
+      const ready = native ? Boolean(notifOk && gpsOk) : Boolean(notifOk);
 
       return {
         ...base,
@@ -216,6 +216,13 @@ export async function completeDriverLiveTrackingSetup(userId) {
     }
   }
   if (!notifGranted) {
+    try {
+      notifGranted = localStorage.getItem(`pollon_driver_notif_confirmed_${userId}`) === '1';
+    } catch {
+      /* ignore */
+    }
+  }
+  if (!notifGranted) {
     return {
       ok: false,
       error: 'Activa las notificaciones para recibir pedidos (aviso tipo WhatsApp).',
@@ -223,9 +230,15 @@ export async function completeDriverLiveTrackingSetup(userId) {
     };
   }
 
+  // PWA de clientes: listo solo con notificaciones
+  if (!native) {
+    markDriverOnboardingComplete(userId, { alwaysOk: false, mode: 'web_notify', pushOk: true });
+    return { ok: true, mode: 'web_notify' };
+  }
+
   const gps = await requestAlwaysLocationPermission();
   if (!gps.ok) {
-    return { ok: false, error: gps.error || 'GPS denegado', canOpenSettings: native };
+    return { ok: false, error: gps.error || 'GPS denegado', canOpenSettings: true };
   }
 
   let userConfirmedAlways = false;
@@ -235,7 +248,7 @@ export async function completeDriverLiveTrackingSetup(userId) {
     /* ignore */
   }
 
-  if (native && !gps.alwaysOk && !userConfirmedAlways) {
+  if (!gps.alwaysOk && !userConfirmedAlways) {
     return {
       ok: false,
       error: 'En Ajustes elige ubicación “Permitir todo el tiempo” / “Siempre”.',

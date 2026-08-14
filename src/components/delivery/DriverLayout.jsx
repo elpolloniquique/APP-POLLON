@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { unlockDriverAudio } from '../../utils/orderAlertSound';
 import { APP_BUILD_ID } from '../../utils/buildStamp';
 import { DriverLiveTrackingOnboarding } from './DriverLiveTrackingOnboarding';
+import { DriverNotifyHome } from '../../pages/driver/DriverNotifyHome';
 import { getMyDriverSummary, ensureMyDriverProfile } from '../../services/driverService';
 import { subscribeDispatch } from '../../services/dispatchService';
 import {
@@ -33,6 +34,7 @@ const TABS = [
 export function DriverLayout() {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
+  const native = isNativeDriverApp();
   const [trackingReady, setTrackingReady] = useState(false);
   const [pendingOffers, setPendingOffers] = useState(0);
 
@@ -82,7 +84,8 @@ export function DriverLayout() {
 
   useEffect(() => {
     retryDriverPushInBackground().catch(() => {});
-    if (isNativeDriverApp()) {
+    ensureDriverPushSubscription().catch(() => {});
+    if (native) {
       registerNativePushHandlers({
         onOffer: () => {
           refreshBadge();
@@ -106,7 +109,7 @@ export function DriverLayout() {
         .then(({ SplashScreen }) => SplashScreen.hide().catch(() => {}))
         .catch(() => {});
     }
-  }, [refreshBadge]);
+  }, [refreshBadge, native]);
 
   useEffect(() => {
     if (!trackingReady) return undefined;
@@ -136,9 +139,9 @@ export function DriverLayout() {
     };
   }, [trackingReady, refreshBadge]);
 
-  // GPS nativo vive aquí (no en Pedidos): sobrevive Mapa/Perfil/otra app.
+  // GPS solo en app nativa (nunca en PWA de clientes)
   useEffect(() => {
-    if (!trackingReady) return undefined;
+    if (!native || !trackingReady) return undefined;
     let cancelled = false;
     let stopMisses = 0;
 
@@ -151,7 +154,6 @@ export function DriverLayout() {
           stopMisses = 0;
           await startDriverBackgroundGps();
         } else {
-          // Evitar apagar el FGS por un poll incompleto: exige 3 lecturas seguidas offline
           stopMisses += 1;
           if (stopMisses >= 3) {
             await stopDriverBackgroundGps();
@@ -159,37 +161,76 @@ export function DriverLayout() {
           }
         }
       } catch {
-        /* ignore — no parar GPS por error de red */
+        /* ignore */
       }
     };
 
     void syncGps();
-    const t = setInterval(syncGps, 2000);
+    const t = setInterval(syncGps, 1000);
     let resumeHandle = null;
-    if (isNativeDriverApp()) {
-      import('@capacitor/app')
-        .then(async ({ App }) => {
-          resumeHandle = await App.addListener('appStateChange', (state) => {
-            if (state?.isActive) void syncGps();
-          });
-        })
-        .catch(() => {});
-    }
+    import('@capacitor/app')
+      .then(async ({ App }) => {
+        resumeHandle = await App.addListener('appStateChange', (state) => {
+          if (state?.isActive) void syncGps();
+        });
+      })
+      .catch(() => {});
 
     return () => {
       cancelled = true;
       clearInterval(t);
       try { resumeHandle?.remove(); } catch { /* ignore */ }
-      // No stop() aquí: el FGS nativo debe seguir con pantalla apagada.
     };
-  }, [trackingReady]);
+  }, [trackingReady, native]);
 
   const handleLogout = async () => {
-    await stopDriverBackgroundGps();
+    if (native) await stopDriverBackgroundGps();
     await clearDriverAppBadge();
     await signOut();
     navigate('/');
   };
+
+  // PWA clientes: shell mínimo + pantalla solo avisos
+  if (!native) {
+    return (
+      <div className="driver-shell flex min-h-[100dvh] flex-col bg-[#f3f3f3] text-gray-900" data-build={APP_BUILD_ID}>
+        <DriverLiveTrackingOnboarding onReadyChange={onReadyChange} />
+        <header className="sticky top-0 z-40 flex items-center justify-between border-b border-black/10 bg-black px-4 py-3 text-white shadow-sm">
+          <div className="flex items-center gap-2.5">
+            <img src="/img/logo pollon.png" alt="" className="h-10 w-10 rounded-full border border-white/20 bg-white object-contain" />
+            <div>
+              <p className="font-display text-lg leading-none tracking-wide text-white">EL POLLÓN</p>
+              <p className="mt-0.5 text-[11px] font-semibold text-white/55">Avisos repartidor</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {pendingOffers > 0 && (
+              <span className="rounded-full bg-[#c00000] px-2.5 py-1 text-[11px] font-bold text-white shadow-sm">
+                {pendingOffers}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="rounded-lg p-2 text-white/80 hover:bg-white/10 hover:text-white"
+              aria-label="Salir"
+            >
+              <LogOut className="h-5 w-5" />
+            </button>
+          </div>
+        </header>
+        <main className="relative flex-1 overflow-y-auto">
+          {trackingReady ? (
+            <DriverNotifyHome />
+          ) : (
+            <div className="flex min-h-[40dvh] items-center justify-center px-6">
+              <p className="text-sm text-gray-500">Activa las notificaciones para continuar…</p>
+            </div>
+          )}
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="driver-shell flex min-h-[100dvh] flex-col bg-[#f3f3f3] text-gray-900" data-build={APP_BUILD_ID}>

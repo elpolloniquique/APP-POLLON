@@ -92,10 +92,10 @@ function startHeartbeat() {
   // ≤2s: si el FGS cae o el WebView despierta, el fix vuelve al servidor al instante
   heartbeatTimer = setInterval(() => {
     if (!nativeRunning) return;
-    getAndPublishCurrentFix({ timeoutMs: 4000 }).then((fix) => {
+    getAndPublishCurrentFix({ timeoutMs: 3500 }).then((fix) => {
       if (fix) notifyGps(fix, null);
     }).catch(() => {});
-  }, 2000);
+  }, 1000);
 }
 
 export function isNativeDriverApp() {
@@ -288,7 +288,7 @@ async function publishNativeFix(location, { force = false } = {}) {
   const lng = Number(location.longitude ?? location.lng);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
   const now = Date.now();
-  if (!force && lastPublishAt && now - lastPublishAt < 2000) return null;
+  if (!force && lastPublishAt && now - lastPublishAt < 1000) return null;
   lastPublishAt = now;
   try {
     await upsertMyLocation({

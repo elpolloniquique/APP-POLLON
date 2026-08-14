@@ -1,6 +1,7 @@
 /**
  * Handlers Web Push — bandeja del sistema aunque la app esté cerrada / pantalla apagada.
  * Estilo WhatsApp: notificación insistente + badge de pedidos nuevos.
+ * La PWA solo avisa; aceptar es en la app nativa.
  */
 /* eslint-disable no-undef */
 
@@ -19,7 +20,7 @@ async function updateAppBadge(count) {
 self.addEventListener('push', (event) => {
   let payload = {
     title: 'El Pollón · Nuevo pedido',
-    body: 'Tienes un nuevo pedido de delivery. Ábrelo ahora.',
+    body: 'Tienes un nuevo pedido de delivery. Ábrelo en la app nativa para aceptar.',
     url: '/repartidor',
     tag: 'pollon-driver-offer',
     badgeCount: 1,
@@ -56,7 +57,6 @@ self.addEventListener('push', (event) => {
       }
     }
 
-    // Contar notificaciones visibles del mismo tipo para badge
     let badgeN = Number(payload.badgeCount) || 1;
     try {
       const existing = await self.registration.getNotifications({ tag: undefined });
@@ -67,11 +67,18 @@ self.addEventListener('push', (event) => {
     }
     await updateAppBadge(badgeN);
 
+    const detailBits = [
+      payload.body,
+      payload.address || payload.customerAddress || null,
+    ].filter(Boolean);
+    const bodyText = detailBits.length
+      ? detailBits.join('\n')
+      : 'Nuevo pedido · Ábrelo en la app nativa para aceptar';
+
     await self.registration.showNotification(payload.title || 'El Pollón · Nuevo pedido', {
-      body: payload.body || 'Tienes un nuevo pedido',
+      body: bodyText,
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-192.png',
-      image: undefined,
       vibrate: [280, 120, 280, 120, 400],
       tag: payload.tag || `pollon-offer-${payload.offerId || Date.now()}`,
       renotify: true,
@@ -79,7 +86,7 @@ self.addEventListener('push', (event) => {
       silent: false,
       timestamp: Date.now(),
       actions: [
-        { action: 'open', title: 'Ver pedido' },
+        { action: 'open', title: 'Ver aviso' },
         { action: 'dismiss', title: 'Cerrar' },
       ],
       data: {
@@ -137,6 +144,5 @@ self.addEventListener('message', (event) => {
 });
 
 self.addEventListener('pushsubscriptionchange', (event) => {
-  // El cliente re-suscribe al abrir la app; aquí solo logueamos
   event.waitUntil(Promise.resolve());
 });

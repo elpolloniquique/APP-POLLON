@@ -177,9 +177,17 @@ export default async function handler(req, res) {
           const fee = offer.offered_fee ?? job.delivery_fee ?? 0;
           const ticket = ticketShort(job.ticket_code);
           const name = job.customer_name || 'Cliente';
+          const addr = job.customer_address || '';
           const payload = JSON.stringify({
             title: 'El Pollón · Nuevo pedido',
-            body: `Pedido Nº ${ticket} · ${name} · Delivery ${moneyCLP(fee)}`,
+            body: [
+              `Pedido Nº ${ticket}`,
+              name,
+              addr || null,
+              `Delivery ${moneyCLP(fee)}`,
+              'Acepta en la app nativa',
+            ].filter(Boolean).join(' · '),
+            address: addr,
             url: '/repartidor',
             offerId: offer.id,
             jobId,
