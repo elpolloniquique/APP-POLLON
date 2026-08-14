@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
 import { Download, Share, Smartphone, X } from 'lucide-react';
 import {
   dismissInstallPrompt,
   isAndroidChrome,
   isDesktopInstallableBrowser,
   isIosSafari,
+  isMobileBrowser,
+  isPwaAlreadyInstalled,
   isStandaloneDisplayMode,
   wasInstallPromptDismissed,
 } from '../../utils/pwa';
@@ -14,64 +17,96 @@ import {
   promptPwaInstall,
   subscribeDeferredInstallPrompt,
 } from '../../utils/pwaInstallBridge';
-import { useAuth } from '../../context/AuthContext';
-import { isDriverRole } from '../../services/authService';
 
 /**
- * Aviso de instalación PWA para clientes.
- * No se muestra en standalone, /admin, ni /repartidor (los repartidores tienen onboarding propio).
+ * Aviso “Instalar app” en el sitio (Chrome Android / iOS).
+ * - Si YA está instalada (pollito) → no se muestra.
+ * - Si NO está instalada → mensaje + botón Instalar.
+ * No se muestra dentro de la APK nativa, ni en /admin, ni en modo standalone.
  */
 export function InstallAppPrompt() {
   const { pathname } = useLocation();
-  const { role, profile } = useAuth();
   const [visible, setVisible] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [mode, setMode] = useState('native');
   const [installing, setInstalling] = useState(false);
+  const [hint, setHint] = useState('');
 
+  const isNative = (() => {
+    try { return Capacitor.isNativePlatform(); } catch { return false; }
+  })();
   const isAdmin = pathname.startsWith('/admin');
-  const isDriverArea = pathname.startsWith('/repartidor');
-  const isDriver = isDriverRole(role || profile?.rol || profile?.role);
 
   useEffect(() => {
     ensurePwaInstallListeners();
   }, []);
 
   useEffect(() => {
-    if (isAdmin || isDriverArea || isDriver || isStandaloneDisplayMode() || wasInstallPromptDismissed()) {
+    if (isNative || isAdmin || isStandaloneDisplayMode() || wasInstallPromptDismissed()) {
       setVisible(false);
       return undefined;
     }
+
+    let cancelled = false;
+
+    const hideIfInstalled = async () => {
+      const installed = await isPwaAlreadyInstalled();
+      if (cancelled) return installed;
+      if (installed) {
+        setVisible(false);
+        return true;
+      }
+      return false;
+    };
 
     const onInstalled = () => {
       setVisible(false);
       setDeferredPrompt(null);
     };
+    window.addEventListener('appinstalled', onInstalled);
 
     if (isIosSafari()) {
-      const timer = window.setTimeout(() => setVisible(true), 2400);
       setMode('ios');
-      window.addEventListener('appinstalled', onInstalled);
+      const timer = window.setTimeout(async () => {
+        if (cancelled) return;
+        if (!(await hideIfInstalled())) setVisible(true);
+      }, 1600);
       return () => {
+        cancelled = true;
         window.clearTimeout(timer);
         window.removeEventListener('appinstalled', onInstalled);
       };
     }
 
-    const unsub = subscribeDeferredInstallPrompt((p) => {
+    const unsub = subscribeDeferredInstallPrompt(async (p) => {
+      if (cancelled) return;
+      if (await hideIfInstalled()) return;
       if (p) {
         setDeferredPrompt(p);
         setMode('native');
         setVisible(true);
       }
     });
-    window.addEventListener('appinstalled', onInstalled);
+
+    // Fallback: Chrome a veces no dispara beforeinstallprompt a tiempo.
+    // Si la PWA no está instalada, igual mostramos el aviso con botón.
+    const fallback = window.setTimeout(async () => {
+      if (cancelled) return;
+      if (await hideIfInstalled()) return;
+      if (isStandaloneDisplayMode() || wasInstallPromptDismissed()) return;
+      if (isAndroidChrome() || isMobileBrowser() || isDesktopInstallableBrowser()) {
+        setMode(isIosSafari() ? 'ios' : 'native');
+        setVisible(true);
+      }
+    }, 1800);
 
     return () => {
+      cancelled = true;
       unsub();
+      window.clearTimeout(fallback);
       window.removeEventListener('appinstalled', onInstalled);
     };
-  }, [isAdmin, isDriverArea, isDriver, pathname]);
+  }, [isAdmin, isNative, pathname]);
 
   const handleDismiss = useCallback(() => {
     dismissInstallPrompt();
@@ -85,18 +120,24 @@ export function InstallAppPrompt() {
       return;
     }
     setInstalling(true);
+    setHint('');
     try {
-      await promptPwaInstall();
+      const r = await promptPwaInstall();
+      if (r?.outcome === 'accepted') {
+        setVisible(false);
+        return;
+      }
+      if (!r?.ok) {
+        setHint('Si no aparece el diálogo: menú de Chrome (⋮) → Instalar aplicación.');
+      }
     } catch {
-      /* ignore */
+      setHint('Menú de Chrome (⋮) → Instalar aplicación.');
     } finally {
       setInstalling(false);
-      setDeferredPrompt(null);
-      setVisible(false);
     }
   }, [mode, handleDismiss]);
 
-  if (!visible || isAdmin || isDriverArea || isDriver || isStandaloneDisplayMode()) return null;
+  if (!visible || isNative || isAdmin || isStandaloneDisplayMode()) return null;
 
   const platformHint = isIosSafari()
     ? 'iPhone / iPad'
@@ -104,7 +145,7 @@ export function InstallAppPrompt() {
       ? 'Android'
       : isDesktopInstallableBrowser()
         ? 'Escritorio'
-        : 'Tu dispositivo';
+        : 'Tu celular';
 
   return (
     <div className="install-prompt" role="dialog" aria-labelledby="install-prompt-title" aria-live="polite">
@@ -150,12 +191,12 @@ export function InstallAppPrompt() {
           </div>
         ) : (
           <p className="install-prompt__text">
-            Accede más rápido a la carta, delivery y tus pedidos. Instala El Pollón como app en tu pantalla de inicio.
+            Instala El Pollón en tu celular (ícono del pollito) para pedir más rápido y recibir avisos.
           </p>
         )}
 
         <div className="install-prompt__actions">
-          {mode === 'native' && deferredPrompt && (
+          {mode === 'native' && (
             <button
               type="button"
               className="install-prompt__btn install-prompt__btn--primary"
@@ -163,7 +204,7 @@ export function InstallAppPrompt() {
               disabled={installing}
             >
               <Download className="h-4 w-4" aria-hidden />
-              {installing ? 'Instalando…' : 'Instalar ahora'}
+              {installing ? 'Instalando…' : 'Instalar aplicación'}
             </button>
           )}
           {mode === 'ios' && (
@@ -179,6 +220,7 @@ export function InstallAppPrompt() {
             Ahora no
           </button>
         </div>
+        {hint ? <p className="install-prompt__text" style={{ marginTop: 8 }}>{hint}</p> : null}
       </div>
     </div>
   );

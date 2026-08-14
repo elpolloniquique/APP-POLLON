@@ -1,5 +1,6 @@
 /**
  * Puente global del evento beforeinstallprompt (compartido cliente / repartidor).
+ * Debe engancharse lo antes posible: Chrome dispara el evento al cargar.
  */
 let deferredPrompt = null;
 const listeners = new Set();
@@ -10,6 +11,9 @@ export function getDeferredInstallPrompt() {
 
 export function setDeferredInstallPrompt(event) {
   deferredPrompt = event || null;
+  if (typeof window !== 'undefined') {
+    window.__pollonDeferredInstall = deferredPrompt;
+  }
   listeners.forEach((fn) => {
     try { fn(deferredPrompt); } catch { /* ignore */ }
   });
@@ -33,11 +37,14 @@ export async function promptPwaInstall() {
   }
 }
 
-/** Registrar listener una sola vez (llamar desde App). */
 let hooked = false;
 export function ensurePwaInstallListeners() {
   if (typeof window === 'undefined' || hooked) return;
   hooked = true;
+
+  const early = window.__pollonDeferredInstall;
+  if (early) setDeferredInstallPrompt(early);
+
   window.addEventListener('beforeinstallprompt', (event) => {
     event.preventDefault();
     setDeferredInstallPrompt(event);
@@ -45,4 +52,8 @@ export function ensurePwaInstallListeners() {
   window.addEventListener('appinstalled', () => {
     setDeferredInstallPrompt(null);
   });
+}
+
+if (typeof window !== 'undefined') {
+  ensurePwaInstallListeners();
 }

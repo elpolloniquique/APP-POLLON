@@ -52,6 +52,17 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      /* Captura el evento de Chrome ANTES de que React cargue (si no, se pierde). */
+      window.__pollonDeferredInstall = null;
+      window.addEventListener('beforeinstallprompt', function (e) {
+        e.preventDefault();
+        window.__pollonDeferredInstall = e;
+      });
+      window.addEventListener('appinstalled', function () {
+        window.__pollonDeferredInstall = null;
+      });
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

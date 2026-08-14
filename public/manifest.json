@@ -12,6 +12,12 @@
   "lang": "es-CL",
   "dir": "ltr",
   "categories": ["food", "shopping"],
+  "related_applications": [
+    {
+      "platform": "webapp",
+      "url": "https://www.el-pollon.cl/manifest.json"
+    }
+  ],
   "icons": [
     {
       "src": "/icons/icon-192.png",

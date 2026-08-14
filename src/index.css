@@ -144,7 +144,7 @@
   /* ── PWA: aviso instalar app ── */
   .install-prompt {
     position: fixed;
-    z-index: 55;
+    z-index: 80;
     inset: auto max(0.75rem, env(safe-area-inset-right, 0px))
       max(5.5rem, calc(1.25rem + env(safe-area-inset-bottom, 0px)))
       max(0.75rem, env(safe-area-inset-left, 0px));
