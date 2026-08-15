@@ -172,10 +172,10 @@ export async function evaluateDriverLiveTrackingReady(userId) {
       const gpsOk = native
         ? Boolean(location.locationOk && (location.alwaysOk || userConfirmedAlways))
         : true;
-      // PWA: listo solo si hay permiso Y suscripción Web Push real (o flag guardado)
+      // PWA: listo SOLO con permiso granted + suscripción Web Push real (sin bypass deferred)
       const ready = native
         ? Boolean(notifOk && gpsOk)
-        : Boolean(notifOk && (hasPushSub || pushDeferred));
+        : Boolean(notifState === 'granted' && hasPushSub);
 
       return {
         ...base,

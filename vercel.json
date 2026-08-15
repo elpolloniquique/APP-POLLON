@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron-retry-driver-offers",
-      "schedule": "0 12 * * *"
+      "schedule": "* * * * *"
     },
     {
       "path": "/api/bot-dispatch-queue",

@@ -175,6 +175,24 @@ export default async function handler(req, res) {
   const driverIds = [...new Set(offers.map((o) => o.driver_id).filter(Boolean))];
   const byDriver = Object.fromEntries(offers.map((o) => [o.driver_id, o]));
 
+  const pendingByDriver = {};
+  try {
+    const { data: allPending } = await admin
+      .from('ep_delivery_offers')
+      .select('driver_id')
+      .in('driver_id', driverIds)
+      .eq('status', 'pending');
+    for (const row of allPending || []) {
+      if (!row.driver_id) continue;
+      pendingByDriver[row.driver_id] = (pendingByDriver[row.driver_id] || 0) + 1;
+    }
+  } catch {
+    for (const o of offers) {
+      if (!o.driver_id) continue;
+      pendingByDriver[o.driver_id] = (pendingByDriver[o.driver_id] || 0) + 1;
+    }
+  }
+
   let fcmSent = 0;
   let webSent = 0;
   const staleWeb = [];
@@ -195,13 +213,14 @@ export default async function handler(req, res) {
         const ticket = ticketShort(job.ticket_code);
         const name = job.customer_name || 'Cliente';
         const addr = job.customer_address || '';
+        const badgeCount = Math.max(1, Number(pendingByDriver[row.driver_id]) || 1);
         const title = 'El Pollón · Pedido nuevo';
         const bodyText = [
           `Nº ${ticket}`,
           name,
           addr || null,
           `Delivery ${moneyCLP(fee)}`,
-          '10 min para aceptar',
+          'Acepta en app nativa',
         ].filter(Boolean).join(' · ');
         try {
           const result = await sendFcm(row.token, {
@@ -213,8 +232,8 @@ export default async function handler(req, res) {
               jobId: String(jobId),
               deepLink: '/repartidor',
               url: '/repartidor',
-              tag: `pollon-offer-${offer.id}-${Date.now()}`,
-              badgeCount: String(offers.length || 1),
+              tag: `pollon-job-${jobId}`,
+              badgeCount: String(badgeCount),
               ticket,
               customerName: name,
               address: addr,
@@ -240,28 +259,8 @@ export default async function handler(req, res) {
       .select('id, driver_id, endpoint, p256dh, auth')
       .in('driver_id', driverIds);
 
-    const pendingByDriver = {};
-    try {
-      const { data: allPending } = await admin
-        .from('ep_delivery_offers')
-        .select('driver_id')
-        .in('driver_id', driverIds)
-        .eq('status', 'pending')
-        .gt('expires_at', new Date().toISOString());
-      for (const row of allPending || []) {
-        if (!row.driver_id) continue;
-        pendingByDriver[row.driver_id] = (pendingByDriver[row.driver_id] || 0) + 1;
-      }
-    } catch {
-      for (const o of offers) {
-        if (!o.driver_id) continue;
-        pendingByDriver[o.driver_id] = (pendingByDriver[o.driver_id] || 0) + 1;
-      }
-    }
-
     if (subs?.length) {
       webpush.setVapidDetails(vapidSubject, vapidPublic, vapidPrivate);
-      const stamp = Date.now();
       await Promise.all(
         subs.map(async (sub) => {
           const offer = byDriver[sub.driver_id];
@@ -285,7 +284,7 @@ export default async function handler(req, res) {
             url: '/repartidor',
             offerId: offer.id,
             jobId,
-            tag: `pollon-offer-${offer.id}-${stamp}`,
+            tag: `pollon-job-${jobId}`,
             badgeCount,
             type: 'driver_offer',
             renotify: true,

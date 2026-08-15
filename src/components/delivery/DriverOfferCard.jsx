@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   Check, ChevronDown, ShoppingBag, Bike, Banknote, X, User,
 } from 'lucide-react';
@@ -30,15 +30,6 @@ export function DriverOfferCard({
   const [detailOpen, setDetailOpen] = useState(false);
   const [items, setItems] = useState([]);
   const [itemsLoading, setItemsLoading] = useState(false);
-  const [, setTick] = useState(0);
-
-  useEffect(() => {
-    const t = setInterval(() => setTick((n) => n + 1), 1000);
-    return () => clearInterval(t);
-  }, []);
-
-  const expiresAt = offer?.expires_at ? new Date(offer.expires_at) : null;
-  const secsLeft = expiresAt ? Math.max(0, Math.round((expiresAt - Date.now()) / 1000)) : null;
 
   const waMessage = buildDriverWhatsappMessage({
     customerName: job.customer_name,
@@ -66,13 +57,7 @@ export function DriverOfferCard({
             Nuevo pedido
           </span>
           <div className="flex items-center gap-2">
-            {secsLeft != null && (
-              <span className="text-xs font-bold text-pollon-orange">
-                {secsLeft > 0
-                  ? `${Math.floor(secsLeft / 60)}:${String(secsLeft % 60).padStart(2, '0')}`
-                  : 'Expiró'}
-              </span>
-            )}
+            <span className="text-[10px] font-semibold text-emerald-700">Hasta que alguien acepte</span>
             <button
               type="button"
               onClick={openDetail}

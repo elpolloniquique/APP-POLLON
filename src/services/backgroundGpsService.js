@@ -364,6 +364,13 @@ export async function startDriverBackgroundGps({ forceRestart = false } = {}) {
 
   const pingToken = await ensureGpsPingToken();
   const pingUrl = pingToken ? getDriverGpsPingUrl(pingToken) : null;
+  if (!pingUrl) {
+    return {
+      ok: false,
+      error: 'No se pudo activar el GPS en segundo plano (token). Cierra y vuelve a abrir la app nativa.',
+      needsPingToken: true,
+    };
+  }
   const needUrlRestart = nativeRunning && !startedWithNativeUrl && Boolean(pingUrl);
 
   if (nativeRunning && !forceRestart && !needUrlRestart) {

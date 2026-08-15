@@ -155,7 +155,7 @@ export function DriverLayout() {
           await startDriverBackgroundGps();
         } else {
           stopMisses += 1;
-          if (stopMisses >= 3) {
+          if (stopMisses >= 30) {
             await stopDriverBackgroundGps();
             stopMisses = 0;
           }

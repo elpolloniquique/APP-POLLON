@@ -57,15 +57,12 @@ self.addEventListener('push', (event) => {
       }
     }
 
-    let badgeN = Number(payload.badgeCount) || 1;
-    try {
-      const existing = await self.registration.getNotifications({ tag: undefined });
-      const offers = (existing || []).filter((n) => String(n.tag || '').startsWith('pollon-offer') || n.tag === 'pollon-driver-offer');
-      badgeN = Math.max(badgeN, offers.length + 1);
-    } catch {
-      /* ignore */
-    }
+    let badgeN = Math.max(1, Number(payload.badgeCount) || 1);
     await updateAppBadge(badgeN);
+
+    const stableTag = payload.jobId
+      ? `pollon-job-${payload.jobId}`
+      : (payload.offerId ? `pollon-offer-${payload.offerId}` : (payload.tag || 'pollon-driver-offer'));
 
     const bodyText = payload.body
       || [
@@ -81,7 +78,7 @@ self.addEventListener('push', (event) => {
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-192.png',
       vibrate: [280, 120, 280, 120, 400],
-      tag: payload.tag || `pollon-offer-${payload.offerId || Date.now()}`,
+      tag: stableTag,
       renotify: true,
       requireInteraction: true,
       silent: false,

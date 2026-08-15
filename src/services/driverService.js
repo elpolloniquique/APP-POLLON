@@ -173,9 +173,8 @@ export async function getMyDriverSummary() {
       .select('*, ep_delivery_jobs(*)')
       .eq('driver_id', driver.id)
       .eq('status', 'pending')
-      .gt('expires_at', new Date().toISOString())
       .order('created_at', { ascending: false })
-      .limit(10),
+      .limit(20),
     sb
       .from('ep_delivery_assignments')
       .select('*, ep_delivery_jobs(*)')
