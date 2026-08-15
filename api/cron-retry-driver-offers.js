@@ -1,6 +1,6 @@
 /**
- * Cron Vercel (backup diario en Hobby).
- * El reaviso cada ~1 min lo dispara el GPS ping nativo + panel admin.
+ * Reloj de 1 min: Supabase pg_cron (plan pago) pega aquí.
+ * Backup: cron diario de Vercel + GPS ping nativo + panel admin.
  */
 import { createClient } from '@supabase/supabase-js';
 import { env, isFcmConfigured, fcmModeLabel } from './_lib/fcmSend.js';
@@ -12,14 +12,20 @@ export default async function handler(req, res) {
   }
 
   const cronSecret = env('CRON_SECRET');
-  if (cronSecret) {
-    const auth = req.headers.authorization || '';
-    const q = req.query?.secret;
-    const ok = auth === `Bearer ${cronSecret}` || q === cronSecret;
-    const fromVercel = Boolean(req.headers['x-vercel-cron']);
-    if (!ok && !fromVercel) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+  const auth = req.headers.authorization || '';
+  const headerSecret = req.headers['x-cron-secret'] || '';
+  const q = req.query?.secret;
+  const fromVercel = Boolean(req.headers['x-vercel-cron']);
+  const ok = Boolean(cronSecret) && (
+    auth === `Bearer ${cronSecret}`
+    || q === cronSecret
+    || headerSecret === cronSecret
+  );
+  if (!ok && !fromVercel) {
+    return res.status(401).json({
+      error: 'Unauthorized',
+      hint: cronSecret ? 'Falta CRON_SECRET' : 'Configura CRON_SECRET en Vercel Production',
+    });
   }
 
   const supabaseUrl = env('SUPABASE_URL', 'VITE_SUPABASE_URL');
