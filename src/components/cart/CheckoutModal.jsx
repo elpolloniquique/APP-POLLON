@@ -31,7 +31,7 @@ function OrderTypeHint({ hint }) {
   const isWarning = hint.variant === 'warning';
   return (
     <p
-      className={`mt-2 rounded-lg px-3 py-2 text-xs leading-snug ${
+      className={`mt-1.5 rounded-lg px-2.5 py-1.5 text-[11px] leading-snug ${
         isWarning ? 'bg-amber-50 text-amber-900 ring-1 ring-amber-200' : 'bg-blue-50 text-blue-900 ring-1 ring-blue-100'
       }`}
     >
@@ -266,11 +266,7 @@ export function CheckoutModal() {
     return (
       <>
         {Toast}
-        <div
-          className="fixed inset-0 z-[85] flex items-center justify-center bg-black/55 p-3 backdrop-blur-[2px] sm:p-4"
-          onClick={closeModal}
-          role="presentation"
-        >
+        <div className="checkout-overlay" onClick={closeModal} role="presentation">
           <div
             className="checkout-modal"
             onClick={(e) => e.stopPropagation()}
@@ -281,18 +277,18 @@ export function CheckoutModal() {
               <button
                 type="button"
                 onClick={closeModal}
-                className="absolute right-4 top-4 rounded-full p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                className="checkout-modal__close"
                 aria-label="Cerrar"
               >
-                <X className="h-5 w-5" />
+                <X className="h-[18px] w-[18px]" />
               </button>
-              <div className="flex flex-col items-center pt-2 text-center">
-                <CheckCircle className="h-16 w-16 text-green-600" strokeWidth={1.5} />
-                <h2 id="checkout-success-title" className="mt-3 font-display text-2xl tracking-wide text-pollon-black sm:text-3xl">
+              <div className="flex flex-col items-center text-center">
+                <CheckCircle className="h-12 w-12 text-green-600 sm:h-14 sm:w-14" strokeWidth={1.5} />
+                <h2 id="checkout-success-title" className="checkout-modal__title is-plain mt-2">
                   ¡Pedido recibido!
                 </h2>
-                <p className="mt-2 text-sm text-gray-600">
-                  Tu pedido fue registrado correctamente y ya está visible en la sucursal.
+                <p className="checkout-modal__subtitle">
+                  Tu pedido ya está visible en la sucursal.
                 </p>
               </div>
             </header>
@@ -368,11 +364,7 @@ export function CheckoutModal() {
   return (
     <>
       {Toast}
-      <div
-        className="fixed inset-0 z-[85] flex items-center justify-center bg-black/55 p-3 backdrop-blur-[2px] sm:p-4"
-        onClick={closeModal}
-        role="presentation"
-      >
+      <div className="checkout-overlay" onClick={closeModal} role="presentation">
         <div
           className="checkout-modal"
           onClick={(e) => e.stopPropagation()}
@@ -383,32 +375,30 @@ export function CheckoutModal() {
             <button
               type="button"
               onClick={closeModal}
-              className="absolute right-4 top-4 rounded-full p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+              className="checkout-modal__close"
               aria-label="Cerrar"
             >
-              <X className="h-5 w-5" />
+              <X className="h-[18px] w-[18px]" />
             </button>
-            <h2 id="checkout-modal-title" className="font-display text-2xl tracking-wide text-pollon-black sm:text-3xl">
-              CONFIRMAR PEDIDO
+            <h2 id="checkout-modal-title" className="checkout-modal__title">
+              Confirmar pedido
             </h2>
-            <p className="mt-1 text-sm text-gray-500">Sucursal: {branch?.name}</p>
+            <p className="checkout-modal__subtitle">Sucursal: {branch?.name}</p>
           </header>
 
           <form onSubmit={handleSubmit} className="checkout-modal__form">
             <div className="checkout-modal__body admin-scroll-panel">
-              <div>
-                <label className="text-xs font-bold uppercase tracking-wide text-gray-500">Tipo de pedido</label>
+              <div className="checkout-field">
+                <label className="checkout-label">Tipo de pedido</label>
                 {availableOrderTypes.length ? (
                   <>
-                    <div className="mt-2 flex flex-wrap gap-2">
+                    <div className="checkout-type-row">
                       {ORDER_TYPES.filter((t) => availableOrderTypes.includes(t)).map((t) => (
                         <button
                           key={t}
                           type="button"
                           onClick={() => update('orderType', t)}
-                          className={`rounded-lg px-4 py-2 text-sm font-bold transition ${
-                            form.orderType === t ? 'bg-pollon-red text-white shadow-sm' : 'bg-gray-100 text-pollon-black hover:bg-gray-200'
-                          }`}
+                          className={`checkout-type-btn ${form.orderType === t ? 'is-selected' : ''}`}
                         >
                           {ORDER_TYPE_LABELS[t] || t}
                         </button>
@@ -417,60 +407,74 @@ export function CheckoutModal() {
                     <OrderTypeHint hint={orderTypeHint} />
                   </>
                 ) : (
-                  <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-amber-200">
+                  <p className="mt-1.5 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-amber-200">
                     Esta sucursal no tiene tipos de pedido habilitados. Contacta al local.
                   </p>
                 )}
               </div>
 
-              <input
-                required
-                placeholder="Nombre completo"
-                value={form.name}
-                onChange={(e) => update('name', e.target.value)}
-                onFocus={scrollToField}
-                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm"
-              />
-              <input
-                required
-                placeholder="Teléfono"
-                value={form.phone}
-                onChange={(e) => update('phone', e.target.value)}
-                onFocus={scrollToField}
-                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm"
-              />
+              <div className="checkout-identity">
+                <div className="checkout-field">
+                  <label htmlFor="checkout-name" className="checkout-label">Nombre</label>
+                  <input
+                    id="checkout-name"
+                    required
+                    placeholder="Nombre completo"
+                    value={form.name}
+                    onChange={(e) => update('name', e.target.value)}
+                    onFocus={scrollToField}
+                    className="checkout-input"
+                  />
+                </div>
+                <div className="checkout-field">
+                  <label htmlFor="checkout-phone" className="checkout-label">Teléfono</label>
+                  <input
+                    id="checkout-phone"
+                    required
+                    placeholder="Ej: 9 2558 6256"
+                    value={form.phone}
+                    onChange={(e) => update('phone', e.target.value)}
+                    onFocus={scrollToField}
+                    className="checkout-input"
+                    inputMode="tel"
+                  />
+                </div>
+              </div>
 
               {form.orderType === 'delivery' && (
-                <AddressAutocomplete
-                  value={form.address}
-                  required
-                  cityBias={branch?.city || 'Iquique'}
-                  biasLat={branch?.lat}
-                  biasLng={branch?.lng}
-                  onChange={(label, geo) => {
-                    setForm((f) => ({
-                      ...f,
-                      address: label,
-                      addressLat: geo?.lat ?? null,
-                      addressLng: geo?.lng ?? null,
-                    }));
-                  }}
-                  onSelect={(geo) => {
-                    if (geo) {
+                <div className="checkout-field">
+                  <label className="checkout-label">Dirección de entrega</label>
+                  <AddressAutocomplete
+                    value={form.address}
+                    required
+                    cityBias={branch?.city || 'Iquique'}
+                    biasLat={branch?.lat}
+                    biasLng={branch?.lng}
+                    onChange={(label, geo) => {
                       setForm((f) => ({
                         ...f,
-                        address: geo.shortLabel,
-                        addressLat: geo.lat,
-                        addressLng: geo.lng,
+                        address: label,
+                        addressLat: geo?.lat ?? null,
+                        addressLng: geo?.lng ?? null,
                       }));
-                    }
-                  }}
-                />
+                    }}
+                    onSelect={(geo) => {
+                      if (geo) {
+                        setForm((f) => ({
+                          ...f,
+                          address: geo.shortLabel,
+                          addressLat: geo.lat,
+                          addressLng: geo.lng,
+                        }));
+                      }
+                    }}
+                  />
+                </div>
               )}
 
-              <div>
-                <label htmlFor="checkout-comments" className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">
-                  Comentarios <span className="font-normal normal-case text-gray-400">(opcional)</span>
+              <div className="checkout-field">
+                <label htmlFor="checkout-comments" className="checkout-label">
+                  Comentarios <span className="checkout-label__opt">(opcional)</span>
                 </label>
                 <input
                   id="checkout-comments"
@@ -479,18 +483,17 @@ export function CheckoutModal() {
                   value={form.comments}
                   onChange={(e) => update('comments', e.target.value)}
                   onFocus={scrollToField}
-                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm"
+                  className="checkout-input"
                 />
               </div>
 
-              <div>
-                <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">
-                  Método de pago
-                </label>
-                <p className="mb-2.5 text-xs text-gray-500">Selecciona cómo pagarás tu pedido</p>
-                <div className={`checkout-pay-grid ${
-                  availablePaymentMethods.length === 1 ? 'is-one' : availablePaymentMethods.length === 2 ? 'is-two' : ''
-                }`}>
+              <div className="checkout-field">
+                <label className="checkout-label">Método de pago</label>
+                <p className="checkout-label__hint">Selecciona cómo pagarás tu pedido</p>
+                <div
+                  className="checkout-pay-grid"
+                  style={{ '--pay-count': Math.max(1, availablePaymentMethods.length) }}
+                >
                   {availablePaymentMethods.map((p) => {
                     const selected = form.payment === p.id;
                     const Icon = PAYMENT_ICONS[p.id] || Banknote;
@@ -503,11 +506,11 @@ export function CheckoutModal() {
                         className={`checkout-pay-card checkout-pay-card--${p.tone} ${selected ? 'is-selected' : ''}`}
                       >
                         <span className={`checkout-pay-card__icon checkout-pay-card__icon--${p.tone}`} aria-hidden>
-                          <Icon size={22} strokeWidth={2.05} />
+                          <Icon size={15} strokeWidth={2.2} />
                         </span>
                         <span className="checkout-pay-card__label">{p.label}</span>
                         <span className={`checkout-pay-card__mark ${selected ? 'is-on' : ''}`} aria-hidden>
-                          {selected ? <Check size={11} strokeWidth={3.2} /> : null}
+                          {selected ? <Check size={9} strokeWidth={3.4} /> : null}
                         </span>
                       </button>
                     );
@@ -523,52 +526,57 @@ export function CheckoutModal() {
             </div>
 
             <footer className="checkout-modal__footer">
-              <div className="mb-4 space-y-2 rounded-xl bg-pollon-cream/80 px-4 py-3">
-                <div className="flex justify-between text-sm text-gray-700">
+              <div className="checkout-totals">
+                <div className="checkout-totals__row">
                   <span>Subtotal</span>
                   <span>{money(subtotal)}</span>
                 </div>
                 {isDelivery && (
                   <div className="checkout-delivery-notice">
-                    <div className="checkout-delivery-notice__head">
-                      <Bike className="checkout-delivery-notice__icon" aria-hidden />
-                      <p className="checkout-delivery-notice__title">Costo de delivery</p>
+                    <div className="checkout-delivery-notice__row">
+                      <span className="checkout-delivery-notice__head">
+                        <Bike className="checkout-delivery-notice__icon" aria-hidden />
+                        <span className="checkout-delivery-notice__title">Costo de delivery</span>
+                      </span>
+                      {form.addressLat && deliveryQuote && !deliveryQuote.loading && !deliveryQuote.outOfRange && deliveryFee > 0 && (
+                        <span
+                          className="checkout-delivery-notice__range"
+                          style={deliveryQuote.zone?.color ? { color: deliveryQuote.zone.color } : undefined}
+                        >
+                          {money(deliveryFee)}
+                        </span>
+                      )}
                     </div>
                     {!form.addressLat && (
                       <p className="checkout-delivery-notice__body">
-                        Selecciona tu dirección exacta de la lista para calcular el delivery automáticamente.
+                        Selecciona tu dirección exacta para calcular el delivery.
                       </p>
                     )}
                     {form.addressLat && deliveryQuote?.loading && (
-                      <p className="flex items-center gap-2 text-sm text-gray-600">
-                        <Loader2 className="h-4 w-4 animate-spin" /> Calculando distancia…
+                      <p className="checkout-delivery-notice__body inline-flex items-center gap-1.5">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Calculando distancia…
                       </p>
                     )}
                     {form.addressLat && deliveryQuote && !deliveryQuote.loading && deliveryQuote.outOfRange && (
-                      <p className="text-sm font-semibold text-red-600">
+                      <p className="text-[11px] font-semibold leading-snug text-red-600">
                         Fuera de cobertura{deliveryQuote.maxKm ? ` (máx. ${deliveryQuote.maxKm} km)` : ''}.
                         {deliveryQuote.distanceKm != null && ` Estás a ${formatDistance(deliveryQuote.distanceKm)}.`}
                       </p>
                     )}
                     {form.addressLat && deliveryQuote && !deliveryQuote.loading && !deliveryQuote.outOfRange && deliveryFee > 0 && (
-                      <>
-                        <p className="checkout-delivery-notice__range" style={deliveryQuote.zone?.color ? { color: deliveryQuote.zone.color } : undefined}>
-                          {money(deliveryFee)}
-                        </p>
-                        <p className="checkout-delivery-notice__body">
-                          {deliveryQuote.zone?.name || 'Zona'}
-                          {deliveryQuote.distanceKm != null ? ` · ${formatDistance(deliveryQuote.distanceKm)} desde la sucursal` : ''}
-                        </p>
-                      </>
+                      <p className="checkout-delivery-notice__body">
+                        {deliveryQuote.zone?.name || 'Zona'}
+                        {deliveryQuote.distanceKm != null ? ` · ${formatDistance(deliveryQuote.distanceKm)} desde la sucursal` : ''}
+                      </p>
                     )}
                   </div>
                 )}
-                <div className="flex justify-between border-t border-black/5 pt-2 text-lg font-bold">
+                <div className="checkout-totals__total">
                   <span>Total{isDelivery && deliveryFee > 0 ? ' a pagar' : ''}</span>
-                  <span className="text-pollon-red">{money(orderTotal)}</span>
+                  <span className="checkout-totals__amount">{money(orderTotal)}</span>
                 </div>
                 {isDelivery && deliveryFee > 0 && (
-                  <p className="text-[11px] leading-snug text-gray-500">
+                  <p className="checkout-totals__note">
                     Incluye productos ({money(subtotal)}) + delivery ({money(deliveryFee)}).
                   </p>
                 )}
@@ -580,7 +588,7 @@ export function CheckoutModal() {
                   || !availableOrderTypes.length
                   || (isDelivery && (!!deliveryQuote?.loading || !!deliveryQuote?.outOfRange || !(deliveryFee > 0) || !form.addressLat))
                 }
-                className="w-full rounded-xl bg-pollon-red py-4 text-sm font-bold uppercase tracking-wide text-white shadow-md transition hover:bg-pollon-red-dark disabled:opacity-50"
+                className="checkout-submit"
               >
                 {submitting ? 'Registrando pedido…' : 'Confirmar pedido'}
               </button>

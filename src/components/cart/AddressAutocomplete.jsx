@@ -146,7 +146,7 @@ export function AddressAutocomplete({
 
   return (
     <div ref={containerRef} className="relative">
-      <div className={`flex items-center gap-2 rounded-xl border px-4 py-3 transition ${borderColor} bg-white`}>
+      <div className={`flex min-h-[2.45rem] items-center gap-2 rounded-[0.7rem] border px-3 py-[0.45rem] transition ${borderColor} bg-white`}>
         <MapPin className={`h-4 w-4 flex-none ${selected ? 'text-green-500' : 'text-gray-400'}`} />
         <input
           ref={inputRef}
@@ -174,21 +174,21 @@ export function AddressAutocomplete({
       </div>
 
       {!selected && query.length >= 4 && !loading && suggestions.length === 0 && (
-        <p className="mt-1 px-1 text-xs text-amber-700">
+        <p className="mt-1 px-0.5 text-[11px] leading-snug text-amber-700">
           Sin resultados. Prueba: calle + número + ciudad, ej. &quot;Vivar 1086, Iquique&quot;.
         </p>
       )}
       {selected && (
-        <p className="mt-1 flex items-center gap-1.5 px-1 text-xs text-green-700">
-          <Crosshair className="h-3.5 w-3.5 shrink-0" />
+        <p className="mt-1 flex items-center gap-1.5 px-0.5 text-[11px] leading-snug text-green-700">
+          <Crosshair className="h-3 w-3 shrink-0" />
           {precisionHint(selectedPrecision)} — el repartidor irá a este punto
         </p>
       )}
       {!selected && query.length > 0 && query.length < 4 && (
-        <p className="mt-1 px-1 text-xs text-gray-400">Escribe al menos 4 caracteres…</p>
+        <p className="mt-1 px-0.5 text-[11px] text-gray-400">Escribe al menos 4 caracteres…</p>
       )}
       {!selected && query.length >= 4 && !/\d/.test(query) && (
-        <p className="mt-1 px-1 text-xs text-gray-500">Incluye el número de casa para una ruta exacta.</p>
+        <p className="mt-1 px-0.5 text-[11px] text-gray-500">Incluye el número de casa para una ruta exacta.</p>
       )}
 
       {open && suggestions.length > 0 && (
