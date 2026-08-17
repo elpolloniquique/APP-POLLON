@@ -19,7 +19,7 @@ import {
   hasVapidPublicKey,
   sendDriverSelfTestPush,
 } from '../../services/pushService';
-import { getMyDriverSummary, ensureMyDriverProfile } from '../../services/driverService';
+import { getMyDriverSummary, ensureMyDriverProfile, setMyOperationalStatus } from '../../services/driverService';
 import { subscribeDispatch } from '../../services/dispatchService';
 import {
   openNativeDriverApp,
@@ -29,7 +29,6 @@ import {
 import { unlockDriverAudio } from '../../utils/orderAlertSound';
 import {
   isStandaloneDisplayMode,
-  isAndroidChrome,
 } from '../../utils/pwa';
 import {
   ensurePwaInstallListeners,
@@ -62,6 +61,9 @@ export function DriverNotifyHome() {
     try {
       const st = await getDriverWebPushStatus();
       setStatus(st);
+      if (st?.ready) {
+        await setMyOperationalStatus('available').catch(() => {});
+      }
     } catch {
       setStatus({ ready: false, missingVapid: !hasVapidPublicKey() });
     }
@@ -107,11 +109,12 @@ export function DriverNotifyHome() {
       if (res?.deferred && !res?.endpoint) {
         setMsg(res.warn || 'Permiso OK, pero la suscripción quedó pendiente. Pulsa de nuevo en unos segundos.');
       } else {
+        await setMyOperationalStatus('available').catch(() => {});
         setMsg('Avisos activos. Te enviamos una prueba a la bandeja…');
         await showLocalTrayTestNotification({
           badgeCount: Math.max(1, pending),
         }).catch(() => {});
-        setMsg('Listo. Los pedidos nuevos llegarán a la bandeja aunque apagues la pantalla (si Android no mata Chrome).');
+        setMsg('Listo. Los pedidos nuevos llegarán a la bandeja con internet (no necesitas GPS).');
       }
       await refresh();
     } catch (err) {
@@ -285,12 +288,12 @@ export function DriverNotifyHome() {
             <div className="flex items-start gap-2">
               <Battery className="mt-0.5 h-4 w-4 shrink-0 text-amber-800" />
               <div>
-                <p className="text-sm font-bold text-amber-950">3. Ajustes del celular (importante)</p>
+                <p className="text-sm font-bold text-amber-950">3. Para que llegue el aviso web</p>
                 <ol className="mt-1 list-decimal space-y-0.5 pl-4 text-xs text-amber-900/90">
-                  <li>Notificaciones de Chrome / El Pollón → Permitir</li>
-                  <li>Batería → Sin restricciones (Xiaomi/Huawei/Samsung)</li>
-                  <li>Autostart / inicio automático → Activar</li>
-                  {isAndroidChrome() && <li>Mantén la sesión iniciada con tu correo de repartidor</li>}
+                  <li>Internet (Wi‑Fi o datos)</li>
+                  <li>Sesión de repartidor iniciada en esta app</li>
+                  <li>Notificaciones Permitir (Chrome / El Pollón)</li>
+                  <li>No hace falta GPS ni la app nativa para el aviso</li>
                 </ol>
               </div>
             </div>
