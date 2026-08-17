@@ -17,7 +17,7 @@ export function SiteFooter() {
           {[
             { icon: '🍗', title: 'Pollo fresco del día', desc: 'Marinado y cocinado al carbón' },
             { icon: '🛵', title: 'Delivery rápido', desc: 'Llegamos caliente a tu puerta' },
-            { icon: '💵', title: 'Efectivo y transferencia', desc: 'Solo estos métodos de pago' },
+            { icon: '💵', title: 'Pago al recibir', desc: 'Efectivo, transferencia o tarjeta según sucursal' },
             { icon: '🎧', title: 'Atención multi-sucursal', desc: 'Arica, Iquique y más' },
           ].map((item) => (
             <div key={item.title} className="flex items-center gap-3">

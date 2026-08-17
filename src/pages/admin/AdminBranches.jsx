@@ -8,6 +8,8 @@ import { canManageAllBranches } from '../../services/authService';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { AdminScrollPanel } from '../../components/admin/AdminScrollPanel';
 import { formatDeliveryCost, normalizeDeliveryCost } from '../../utils/format';
+import { DEFAULT_BRANCH_PAYMENT_METHODS, formatPaymentMethodsSummary, normalizePaymentMethods } from '../../utils/paymentMethods';
+import { PaymentMethodsEditor } from '../../components/admin/PaymentMethodsEditor';
 
 const emptyBranch = () => ({
   name: '',
@@ -28,6 +30,7 @@ const emptyBranch = () => ({
   facebookUrl: '',
   instagramUrl: '',
   tiktokUrl: '',
+  paymentMethods: [...DEFAULT_BRANCH_PAYMENT_METHODS],
 });
 
 export function AdminBranches() {
@@ -59,13 +62,18 @@ export function AdminBranches() {
         schedule: modal.schedule,
         deliveryCost: normalizeDeliveryCost(modal.deliveryCost),
         isActive: modal.isActive,
+        paymentMethods: normalizePaymentMethods(modal.paymentMethods),
       }, user);
       show(modal.id ? 'Sucursal actualizada' : 'Sucursal creada al final de la lista');
       setModal(null);
       load();
     } catch (err) {
       const msg = err.message || 'Error al guardar';
-      show(msg.includes('branches') ? `${msg} — ¿Ejecutaste schema-multi-sucursal.sql?` : msg);
+      show(
+        /payment_methods/i.test(msg)
+          ? 'Para guardar métodos de pago, ejecuta supabase/add-branch-payment-methods.sql en Supabase y vuelve a guardar.'
+          : msg.includes('branches') ? `${msg} — ¿Ejecutaste schema-multi-sucursal.sql?` : msg,
+      );
     }
   };
 
@@ -175,6 +183,7 @@ export function AdminBranches() {
                 <p className="mt-1 text-xs text-gray-500 sm:text-sm">{b.city} · {b.address}</p>
                 <p className="text-xs sm:text-sm">WhatsApp: {b.whatsapp}</p>
                 <p className="text-xs sm:text-sm">Delivery: {formatDeliveryCost(b.deliveryCost)}</p>
+                <p className="text-xs sm:text-sm">Pago: {formatPaymentMethodsSummary(b)}</p>
                 {!b.isActive && (
                   <p className="mt-2 text-xs text-amber-800/90">
                     Oculta para clientes. Menú y productos intactos.
@@ -248,6 +257,14 @@ export function AdminBranches() {
                 </span>
               </label>
               <label className="flex items-center gap-2"><input type="checkbox" checked={modal.deliveryEnabled} onChange={(e) => setModal({ ...modal, deliveryEnabled: e.target.checked })} /> Delivery</label>
+            </div>
+            <div className="mt-4 space-y-2 border-t border-gray-100 pt-4">
+              <p className="text-sm font-bold text-gray-800">Métodos de pago de esta sucursal</p>
+              <p className="text-xs text-gray-500">El cliente solo verá los métodos activos. El cobro es al recibir el pedido.</p>
+              <PaymentMethodsEditor
+                value={modal.paymentMethods}
+                onChange={(paymentMethods) => setModal({ ...modal, paymentMethods })}
+              />
             </div>
             <div className="mt-4 space-y-3 border-t border-gray-100 pt-4">
               <p className="text-sm font-bold text-gray-800">Redes sociales (footer)</p>

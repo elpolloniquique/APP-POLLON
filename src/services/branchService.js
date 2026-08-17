@@ -2,6 +2,7 @@ import { getSupabase, isSupabaseConfigured } from './supabaseClient';
 import { DEFAULT_BRANCHES } from '../data/branches';
 import { logAudit } from './auditService';
 import { normalizeDeliveryCost } from '../utils/format';
+import { normalizePaymentMethods } from '../utils/paymentMethods';
 
 function mapBranch(row) {
   return {
@@ -35,6 +36,7 @@ function mapBranch(row) {
     thermalNetworkPrintEnabled: row.thermal_network_print_enabled === true,
     lat: row.lat != null ? Number(row.lat) : null,
     lng: row.lng != null ? Number(row.lng) : null,
+    paymentMethods: normalizePaymentMethods(row.payment_methods),
   };
 }
 
@@ -237,6 +239,7 @@ export async function adminSaveBranch(branch, user) {
     thermal_printer_port: Number(branch.thermalPrinterPort) || 9100,
     thermal_print_bridge_url: branch.thermalPrintBridgeUrl?.trim() || '',
     thermal_network_print_enabled: branch.thermalNetworkPrintEnabled === true,
+    payment_methods: normalizePaymentMethods(branch.paymentMethods),
   };
 
   const { data, error } = await sb.from('branches').upsert(row).select().single();

@@ -11,6 +11,8 @@ import { normalizeDeliveryCost } from '../../utils/format';
 import { testNetworkPrinter, saveBranchPrinterConfigLocal } from '../../utils/networkPrinter';
 import { ReservationScheduleEditor } from '../../components/admin/ReservationScheduleEditor';
 import { normalizeReservationSchedule, DEFAULT_RESERVATION_SLOT } from '../../utils/orderTypeConfig';
+import { DEFAULT_BRANCH_PAYMENT_METHODS, normalizePaymentMethods } from '../../utils/paymentMethods';
+import { PaymentMethodsEditor } from '../../components/admin/PaymentMethodsEditor';
 
 const INPUT = 'admin-config-input';
 const INPUT_MONO = 'admin-config-input admin-config-input--mono';
@@ -75,6 +77,7 @@ export function AdminConfig() {
     thermal_printer_ip: '',
     thermal_printer_port: 9100,
     thermal_print_bridge_url: '',
+    payment_methods: [...DEFAULT_BRANCH_PAYMENT_METHODS],
   });
   const [saving, setSaving] = useState(false);
   const [testingPrinter, setTestingPrinter] = useState(false);
@@ -104,6 +107,7 @@ export function AdminConfig() {
         thermal_printer_ip: branch.thermalPrinterIp || '',
         thermal_printer_port: branch.thermalPrinterPort || 9100,
         thermal_print_bridge_url: branch.thermalPrintBridgeUrl || '',
+        payment_methods: normalizePaymentMethods(branch.paymentMethods),
       });
       return;
     }
@@ -142,6 +146,7 @@ export function AdminConfig() {
           thermalPrinterIp: cfg.thermal_printer_ip,
           thermalPrinterPort: Number(cfg.thermal_printer_port) || 9100,
           thermalPrintBridgeUrl: cfg.thermal_print_bridge_url,
+          paymentMethods: normalizePaymentMethods(cfg.payment_methods),
         }, { id: profile?.id, email: profile?.email });
         saveBranchPrinterConfigLocal(branchId, {
           enabled: cfg.thermal_network_print_enabled,
@@ -159,7 +164,12 @@ export function AdminConfig() {
       await sb.from('configuracion_tienda').upsert({ id: 1, ...cfg });
       alert('Configuración global guardada');
     } catch (e) {
-      alert(e.message || 'Error al guardar');
+      const msg = e.message || 'Error al guardar';
+      alert(
+        /payment_methods/i.test(msg)
+          ? 'Para guardar métodos de pago, ejecuta en Supabase el archivo supabase/add-branch-payment-methods.sql y vuelve a guardar.'
+          : msg,
+      );
     } finally {
       setSaving(false);
     }
@@ -344,6 +354,18 @@ export function AdminConfig() {
               )}
             </div>
           </ConfigSection>
+
+          {isBranchScoped && (
+            <ConfigSection
+              title="Métodos de pago"
+              description="Define qué formas de pago ve el cliente en el checkout de este local. El cobro es siempre al recibir el pedido."
+            >
+              <PaymentMethodsEditor
+                value={cfg.payment_methods}
+                onChange={(payment_methods) => setCfg((c) => ({ ...c, payment_methods }))}
+              />
+            </ConfigSection>
+          )}
 
           {isBranchScoped && (
             <ConfigSection

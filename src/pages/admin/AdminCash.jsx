@@ -28,8 +28,9 @@ export function AdminCash() {
     const pedidos = ordersScoped.filter((o) => (o.createdAt || '').startsWith(today) && o.estado === 'entregado');
     const efectivo = pedidos.filter((o) => o.metodo_pago === 'efectivo').reduce((s, o) => s + o.total, 0);
     const transferencia = pedidos.filter((o) => o.metodo_pago === 'transferencia').reduce((s, o) => s + o.total, 0);
+    const tarjeta = pedidos.filter((o) => o.metodo_pago === 'tarjeta').reduce((s, o) => s + o.total, 0);
     const total = pedidos.reduce((s, o) => s + o.total, 0);
-    return { efectivo, transferencia, total, count: pedidos.length };
+    return { efectivo, transferencia, tarjeta, total, count: pedidos.length };
   }, [ordersScoped, today]);
 
   const abrirCaja = () => {
@@ -65,10 +66,11 @@ export function AdminCash() {
         )}
       />
 
-      <div className="grid gap-3 sm:grid-cols-3 sm:gap-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
         {[
           ['Efectivo', ventasHoy.efectivo],
           ['Transferencia', ventasHoy.transferencia],
+          ['Tarjeta', ventasHoy.tarjeta],
           ['Total del día', ventasHoy.total],
         ].map(([l, v]) => (
           <div key={l} className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-100 sm:rounded-2xl sm:p-5">

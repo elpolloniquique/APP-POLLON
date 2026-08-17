@@ -1,19 +1,24 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { X, CheckCircle, Bike, Loader2 } from 'lucide-react';
+import { X, CheckCircle, Bike, Loader2, Banknote, Landmark, CreditCard, Check, Clock } from 'lucide-react';
 import { AddressAutocomplete } from './AddressAutocomplete';
 import { WhatsAppIcon } from '../ui/WhatsAppIcon';
 import { useCart } from '../../context/CartContext';
 import { useBranch } from '../../context/BranchContext';
 import { useAuth } from '../../context/AuthContext';
 import { money, formatDateTime, normalizeChilePhone, buildWhatsappMessage } from '../../utils/format';
-import { PAYMENT_METHODS, ORDER_TYPE_LABELS } from '../../utils/constants';
+import { ORDER_TYPE_LABELS } from '../../utils/constants';
 import {
   getAvailableOrderTypes,
   getDefaultOrderType,
   validateOrderTypeChoice,
   getOrderTypeHint,
 } from '../../utils/orderTypeConfig';
+import {
+  getAvailablePaymentMethods,
+  getDefaultPaymentMethod,
+  isPaymentMethodAllowed,
+} from '../../utils/paymentMethods';
 import * as orderService from '../../services/orderService';
 import { quoteDelivery } from '../../services/pricingService';
 import { haversineKm, formatDistance } from '../../utils/geo';
@@ -35,37 +40,11 @@ function OrderTypeHint({ hint }) {
   );
 }
 
-function paymentInfoMessage(paymentId, orderType) {
-  if (paymentId === 'efectivo') {
-    const body = orderType === 'retiro'
-      ? 'Podrá pagar en efectivo al retirar su pedido en el local.'
-      : orderType === 'reserva'
-        ? 'Podrá pagar en efectivo al retirar su reserva en el local.'
-        : 'Podrá pagar directamente al repartidor cuando le entregue su pedido en la dirección indicada.';
-    return {
-      variant: 'cash',
-      title: 'Pago en Efectivo (Contraentrega)',
-      icon: '💵',
-      lead: 'El pago se realiza al momento de recibir su pedido.',
-      body,
-    };
-  }
-  if (paymentId === 'transferencia') {
-    const body = orderType === 'retiro'
-      ? 'En el local le indicarán los datos bancarios. Una vez recibido el pedido, podrá transferir y confirmar el pago en ese momento.'
-      : orderType === 'reserva'
-        ? 'Al retirar su reserva le proporcionarán los datos bancarios para completar la transferencia en el local.'
-        : 'Nuestro repartidor le proporcionará los datos bancarios cuando llegue a la dirección de entrega. Una vez recibido el pedido, podrá realizar la transferencia y confirmar el pago en ese mismo momento.';
-    return {
-      variant: 'transfer',
-      title: 'Pago por Transferencia (Contraentrega)',
-      icon: '💳',
-      lead: 'El pago se realiza al momento de recibir su pedido.',
-      body,
-    };
-  }
-  return null;
-}
+const PAYMENT_ICONS = {
+  efectivo: Banknote,
+  transferencia: Landmark,
+  tarjeta: CreditCard,
+};
 
 export function CheckoutModal() {
   const { items, subtotal, clearCart, checkoutOpen, setCheckoutOpen } = useCart();
@@ -91,6 +70,7 @@ export function CheckoutModal() {
 
   const isDelivery = form.orderType === 'delivery';
   const availableOrderTypes = getAvailableOrderTypes(branch);
+  const availablePaymentMethods = getAvailablePaymentMethods(branch);
   const orderTypeHint = getOrderTypeHint(branch, form.orderType, subtotal);
   const deliveryFee = isDelivery && deliveryQuote && !deliveryQuote.outOfRange && !deliveryQuote.loading
     ? (deliveryQuote.fee || 0)
@@ -128,6 +108,15 @@ export function CheckoutModal() {
     const types = getAvailableOrderTypes(branch);
     if (!types.length) return;
     setForm((f) => (types.includes(f.orderType) ? f : { ...f, orderType: getDefaultOrderType(branch) }));
+  }, [checkoutOpen, branch]);
+
+  useEffect(() => {
+    if (!checkoutOpen || !branch) return;
+    setForm((f) => (
+      isPaymentMethodAllowed(branch, f.payment)
+        ? f
+        : { ...f, payment: getDefaultPaymentMethod(branch) }
+    ));
   }, [checkoutOpen, branch]);
 
   // Cotiza delivery automático al confirmar dirección (coords)
@@ -212,6 +201,9 @@ export function CheckoutModal() {
     if (!branchOpen) return 'La sucursal está cerrada en este momento';
     const typeErr = validateOrderTypeChoice(branch, form.orderType, subtotal);
     if (typeErr) return typeErr;
+    if (!isPaymentMethodAllowed(branch, form.payment)) {
+      return 'Selecciona un método de pago válido para esta sucursal';
+    }
     return null;
   };
 
@@ -495,41 +487,38 @@ export function CheckoutModal() {
                 <label className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">
                   Método de pago
                 </label>
-                <p className="mb-2 text-xs text-gray-500">Efectivo o transferencia bancaria</p>
-                <div className="flex gap-2">
-                  {PAYMENT_METHODS.map((p) => {
+                <p className="mb-2.5 text-xs text-gray-500">Selecciona cómo pagarás tu pedido</p>
+                <div className={`checkout-pay-grid ${
+                  availablePaymentMethods.length === 1 ? 'is-one' : availablePaymentMethods.length === 2 ? 'is-two' : ''
+                }`}>
+                  {availablePaymentMethods.map((p) => {
                     const selected = form.payment === p.id;
+                    const Icon = PAYMENT_ICONS[p.id] || Banknote;
                     return (
                       <button
                         key={p.id}
                         type="button"
                         onClick={() => update('payment', p.id)}
                         aria-pressed={selected}
-                        className={`checkout-pay-btn ${selected ? 'is-selected' : ''}`}
+                        className={`checkout-pay-card checkout-pay-card--${p.tone} ${selected ? 'is-selected' : ''}`}
                       >
-                        <span className="checkout-pay-btn__icon" aria-hidden>{p.icon}</span>
-                        <span className="checkout-pay-btn__label">{p.label}</span>
+                        <span className={`checkout-pay-card__icon checkout-pay-card__icon--${p.tone}`} aria-hidden>
+                          <Icon size={22} strokeWidth={2.05} />
+                        </span>
+                        <span className="checkout-pay-card__label">{p.label}</span>
+                        <span className={`checkout-pay-card__mark ${selected ? 'is-on' : ''}`} aria-hidden>
+                          {selected ? <Check size={11} strokeWidth={3.2} /> : null}
+                        </span>
                       </button>
                     );
                   })}
                 </div>
-                {(() => {
-                  const info = paymentInfoMessage(form.payment, form.orderType);
-                  if (!info) return null;
-                  return (
-                    <div className={`checkout-pay-info checkout-pay-info--${info.variant} mt-3`}>
-                      <p className="checkout-pay-info__title">
-                        <span aria-hidden>{info.icon}</span>
-                        {info.title}
-                      </p>
-                      <p className="checkout-pay-info__lead">
-                        <span className="checkout-pay-info__pin" aria-hidden>📌</span>
-                        {info.lead}
-                      </p>
-                      <p className="checkout-pay-info__body">{info.body}</p>
-                    </div>
-                  );
-                })()}
+                <div className="checkout-pay-notice">
+                  <Clock className="checkout-pay-notice__icon" aria-hidden />
+                  <p className="checkout-pay-notice__text">
+                    <strong>Importante:</strong> Todos los métodos de pago son al momento de recibir el pedido.
+                  </p>
+                </div>
               </div>
             </div>
 

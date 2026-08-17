@@ -30,14 +30,14 @@ const TRUST_BAR_ITEMS = [
 const WHY_US = [
   { icon: ChefHat, title: 'Pollo fresco del día', desc: 'Marinado y cocinado al carbón cada día con receta peruana auténtica.' },
   { icon: Bike, title: 'Delivery rápido y seguro', desc: 'Llegamos caliente a tu puerta en Arica, Iquique y Alto Hospicio.' },
-  { icon: Shield, title: 'Pago 100% seguro', desc: 'Solo efectivo al recibir o transferencia bancaria con comprobante.' },
+  { icon: Shield, title: 'Pago 100% seguro', desc: 'Pagas al recibir: efectivo, transferencia o tarjeta, según la sucursal.' },
   { icon: Star, title: 'Más de 10.000 clientes', desc: 'La pollería favorita del norte con ofertas familiares todos los días.' },
 ];
 
 const HOME_ORDER_STEPS = [
   { n: 1, icon: MapPinned, title: 'Elige sucursal', desc: 'Selecciona tu local en el menú superior.' },
   { n: 2, icon: ShoppingBag, title: 'Arma tu pedido', desc: 'Personaliza platos y agrégalos al carrito.' },
-  { n: 3, icon: CreditCard, title: 'Confirma y paga', desc: 'Completa tus datos: efectivo o transferencia.' },
+  { n: 3, icon: CreditCard, title: 'Confirma y paga', desc: 'Completa tus datos y elige el método de pago de tu sucursal.' },
   { n: 4, icon: MessageCircle, title: 'Recibe tu código', desc: 'Aparece al confirmar; envía comprobante por WhatsApp si quieres.' },
 ];
 
@@ -648,7 +648,7 @@ export function Home() {
 
             <ul className="home-order-guide__features-bar">
               {[
-                { icon: Shield, t: 'Pago seguro', d: 'Efectivo o transferencia' },
+                { icon: Shield, t: 'Pago seguro', d: 'Al recibir, según sucursal' },
                 { icon: Truck, t: 'Delivery o retiro', d: 'Según tu sucursal' },
                 { icon: MapPin, t: 'Multi-sucursal', d: 'Menú y precios por local' },
               ].map(({ icon: Icon, t, d }) => (

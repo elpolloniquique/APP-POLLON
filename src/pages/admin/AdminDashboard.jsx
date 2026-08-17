@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
+  CreditCard,
   Calendar,
   CheckCircle2,
   Clock,
@@ -248,6 +249,12 @@ export function AdminDashboard() {
   const transferTotal = useMemo(
     () => analytics.current
       .filter((o) => o.estado !== 'cancelado' && o.metodo_pago === 'transferencia')
+      .reduce((s, o) => s + (Number(o.total) || 0), 0),
+    [analytics.current],
+  );
+  const cardTotal = useMemo(
+    () => analytics.current
+      .filter((o) => o.estado !== 'cancelado' && o.metodo_pago === 'tarjeta')
       .reduce((s, o) => s + (Number(o.total) || 0), 0),
     [analytics.current],
   );
@@ -571,6 +578,7 @@ export function AdminDashboard() {
             ['Tasa de entrega', `${analytics.kpis.conversion}%`, CheckCircle2],
             ['Efectivo', money(cashTotal), Wallet],
             ['Transferencia', money(transferTotal), Wallet],
+            ['Tarjeta', money(cardTotal), CreditCard],
           ].map(([label, val, Icon]) => (
             <div key={label} className="dashboard-summary-item">
               <Icon className="dashboard-summary-item__icon" strokeWidth={2} />

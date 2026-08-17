@@ -22,6 +22,7 @@ const STATUS_COLORS = {
 const PAYMENT_LABELS = {
   efectivo: 'Efectivo',
   transferencia: 'Transferencia',
+  tarjeta: 'Tarjeta',
   whatsapp: 'WhatsApp',
 };
 

@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS branches (
   delivery_eta TEXT DEFAULT '30-45 min',
   is_active BOOLEAN DEFAULT true,
   display_order INT DEFAULT 0,
+  payment_methods TEXT[] NOT NULL DEFAULT ARRAY['efectivo', 'transferencia']::text[],
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );

@@ -24,8 +24,9 @@ export function TermsConditions() {
         <div>
           <h2 className="text-base font-bold text-pollon-black">3. Pagos</h2>
           <p className="mt-2">
-            Aceptamos efectivo al momento de la entrega o retiro, y transferencia bancaria con envío de comprobante por
-            WhatsApp. No procesamos pagos con tarjeta ni pasarelas online en este sitio.
+            El pago se realiza al momento de recibir el pedido (entrega o retiro). Cada sucursal define si acepta
+            efectivo, transferencia y/o tarjeta. No procesamos pagos en línea ni pasarelas tipo Webpay en este sitio.
+            Si eliges transferencia, el local o el repartidor te entrega los datos al recibir.
           </p>
         </div>
         <div>
