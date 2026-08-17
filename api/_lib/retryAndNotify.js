@@ -38,7 +38,24 @@ export async function retryAndNotifyOffers(admin, { force = false } = {}) {
     return { ok: false, error: error.message };
   }
 
-  const jobIds = data?.job_ids || [];
+  let jobIds = [...(data?.job_ids || [])].filter(Boolean);
+
+  // Respaldo: si el RPC no listó jobs (TTL viejo / offered_at), igual avisar ofertas pending
+  if (!jobIds.length) {
+    const { data: pending } = await admin
+      .from('ep_delivery_offers')
+      .select('job_id, ep_delivery_jobs(status, assigned_driver_id)')
+      .eq('status', 'pending')
+      .limit(80);
+    const extra = new Set();
+    for (const row of pending || []) {
+      const job = row.ep_delivery_jobs;
+      if (!row.job_id || job?.assigned_driver_id) continue;
+      extra.add(row.job_id);
+    }
+    jobIds = [...extra];
+  }
+
   if (!jobIds.length) {
     return { ok: true, retried: data?.retried || 0, job_ids: [], pushed: 0 };
   }

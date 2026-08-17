@@ -38,6 +38,9 @@ export default async function handler(req, res) {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
+  const parsedBody = typeof req.body === 'string' ? (() => { try { return JSON.parse(req.body || '{}'); } catch { return {}; } })() : (req.body || {});
+  const bodySource = parsedBody.source || req.query?.source || null;
+
   const result = await retryAndNotifyOffers(admin, { force: true });
   if (!result.ok && result.error) {
     return res.status(500).json(result);
@@ -47,5 +50,6 @@ export default async function handler(req, res) {
     ...result,
     fcmConfigured: isFcmConfigured(),
     fcmMode: fcmModeLabel(),
+    source: bodySource,
   });
 }
