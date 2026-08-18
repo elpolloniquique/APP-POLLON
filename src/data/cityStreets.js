@@ -133,6 +133,25 @@ function streetsForCity(city) {
 }
 
 /**
+ * Nombre corto local: "Bartolomé Vivar" → "Vivar".
+ */
+export function preferredLocalRoadName(road, city = 'Iquique') {
+  const raw = String(road || '')
+    .replace(/^(calle|av\.?|avenida|pasaje|psje\.?)\s+/i, '')
+    .trim();
+  if (!raw) return '';
+  const nRoad = fold(raw);
+  const last = nRoad.split(' ').filter((w) => w.length > 2).pop();
+  const matches = streetsForCity(city).filter((s) => {
+    const n = fold(s.name);
+    return n === nRoad || nRoad.includes(n) || n.includes(nRoad) || (last && (n === last || n.endsWith(` ${last}`)));
+  });
+  if (!matches.length) return raw;
+  matches.sort((a, b) => a.name.length - b.name.length);
+  return matches[0].name;
+}
+
+/**
  * Sugerencias instantáneas al escribir iniciales: "soto" → Sotomayor.
  */
 export function matchLocalStreets(query, { city = 'Iquique', houseNumber = null, limit = 6 } = {}) {

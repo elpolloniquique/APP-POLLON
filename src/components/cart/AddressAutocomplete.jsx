@@ -22,11 +22,33 @@ function readGpsPosition() {
       reject(new Error('Este dispositivo no tiene GPS / geolocalización.'));
       return;
     }
-    navigator.geolocation.getCurrentPosition(resolve, reject, {
-      enableHighAccuracy: true,
-      timeout: 15000,
-      maximumAge: 6000,
-    });
+
+    let settled = false;
+    let coarse = null;
+    const done = (pos, err) => {
+      if (settled) return;
+      settled = true;
+      if (pos) resolve(pos);
+      else reject(err || new Error('No se pudo obtener tu ubicación.'));
+    };
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        coarse = pos;
+        if (!pos.coords.accuracy || pos.coords.accuracy <= 80) done(pos);
+      },
+      () => {},
+      { enableHighAccuracy: false, timeout: 2500, maximumAge: 25000 },
+    );
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => done(pos),
+      (err) => {
+        if (coarse) done(coarse);
+        else done(null, err);
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 4000 },
+    );
   });
 }
 
@@ -171,8 +193,8 @@ export function AddressAutocomplete({
         ...geo,
         lat,
         lng,
-        precision: 'exact',
         source: 'gps',
+        precision: geo.houseNumber ? (geo.precision || 'exact') : 'street',
       };
       handleSelect(item);
     } catch (err) {
@@ -299,7 +321,9 @@ export function AddressAutocomplete({
         <p className="mt-1 flex items-center gap-1.5 px-0.5 text-[11px] leading-snug text-green-700">
           <Crosshair className="h-3 w-3 shrink-0" />
           {fromGps
-            ? 'Ubicación GPS exacta — el delivery se calcula a este punto'
+            ? parsed.houseNumber
+              ? 'Dirección GPS con número de casa — el delivery se calcula a este punto'
+              : 'Ubicación GPS de la calle — completa el número si puedes'
             : `${precisionHint(selectedPrecision)} — el repartidor irá a este punto`}
         </p>
       )}
