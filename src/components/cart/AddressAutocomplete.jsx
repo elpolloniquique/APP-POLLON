@@ -10,8 +10,7 @@ import {
 } from '../../utils/addressGeocode';
 import {
   gpsErrorMessage,
-  requestPreciseLocationPermission,
-  readGpsPosition,
+  locateWithPrecisePermission,
 } from '../../utils/gpsLocation';
 
 /**
@@ -160,10 +159,7 @@ export function AddressAutocomplete({
     setGpsPhase('permission');
     setGpsAccuracy(null);
     try {
-      const granted = await requestPreciseLocationPermission();
-      setGpsPhase('reading');
-      const pos = await readGpsPosition({
-        primedPosition: granted?.position,
+      const pos = await locateWithPrecisePermission({
         onProgress: (p) => {
           setGpsPhase('reading');
           setGpsAccuracy(p?.coords?.accuracy ?? null);
@@ -299,13 +295,9 @@ export function AddressAutocomplete({
 
       {gpsLoading && (
         <p className="mt-1 px-0.5 text-[11px] leading-snug text-gray-600">
-          {gpsPhase === 'permission' && 'Esperando que permitas la ubicación precisa del teléfono…'}
-          {gpsPhase === 'reading' && (
-            gpsAccuracy
-              ? `Leyendo GPS del teléfono… precisión ±${Math.round(gpsAccuracy)} m`
-              : 'Leyendo GPS real del teléfono, espera un momento…'
-          )}
-          {gpsPhase === 'geocoding' && 'Detectando calle y número de casa en tu punto GPS…'}
+          {gpsPhase === 'permission' && 'Permite la ubicación precisa en el aviso del teléfono…'}
+          {gpsPhase === 'reading' && 'GPS activado — cargando tu dirección…'}
+          {gpsPhase === 'geocoding' && 'Completando calle y número…'}
           {!gpsPhase && 'Obteniendo tu dirección exacta…'}
         </p>
       )}

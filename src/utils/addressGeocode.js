@@ -944,28 +944,20 @@ function mapArcGisReverse(data, lat, lng) {
   });
 }
 
-async function reverseArcGis(lat, lng, distanceM = 28) {
-  const tryOnce = async (featureTypes, distance) => {
-    const url = new URL(ARCGIS_REVERSE);
-    url.searchParams.set('f', 'json');
-    url.searchParams.set('location', `${lng},${lat}`);
-    url.searchParams.set('outSR', '4326');
-    url.searchParams.set('langCode', 'es');
-    url.searchParams.set('distance', String(Math.max(12, Math.min(45, Math.round(distance)))));
-    if (featureTypes) url.searchParams.set('featureTypes', featureTypes);
-    const data = await fetchJsonTimeout(
-      url.toString(),
-      { headers: { Accept: 'application/json', 'Accept-Language': 'es' } },
-      5000,
-    );
-    return mapArcGisReverse(data, lat, lng);
-  };
-
-  const rooftop = await tryOnce('PointAddress', distanceM);
-  if (rooftop?.houseNumber && rooftop?.road) return rooftop;
-  const mixed = await tryOnce('PointAddress,StreetAddress', Math.min(40, distanceM + 10));
-  if (mixed?.houseNumber && mixed?.road) return mixed;
-  return mixed || rooftop || tryOnce('', 40);
+async function reverseArcGis(lat, lng, distanceM = 32) {
+  const url = new URL(ARCGIS_REVERSE);
+  url.searchParams.set('f', 'json');
+  url.searchParams.set('location', `${lng},${lat}`);
+  url.searchParams.set('outSR', '4326');
+  url.searchParams.set('langCode', 'es');
+  url.searchParams.set('distance', String(Math.max(16, Math.min(40, Math.round(distanceM))));
+  url.searchParams.set('featureTypes', 'PointAddress,StreetAddress');
+  const data = await fetchJsonTimeout(
+    url.toString(),
+    { headers: { Accept: 'application/json', 'Accept-Language': 'es' } },
+    2800,
+  );
+  return mapArcGisReverse(data, lat, lng);
 }
 
 async function reverseNominatim(lat, lng) {
@@ -1104,52 +1096,23 @@ export async function reverseGeocodePrecise(lat, lng, opts = {}) {
   const accuracy = Number(opts.accuracy);
   const radius = Number.isFinite(accuracy)
     ? Math.max(18, Math.min(40, accuracy * 1.25))
-    : 28;
+    : 32;
 
   const key = `rev:${la.toFixed(6)},${ln.toFixed(6)},${Math.round(radius)}`;
   if (searchCache.has(key)) return searchCache.get(key);
 
-  const [arc, overpack, nom, pho] = await Promise.all([
-    reverseArcGis(la, ln, radius).catch(() => null),
-    reverseOverpassNearby(la, ln, Math.max(40, radius + 10)).catch(() => ({ hit: null, houses: [] })),
-    reverseNominatim(la, ln).catch(() => null),
-    reversePhoton(la, ln).catch(() => null),
-  ]);
-
-  const houses = overpack?.houses || [];
-  const candidates = [
-    arc,
-    overpack?.hit,
-    nom,
-    pho,
-    ...housesToHits(houses, la, ln),
-  ].filter((h) => h?.road || h?.houseNumber);
-
-  let best = pickClosestHit(
-    candidates.filter((h) => h.houseNumber),
-    la,
-    ln,
-  );
-  if (best && best.distM > 22 && houses.length >= 2) {
-    const est = estimateHouseFromNearby(la, ln, houses);
-    if (est?.n) {
-      best = buildGpsHit({
-        lat: la,
-        lng: ln,
-        road: est.street || best.road,
-        houseNumber: String(est.n),
-        postcode: est.postcode || best.postcode,
-        city: best.city,
-        state: best.state,
-        precision: est.precision,
-        source: 'overpass',
-        buildingLat: est.lat,
-        buildingLng: est.lng,
-      });
-    }
+  const arc = await reverseArcGis(la, ln, radius).catch(() => null);
+  if (arc?.houseNumber && arc?.road) {
+    const hit = { ...arc, lat: la, lng: ln, source: 'gps' };
+    searchCache.set(key, hit);
+    return hit;
   }
-  if (!best) best = pickClosestHit(candidates, la, ln) || mergeReverseHits(candidates, la, ln);
 
+  const [pho, nom] = await Promise.all([
+    reversePhoton(la, ln).catch(() => null),
+    reverseNominatim(la, ln).catch(() => null),
+  ]);
+  const best = mergeReverseHits([arc, pho, nom], la, ln);
   const result = best
     ? { ...best, lat: la, lng: ln, source: 'gps' }
     : {
