@@ -7,50 +7,11 @@ import {
   parseAddressQuery,
   previewLocalAddresses,
 } from '../../utils/addressGeocode';
-
-function gpsErrorMessage(err) {
-  const code = err?.code;
-  if (code === 1) return 'Activa el permiso de ubicación del navegador para detectar tu dirección.';
-  if (code === 2) return 'No se pudo leer el GPS. Intenta de nuevo al aire libre.';
-  if (code === 3) return 'El GPS tardó demasiado. Vuelve a pulsar el ícono.';
-  return err?.message || 'No se pudo obtener tu ubicación.';
-}
-
-function readGpsPosition() {
-  return new Promise((resolve, reject) => {
-    if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      reject(new Error('Este dispositivo no tiene GPS / geolocalización.'));
-      return;
-    }
-
-    let settled = false;
-    let coarse = null;
-    const done = (pos, err) => {
-      if (settled) return;
-      settled = true;
-      if (pos) resolve(pos);
-      else reject(err || new Error('No se pudo obtener tu ubicación.'));
-    };
-
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        coarse = pos;
-        if (!pos.coords.accuracy || pos.coords.accuracy <= 80) done(pos);
-      },
-      () => {},
-      { enableHighAccuracy: false, timeout: 2500, maximumAge: 25000 },
-    );
-
-    navigator.geolocation.getCurrentPosition(
-      (pos) => done(pos),
-      (err) => {
-        if (coarse) done(coarse);
-        else done(null, err);
-      },
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 4000 },
-    );
-  });
-}
+import {
+  gpsErrorMessage,
+  getGeoPermissionState,
+  readGpsPosition,
+} from '../../utils/gpsLocation';
 
 /**
  * Autocompletado de dirección preciso (calle + número + CP + coords).
@@ -70,6 +31,7 @@ export function AddressAutocomplete({
   const [suggestions, setSuggestions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [gpsLoading, setGpsLoading] = useState(false);
+  const [gpsPhase, setGpsPhase] = useState('');
   const [gpsError, setGpsError] = useState('');
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState(!!value);
@@ -183,10 +145,20 @@ export function AddressAutocomplete({
     if (disabled || gpsLoading) return;
     setGpsError('');
     setGpsLoading(true);
+    setGpsPhase('permission');
     try {
+      const perm = await getGeoPermissionState();
+      if (perm === 'denied') {
+        const err = new Error('Ubicación bloqueada.');
+        err.code = 1;
+        err.denied = true;
+        throw err;
+      }
+      setGpsPhase(perm === 'granted' ? 'reading' : 'permission');
       const pos = await readGpsPosition();
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
+      setGpsPhase('geocoding');
       const geo = await reverseGeocodePrecise(lat, lng);
       if (!geo) throw new Error('No se pudo leer la dirección de esta ubicación.');
       const item = {
@@ -201,6 +173,7 @@ export function AddressAutocomplete({
       setGpsError(gpsErrorMessage(err));
     } finally {
       setGpsLoading(false);
+      setGpsPhase('');
     }
   };
 
@@ -297,8 +270,8 @@ export function AddressAutocomplete({
           type="button"
           onClick={handleUseGps}
           disabled={disabled || gpsLoading}
-          title="Usar mi ubicación GPS"
-          aria-label="Usar mi ubicación GPS para completar la dirección exacta"
+          title="Usar mi ubicación GPS (pide permiso si está apagada)"
+          aria-label="Usar mi ubicación GPS para completar calle y número"
           className={`flex h-8 w-8 flex-none items-center justify-center rounded-lg transition disabled:opacity-50 ${
             fromGps
               ? 'bg-emerald-50 text-emerald-600'
@@ -309,6 +282,14 @@ export function AddressAutocomplete({
         </button>
       </div>
 
+      {gpsLoading && (
+        <p className="mt-1 px-0.5 text-[11px] leading-snug text-gray-600">
+          {gpsPhase === 'permission' && 'Permite el acceso a tu ubicación para completar la dirección…'}
+          {gpsPhase === 'reading' && 'Leyendo tu GPS…'}
+          {gpsPhase === 'geocoding' && 'Completando calle y número de casa…'}
+          {!gpsPhase && 'Obteniendo tu dirección exacta…'}
+        </p>
+      )}
       {gpsError && (
         <p className="mt-1 px-0.5 text-[11px] leading-snug text-red-600">{gpsError}</p>
       )}

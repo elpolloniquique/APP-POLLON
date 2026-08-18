@@ -1,6 +1,6 @@
 /**
  * Geocoding preciso para Chile (calle + número + CP).
- * Fuentes: catálogo local instantáneo + Photon + Nominatim + Overpass.
+ * Fuentes: catálogo local + ArcGIS (GPS exacto) + Photon + Nominatim + Overpass.
  */
 
 import { matchLocalStreets, preferredLocalRoadName } from '../data/cityStreets';
@@ -14,6 +14,7 @@ const OVERPASS_ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
 ];
+const ARCGIS_REVERSE = 'https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode';
 const searchCache = new Map();
 
 const FETCH_HEADERS = {
@@ -882,6 +883,73 @@ function mapReversePhoton(data, lat, lng) {
   });
 }
 
+function parseHouseFromAddressLine(address) {
+  const m = String(address || '').trim().match(/(\d+[A-Za-z]?)\s*$/);
+  return m ? m[1] : null;
+}
+
+function mapArcGisReverse(data, lat, lng) {
+  const a = data?.address;
+  if (!a) return null;
+  const country = String(a.CountryCode || a.CntryName || '').toUpperCase();
+  if (country && country !== 'CHL' && !/chile/i.test(a.CntryName || '')) return null;
+
+  let houseNumber = String(a.AddNum || '').trim();
+  if (houseNumber.includes('-')) houseNumber = parseHouseFromAddressLine(a.Address) || houseNumber.split('-')[0];
+  if (!houseNumber) houseNumber = parseHouseFromAddressLine(a.Address) || '';
+
+  let road = String(a.StName || '').trim();
+  if (!road && a.Address) {
+    road = String(a.Address)
+      .replace(/,.*$/, '')
+      .replace(/\s+\d+[A-Za-z]?(?:\s*-\s*\d+)?\s*$/, '')
+      .trim();
+  }
+  road = road.replace(/^(calle|av\.?|avenida|pasaje|psje\.?)\s+/i, '').trim();
+  if (!road && !houseNumber) return null;
+
+  const precision = a.Addr_type === 'PointAddress'
+    ? 'exact'
+    : houseNumber
+      ? 'interpolated'
+      : 'street';
+
+  return buildGpsHit({
+    lat,
+    lng,
+    road,
+    houseNumber: houseNumber || null,
+    postcode: a.Postal || null,
+    city: a.City || guessCityFromCoords(lat, lng),
+    state: a.Region || 'Tarapacá',
+    precision,
+    source: 'arcgis',
+  });
+}
+
+async function reverseArcGis(lat, lng) {
+  const tryOnce = async (featureTypes) => {
+    const url = new URL(ARCGIS_REVERSE);
+    url.searchParams.set('f', 'json');
+    url.searchParams.set('location', `${lng},${lat}`);
+    url.searchParams.set('outSR', '4326');
+    url.searchParams.set('langCode', 'es');
+    url.searchParams.set('distance', '80');
+    if (featureTypes) url.searchParams.set('featureTypes', featureTypes);
+    const data = await fetchJsonTimeout(
+      url.toString(),
+      { headers: { Accept: 'application/json', 'Accept-Language': 'es' } },
+      5000,
+    );
+    return mapArcGisReverse(data, lat, lng);
+  };
+
+  const precise = await tryOnce('PointAddress,StreetAddress');
+  if (precise?.houseNumber && precise?.road) return precise;
+  if (precise) return precise;
+  return tryOnce('');
+}
+
 async function reverseNominatim(lat, lng) {
   const url = new URL(NOMINATIM_REVERSE);
   url.searchParams.set('lat', String(lat));
@@ -909,7 +977,8 @@ function mergeReverseHits(hits, lat, lng) {
   const rank = (h) => {
     let s = 0;
     if (h.houseNumber) s += 20;
-    if (h.via === 'overpass') s += 15;
+    if (h.via === 'arcgis') s += 22;
+    if (h.via === 'overpass') s += 12;
     if (h.precision === 'exact') s += 8;
     if (h.road) s += 3;
     return s;
@@ -984,13 +1053,21 @@ export async function reverseGeocodePrecise(lat, lng) {
   const key = `rev:${la.toFixed(5)},${ln.toFixed(5)}`;
   if (searchCache.has(key)) return searchCache.get(key);
 
+  const arcP = reverseArcGis(la, ln);
   const overpassP = reverseOverpassNearby(la, ln);
   const nomP = reverseNominatim(la, ln);
   const phoP = reversePhoton(la, ln);
 
-  let best = await firstUsefulReverse([overpassP, nomP, phoP], la, ln);
+  const arc = await arcP;
+  if (arc?.houseNumber && arc?.road) {
+    const hit = { ...arc, lat: la, lng: ln };
+    searchCache.set(key, hit);
+    return hit;
+  }
+
+  let best = await firstUsefulReverse([Promise.resolve(arc), overpassP, nomP, phoP], la, ln);
   if (!best?.houseNumber) {
-    const all = await Promise.all([overpassP, nomP, phoP]);
+    const all = await Promise.all([Promise.resolve(arc), overpassP, nomP, phoP]);
     best = mergeReverseHits(all, la, ln);
   }
 
@@ -1011,7 +1088,7 @@ export async function reverseGeocodePrecise(lat, lng) {
         source: 'gps',
       };
 
-  searchCache.set(key, result);
+  if (result.houseNumber) searchCache.set(key, result);
   if (searchCache.size > 80) {
     const first = searchCache.keys().next().value;
     searchCache.delete(first);
