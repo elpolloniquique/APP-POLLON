@@ -3,21 +3,24 @@ import { Geolocation } from '@capacitor/geolocation';
 
 const FIX_TIMEOUT_MS = 7000;
 
+export const ADDRESS_LIST_HINT =
+  'Si no está exacto, escribe calle y número y elige de la lista.';
+
 export function gpsErrorMessage(err) {
   const code = err?.code;
   if (err?.coarseOnly) {
-    return 'El teléfono dio una ubicación aproximada. En el permiso elige “Ubicación precisa” y toca de nuevo el ícono GPS.';
+    return `Ubicación aproximada. ${ADDRESS_LIST_HINT}`;
   }
   if (code === 1 || err?.denied) {
-    return 'Ubicación bloqueada. En el candado del navegador permite Ubicación precisa y toca de nuevo el ícono GPS.';
+    return `Ubicación bloqueada. ${ADDRESS_LIST_HINT}`;
   }
   if (code === 2) {
-    return 'Activa el GPS / ubicación de tu celular y toca de nuevo el ícono.';
+    return `Sin señal GPS. ${ADDRESS_LIST_HINT}`;
   }
   if (code === 3) {
-    return 'El GPS tardó demasiado. Activa la ubicación precisa y toca de nuevo.';
+    return `El GPS tardó demasiado. ${ADDRESS_LIST_HINT}`;
   }
-  return err?.message || 'No se pudo obtener tu ubicación.';
+  return `${err?.message || 'No se pudo usar el GPS.'} ${ADDRESS_LIST_HINT}`;
 }
 
 function toWebPosition(pos) {

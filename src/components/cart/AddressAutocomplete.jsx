@@ -4,13 +4,13 @@ import { MapPin, Loader2, X, Crosshair, LocateFixed } from 'lucide-react';
 import {
   searchAddressesProgressive,
   reverseGeocodePrecise,
-  precisionHint,
   parseAddressQuery,
   previewLocalAddresses,
 } from '../../utils/addressGeocode';
 import {
   gpsErrorMessage,
   locateWithPrecisePermission,
+  ADDRESS_LIST_HINT,
 } from '../../utils/gpsLocation';
 
 /**
@@ -301,29 +301,15 @@ export function AddressAutocomplete({
           {!gpsPhase && 'Obteniendo tu dirección exacta…'}
         </p>
       )}
-      {gpsError && (
-        <p className="mt-1 px-0.5 text-[11px] leading-snug text-red-600">{gpsError}</p>
-      )}
-      {!selected && !gpsError && query.length >= 2 && !loading && suggestions.length === 0 && (
-        <p className="mt-1 px-0.5 text-[11px] leading-snug text-amber-700">
-          Sin resultados. Prueba calle + número, ej. &quot;Sotomayor 785, Iquique&quot;, o usa el GPS.
+      {!gpsLoading && (
+        <p
+          className={`mt-1 flex items-start gap-1.5 px-0.5 text-[11px] leading-snug ${
+            gpsError ? 'text-red-600' : selected ? 'text-green-700' : 'text-gray-500'
+          }`}
+        >
+          {selected && <Crosshair className="mt-0.5 h-3 w-3 shrink-0" />}
+          <span>{gpsError || ADDRESS_LIST_HINT}</span>
         </p>
-      )}
-      {selected && (
-        <p className="mt-1 flex items-center gap-1.5 px-0.5 text-[11px] leading-snug text-green-700">
-          <Crosshair className="h-3 w-3 shrink-0" />
-          {fromGps
-            ? parsed.houseNumber
-              ? 'Dirección GPS con número de casa — el delivery se calcula a este punto'
-              : 'Ubicación GPS de la calle — completa el número si puedes'
-            : `${precisionHint(selectedPrecision)} — el repartidor irá a este punto`}
-        </p>
-      )}
-      {!selected && !gpsError && query.length > 0 && query.length < 2 && (
-        <p className="mt-1 px-0.5 text-[11px] text-gray-400">Sigue escribiendo… o pulsa el ícono GPS.</p>
-      )}
-      {!selected && !gpsError && query.length >= 2 && !parsed.houseNumber && (
-        <p className="mt-1 px-0.5 text-[11px] text-gray-500">Incluye el número de casa para una ruta exacta, o usa el GPS.</p>
       )}
 
       {askGps && typeof document !== 'undefined' && createPortal(
