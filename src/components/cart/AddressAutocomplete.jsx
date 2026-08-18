@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { MapPin, Loader2, X, Crosshair, LocateFixed } from 'lucide-react';
 import {
   searchAddressesProgressive,
@@ -9,7 +10,7 @@ import {
 } from '../../utils/addressGeocode';
 import {
   gpsErrorMessage,
-  getGeoPermissionState,
+  requestPreciseLocationPermission,
   readGpsPosition,
 } from '../../utils/gpsLocation';
 
@@ -38,6 +39,7 @@ export function AddressAutocomplete({
   const [selected, setSelected] = useState(!!value);
   const [selectedPrecision, setSelectedPrecision] = useState(null);
   const [fromGps, setFromGps] = useState(false);
+  const [askGps, setAskGps] = useState(false);
   const [activeIdx, setActiveIdx] = useState(-1);
   const timerRef = useRef(null);
   const inputRef = useRef(null);
@@ -142,22 +144,26 @@ export function AddressAutocomplete({
     inputRef.current?.focus();
   };
 
-  const handleUseGps = async () => {
+  const handleUseGps = () => {
     if (disabled || gpsLoading) return;
+    setGpsError('');
+    setAskGps(true);
+  };
+
+  const handleAllowPreciseGps = async (e) => {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    if (disabled || gpsLoading) return;
+    setAskGps(false);
     setGpsError('');
     setGpsLoading(true);
     setGpsPhase('permission');
     setGpsAccuracy(null);
     try {
-      const perm = await getGeoPermissionState();
-      if (perm === 'denied') {
-        const err = new Error('Ubicación bloqueada.');
-        err.code = 1;
-        err.denied = true;
-        throw err;
-      }
-      setGpsPhase(perm === 'granted' ? 'reading' : 'permission');
+      const granted = await requestPreciseLocationPermission();
+      setGpsPhase('reading');
       const pos = await readGpsPosition({
+        primedPosition: granted?.position,
         onProgress: (p) => {
           setGpsPhase('reading');
           setGpsAccuracy(p?.coords?.accuracy ?? null);
@@ -279,8 +285,8 @@ export function AddressAutocomplete({
           type="button"
           onClick={handleUseGps}
           disabled={disabled || gpsLoading}
-          title="Usar mi ubicación GPS (pide permiso si está apagada)"
-          aria-label="Usar mi ubicación GPS para completar calle y número"
+          title="Usar ubicación precisa del teléfono"
+          aria-label="Pedir permiso de GPS preciso y completar calle y número"
           className={`flex h-8 w-8 flex-none items-center justify-center rounded-lg transition disabled:opacity-50 ${
             fromGps
               ? 'bg-emerald-50 text-emerald-600'
@@ -293,7 +299,7 @@ export function AddressAutocomplete({
 
       {gpsLoading && (
         <p className="mt-1 px-0.5 text-[11px] leading-snug text-gray-600">
-          {gpsPhase === 'permission' && 'Permite el acceso al GPS de tu teléfono para completar la dirección…'}
+          {gpsPhase === 'permission' && 'Esperando que permitas la ubicación precisa del teléfono…'}
           {gpsPhase === 'reading' && (
             gpsAccuracy
               ? `Leyendo GPS del teléfono… precisión ±${Math.round(gpsAccuracy)} m`
@@ -326,6 +332,51 @@ export function AddressAutocomplete({
       )}
       {!selected && !gpsError && query.length >= 2 && !parsed.houseNumber && (
         <p className="mt-1 px-0.5 text-[11px] text-gray-500">Incluye el número de casa para una ruta exacta, o usa el GPS.</p>
+      )}
+
+      {askGps && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 z-[120] flex items-end justify-center bg-black/55 p-3 sm:items-center"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="gps-perm-title"
+          onClick={() => setAskGps(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl"
+            onClick={(ev) => ev.stopPropagation()}
+          >
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-pollon-red">
+              <LocateFixed className="h-6 w-6" strokeWidth={2.3} />
+            </div>
+            <h3 id="gps-perm-title" className="text-center text-base font-extrabold text-pollon-black">
+              Ubicación precisa
+            </h3>
+            <p className="mt-2 text-center text-[13px] leading-snug text-gray-600">
+              Para completar tu dirección exacta (calle y número de casa) necesitamos el GPS preciso de tu teléfono, no una ubicación aproximada.
+            </p>
+            <p className="mt-2 text-center text-[12px] leading-snug text-gray-500">
+              En el aviso del celular elige <span className="font-semibold text-gray-700">Permitir</span> y, si aparece, <span className="font-semibold text-gray-700">Ubicación precisa</span>.
+            </p>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setAskGps(false)}
+                className="rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleAllowPreciseGps}
+                className="rounded-xl bg-pollon-red px-3 py-2.5 text-sm font-extrabold text-white hover:bg-red-700"
+              >
+                Permitir GPS
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
       )}
 
       {open && suggestions.length > 0 && (
