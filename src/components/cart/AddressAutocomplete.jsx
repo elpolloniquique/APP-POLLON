@@ -1,10 +1,38 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { MapPin, Loader2, X, Crosshair } from 'lucide-react';
-import { searchPreciseAddresses, precisionHint } from '../../utils/addressGeocode';
+import { MapPin, Loader2, X, Crosshair, LocateFixed } from 'lucide-react';
+import {
+  searchAddressesProgressive,
+  reverseGeocodePrecise,
+  precisionHint,
+  parseAddressQuery,
+  previewLocalAddresses,
+} from '../../utils/addressGeocode';
+
+function gpsErrorMessage(err) {
+  const code = err?.code;
+  if (code === 1) return 'Activa el permiso de ubicación del navegador para detectar tu dirección.';
+  if (code === 2) return 'No se pudo leer el GPS. Intenta de nuevo al aire libre.';
+  if (code === 3) return 'El GPS tardó demasiado. Vuelve a pulsar el ícono.';
+  return err?.message || 'No se pudo obtener tu ubicación.';
+}
+
+function readGpsPosition() {
+  return new Promise((resolve, reject) => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      reject(new Error('Este dispositivo no tiene GPS / geolocalización.'));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(resolve, reject, {
+      enableHighAccuracy: true,
+      timeout: 15000,
+      maximumAge: 6000,
+    });
+  });
+}
 
 /**
  * Autocompletado de dirección preciso (calle + número + CP + coords).
- * Al seleccionar guarda { label, shortLabel, lat, lng, precision } vía onSelect.
+ * GPS: rellena la dirección exacta del cliente para cotizar delivery.
  */
 export function AddressAutocomplete({
   value,
@@ -19,9 +47,12 @@ export function AddressAutocomplete({
   const [query, setQuery] = useState(value || '');
   const [suggestions, setSuggestions] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [gpsLoading, setGpsLoading] = useState(false);
+  const [gpsError, setGpsError] = useState('');
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState(!!value);
   const [selectedPrecision, setSelectedPrecision] = useState(null);
+  const [fromGps, setFromGps] = useState(false);
   const [activeIdx, setActiveIdx] = useState(-1);
   const timerRef = useRef(null);
   const inputRef = useRef(null);
@@ -34,6 +65,7 @@ export function AddressAutocomplete({
       setQuery('');
       setSelected(false);
       setSelectedPrecision(null);
+      setFromGps(false);
       setSuggestions([]);
       setOpen(false);
     }
@@ -41,32 +73,52 @@ export function AddressAutocomplete({
 
   const search = useCallback((q) => {
     clearTimeout(timerRef.current);
-    if (q.trim().length < 4) {
+    const trimmed = q.trim();
+    if (trimmed.length < 2) {
       setSuggestions([]);
       setOpen(false);
+      setLoading(false);
       return;
     }
+
+    const opts = {
+      city: cityBias,
+      lat: biasLat,
+      lng: biasLng,
+      limit: 8,
+    };
+
+    const localNow = previewLocalAddresses(q, opts);
+    if (localNow.length) {
+      setSuggestions(localNow);
+      setOpen(true);
+      setActiveIdx(0);
+    }
+
+    const applyHits = (hits, reqId) => {
+      if (reqId !== reqIdRef.current) return;
+      const list = hits || [];
+      if (!list.length && localNow.length) return;
+      setSuggestions(list.length ? list : localNow);
+      setOpen((list.length ? list : localNow).length > 0);
+      setActiveIdx((list.length ? list : localNow).length ? 0 : -1);
+    };
+
+    const reqId = ++reqIdRef.current;
+    setLoading(true);
+
     timerRef.current = setTimeout(async () => {
-      const reqId = ++reqIdRef.current;
-      setLoading(true);
       try {
-        const results = await searchPreciseAddresses(q, {
-          city: cityBias,
-          lat: biasLat,
-          lng: biasLng,
-          limit: 7,
-        });
-        if (reqId !== reqIdRef.current) return;
-        setSuggestions(results);
-        setOpen(results.length > 0);
-        setActiveIdx(-1);
+        await searchAddressesProgressive(q, opts, (hits) => applyHits(hits, reqId));
       } catch {
-        if (reqId !== reqIdRef.current) return;
-        setSuggestions([]);
+        if (reqId === reqIdRef.current && !localNow.length) {
+          setSuggestions([]);
+          setOpen(false);
+        }
       } finally {
         if (reqId === reqIdRef.current) setLoading(false);
       }
-    }, 480);
+    }, 140);
   }, [cityBias, biasLat, biasLng]);
 
   const handleChange = (e) => {
@@ -74,6 +126,8 @@ export function AddressAutocomplete({
     setQuery(q);
     setSelected(false);
     setSelectedPrecision(null);
+    setFromGps(false);
+    setGpsError('');
     onChange?.(q, null);
     search(q);
   };
@@ -82,8 +136,10 @@ export function AddressAutocomplete({
     setQuery(item.shortLabel);
     setSelected(true);
     setSelectedPrecision(item.precision);
+    setFromGps(item.source === 'gps');
     setOpen(false);
     setSuggestions([]);
+    setGpsError('');
     onChange?.(item.shortLabel, item);
     onSelect?.(item);
   };
@@ -92,11 +148,38 @@ export function AddressAutocomplete({
     setQuery('');
     setSelected(false);
     setSelectedPrecision(null);
+    setFromGps(false);
     setSuggestions([]);
     setOpen(false);
+    setGpsError('');
     onChange?.('', null);
     onSelect?.(null);
     inputRef.current?.focus();
+  };
+
+  const handleUseGps = async () => {
+    if (disabled || gpsLoading) return;
+    setGpsError('');
+    setGpsLoading(true);
+    try {
+      const pos = await readGpsPosition();
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      const geo = await reverseGeocodePrecise(lat, lng);
+      if (!geo) throw new Error('No se pudo leer la dirección de esta ubicación.');
+      const item = {
+        ...geo,
+        lat,
+        lng,
+        precision: 'exact',
+        source: 'gps',
+      };
+      handleSelect(item);
+    } catch (err) {
+      setGpsError(gpsErrorMessage(err));
+    } finally {
+      setGpsLoading(false);
+    }
   };
 
   const handleKeyDown = (e) => {
@@ -129,9 +212,10 @@ export function AddressAutocomplete({
     el?.scrollIntoView({ block: 'nearest' });
   }, [activeIdx]);
 
+  const parsed = parseAddressQuery(query);
   const borderColor = selected
     ? 'border-green-500 ring-2 ring-green-200'
-    : query && !selected && !loading
+    : query && !selected && !loading && !gpsLoading
       ? 'border-amber-400'
       : 'border-gray-200';
 
@@ -144,51 +228,86 @@ export function AddressAutocomplete({
     return i === -1 ? '' : label.slice(i + 1).trim();
   };
 
+  const highlightMatch = (text) => {
+    const needle = (parsed.street || query).trim();
+    if (!needle || needle.length < 2) return text;
+    const idx = text.toLowerCase().indexOf(needle.toLowerCase());
+    if (idx < 0) return text;
+    return (
+      <>
+        {text.slice(0, idx)}
+        <mark className="rounded-sm bg-amber-100 px-0.5 font-extrabold text-pollon-black">{text.slice(idx, idx + needle.length)}</mark>
+        {text.slice(idx + needle.length)}
+      </>
+    );
+  };
+
   return (
     <div ref={containerRef} className="relative">
-      <div className={`flex min-h-[2.45rem] items-center gap-2 rounded-[0.7rem] border px-3 py-[0.45rem] transition ${borderColor} bg-white`}>
+      <div className={`flex min-h-[2.45rem] items-center gap-1.5 rounded-[0.7rem] border px-2.5 py-[0.4rem] transition ${borderColor} bg-white`}>
         <MapPin className={`h-4 w-4 flex-none ${selected ? 'text-green-500' : 'text-gray-400'}`} />
         <input
           ref={inputRef}
           type="text"
           required={required}
-          disabled={disabled}
-          placeholder="Ej: Bartolomé Vivar 1086, Iquique"
+          disabled={disabled || gpsLoading}
+          placeholder="Ej: Sotomayor 785, Iquique"
           value={query}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           onFocus={() => suggestions.length && setOpen(true)}
           autoComplete="off"
+          spellCheck={false}
           className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-gray-400"
           aria-autocomplete="list"
           aria-expanded={open}
           aria-haspopup="listbox"
           role="combobox"
+          aria-label="Dirección de entrega"
         />
-        {loading && <Loader2 className="h-4 w-4 animate-spin text-gray-400 flex-none" />}
-        {query && !loading && (
-          <button type="button" onClick={handleClear} className="flex-none text-gray-400 hover:text-gray-700" aria-label="Limpiar">
+        {(loading || gpsLoading) && <Loader2 className="h-4 w-4 animate-spin text-gray-400 flex-none" />}
+        {query && !loading && !gpsLoading && (
+          <button type="button" onClick={handleClear} className="flex-none rounded-md p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700" aria-label="Limpiar">
             <X className="h-4 w-4" />
           </button>
         )}
+        <button
+          type="button"
+          onClick={handleUseGps}
+          disabled={disabled || gpsLoading}
+          title="Usar mi ubicación GPS"
+          aria-label="Usar mi ubicación GPS para completar la dirección exacta"
+          className={`flex h-8 w-8 flex-none items-center justify-center rounded-lg transition disabled:opacity-50 ${
+            fromGps
+              ? 'bg-emerald-50 text-emerald-600'
+              : 'bg-red-50 text-pollon-red hover:bg-pollon-red hover:text-white'
+          }`}
+        >
+          <LocateFixed className="h-4 w-4" strokeWidth={2.3} />
+        </button>
       </div>
 
-      {!selected && query.length >= 4 && !loading && suggestions.length === 0 && (
+      {gpsError && (
+        <p className="mt-1 px-0.5 text-[11px] leading-snug text-red-600">{gpsError}</p>
+      )}
+      {!selected && !gpsError && query.length >= 2 && !loading && suggestions.length === 0 && (
         <p className="mt-1 px-0.5 text-[11px] leading-snug text-amber-700">
-          Sin resultados. Prueba: calle + número + ciudad, ej. &quot;Vivar 1086, Iquique&quot;.
+          Sin resultados. Prueba calle + número, ej. &quot;Sotomayor 785, Iquique&quot;, o usa el GPS.
         </p>
       )}
       {selected && (
         <p className="mt-1 flex items-center gap-1.5 px-0.5 text-[11px] leading-snug text-green-700">
           <Crosshair className="h-3 w-3 shrink-0" />
-          {precisionHint(selectedPrecision)} — el repartidor irá a este punto
+          {fromGps
+            ? 'Ubicación GPS exacta — el delivery se calcula a este punto'
+            : `${precisionHint(selectedPrecision)} — el repartidor irá a este punto`}
         </p>
       )}
-      {!selected && query.length > 0 && query.length < 4 && (
-        <p className="mt-1 px-0.5 text-[11px] text-gray-400">Escribe al menos 4 caracteres…</p>
+      {!selected && !gpsError && query.length > 0 && query.length < 2 && (
+        <p className="mt-1 px-0.5 text-[11px] text-gray-400">Sigue escribiendo… o pulsa el ícono GPS.</p>
       )}
-      {!selected && query.length >= 4 && !/\d/.test(query) && (
-        <p className="mt-1 px-0.5 text-[11px] text-gray-500">Incluye el número de casa para una ruta exacta.</p>
+      {!selected && !gpsError && query.length >= 2 && !parsed.houseNumber && (
+        <p className="mt-1 px-0.5 text-[11px] text-gray-500">Incluye el número de casa para una ruta exacta, o usa el GPS.</p>
       )}
 
       {open && suggestions.length > 0 && (
@@ -204,7 +323,7 @@ export function AddressAutocomplete({
               aria-selected={activeIdx === idx}
               onMouseDown={(e) => { e.preventDefault(); handleSelect(s); }}
               onMouseEnter={() => setActiveIdx(idx)}
-              className={`flex cursor-pointer items-start gap-3 border-b border-gray-50 px-4 py-3 text-sm last:border-0 transition ${
+              className={`flex cursor-pointer items-start gap-3 border-b border-gray-50 px-3.5 py-2.5 text-sm last:border-0 transition ${
                 activeIdx === idx ? 'bg-red-50' : 'hover:bg-gray-50'
               }`}
             >
@@ -217,7 +336,7 @@ export function AddressAutocomplete({
                 aria-hidden
               />
               <span className="min-w-0 flex-1 leading-snug">
-                <span className="font-semibold text-gray-900">{primaryLine(s.shortLabel)}</span>
+                <span className="font-semibold text-gray-900">{highlightMatch(primaryLine(s.shortLabel))}</span>
                 {secondaryLine(s.shortLabel) && (
                   <span className="mt-0.5 block text-[12px] text-gray-500">{secondaryLine(s.shortLabel)}</span>
                 )}
