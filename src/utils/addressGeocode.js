@@ -950,7 +950,7 @@ async function reverseArcGis(lat, lng, distanceM = 32) {
   url.searchParams.set('location', `${lng},${lat}`);
   url.searchParams.set('outSR', '4326');
   url.searchParams.set('langCode', 'es');
-  url.searchParams.set('distance', String(Math.max(16, Math.min(40, Math.round(distanceM))));
+  url.searchParams.set('distance', String(Math.max(16, Math.min(40, Math.round(distanceM)))));
   url.searchParams.set('featureTypes', 'PointAddress,StreetAddress');
   const data = await fetchJsonTimeout(
     url.toString(),
