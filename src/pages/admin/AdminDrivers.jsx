@@ -106,9 +106,15 @@ export function AdminDrivers() {
     setDrivers((list) => list.map((d) => (d.id === id ? { ...d, max_orders: next } : d)));
     try {
       await updateDriverMaxOrders(id, next);
-      setFlash(`Cupo actualizado: máximo ${next} pedido${next === 1 ? '' : 's'} simultáneos.`);
+      const email = prev?.profiles?.email ? ` (${prev.profiles.email})` : '';
+      setFlash(`Cupo de ${prev?.profiles?.full_name || 'este repartidor'}${email}: máximo ${next} pedido${next === 1 ? '' : 's'} a la vez.`);
     } catch (err) {
-      setError(err.message);
+      const msg = String(err.message || '');
+      setError(
+        /ep_admin_set_driver_max_orders|schema cache|cupo no/i.test(msg)
+          ? 'Para que el cupo quede por cada correo, ejecuta en Supabase: supabase/fix-driver-max-orders-per-account.sql'
+          : msg,
+      );
       await load();
     } finally {
       setBusyId(null);
@@ -176,6 +182,7 @@ export function AdminDrivers() {
       <div className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm text-slate-700">
         <p className="font-semibold text-slate-900">Cómo funciona el cupo máximo</p>
         <ul className="mt-1.5 list-disc space-y-1 pl-5 text-xs sm:text-sm">
+          <li>El número es <strong>solo de esa cuenta</strong> (ese correo). Si a un repartidor le pones 3, él puede llevar 3; los demás siguen con el suyo.</li>
           <li>Mientras va a la sucursal (pedidos aún no recogidos), puede aceptar hasta su máximo (2, 3 o 4).</li>
           <li>En cuanto marca <strong>pedido recogido</strong>, ya no recibe ofertas nuevas.</li>
           <li>Solo cuando entrega <strong>todos</strong> sus pedidos activos vuelve a recibir ofertas.</li>
@@ -238,7 +245,7 @@ export function AdminDrivers() {
                           value={maxOrders}
                           disabled={busyId === d.id}
                           aria-label={`Máximo de pedidos para ${name}`}
-                          title="Cantidad máxima de pedidos que puede aceptar antes del recojo"
+                          title={`Máximo de pedidos simultáneos para ${d.profiles?.email || name}. No aplica a otros repartidores.`}
                           onChange={(e) => setMaxOrders(d.id, e.target.value)}
                         >
                           {MAX_ORDER_OPTIONS.map((n) => (

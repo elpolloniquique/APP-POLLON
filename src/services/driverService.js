@@ -91,13 +91,41 @@ export async function updateDriverProfile(driverId, updates) {
   return attachProfiles(data);
 }
 
-/** Cupo operativo por repartidor (solo admin). 2 | 3 | 4 */
+/** Cupo operativo de ESA cuenta de repartidor (solo admin). 2 | 3 | 4 */
 export async function updateDriverMaxOrders(driverId, maxOrders) {
   const n = Number(maxOrders);
   if (![2, 3, 4].includes(n)) {
     throw new Error('El máximo de pedidos debe ser 2, 3 o 4');
   }
-  return updateDriverProfile(driverId, { max_orders: n });
+  if (!isSupabaseConfigured()) return { id: driverId, max_orders: n };
+
+  const sb = getSupabase();
+  const { data, error } = await sb.rpc('ep_admin_set_driver_max_orders', {
+    p_driver_id: driverId,
+    p_max: n,
+  });
+  if (!error && data) {
+    const saved = Number(data.max_orders);
+    if (saved !== n) {
+      throw new Error(
+        `El cupo no quedó en ${n} para esa cuenta (quedó ${saved}). Ejecuta supabase/fix-driver-max-orders-per-account.sql`,
+      );
+    }
+    return { id: driverId, max_orders: saved, email: data.email, name: data.name };
+  }
+
+  const msg = String(error?.message || '');
+  if (/ep_admin_set_driver_max_orders|schema cache|does not exist/i.test(msg)) {
+    const row = await updateDriverProfile(driverId, { max_orders: n });
+    const saved = Number(row?.max_orders);
+    if (saved !== n) {
+      throw new Error(
+        'El cupo no se guardó en esa cuenta. Ejecuta supabase/fix-driver-max-orders-per-account.sql',
+      );
+    }
+    return row;
+  }
+  throw new Error(rpcError(error, 'No se pudo guardar el cupo de este repartidor'));
 }
 
 /** Comisión % sobre delivery (solo admin). 0–100 */
@@ -201,10 +229,8 @@ export async function getMyDriverSummary() {
       byJob.set(jid, o);
     }
   }
-  const maxOrders = driver.max_orders || 2;
   const pendingOffers = [...byJob.values()]
-    .sort((a, b) => new Date(b.expires_at || 0) - new Date(a.expires_at || 0))
-    .slice(0, maxOrders);
+    .sort((a, b) => new Date(b.expires_at || 0) - new Date(a.expires_at || 0));
 
   const done = doneRes.data || [];
   return {

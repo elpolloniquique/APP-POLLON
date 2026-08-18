@@ -457,6 +457,12 @@ export function DriverHome() {
 
   const onAccept = (offer) => {
     if (!offer?.id || dismissedOffersRef.current.has(offer.id) || offerBusyRef.current) return;
+    const cap = summary?.driver?.max_orders || 2;
+    const current = (summary?.activeAssignments || []).length;
+    if (current >= cap) {
+      setError(`Tu cuenta puede llevar máximo ${cap} pedidos a la vez. Entrega uno para aceptar otro.`);
+      return;
+    }
     dismissedOffersRef.current.add(offer.id);
     offerBusyRef.current = offer.id;
     hushOfferUi(offer.id);
@@ -639,6 +645,7 @@ export function DriverHome() {
             loading={offerBusyId === offer.id}
             driverName={driverName}
             branchCity={branchCity}
+            canAccept={actives.length < maxOrders}
           />
         ))}
       </div>

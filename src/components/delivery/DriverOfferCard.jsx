@@ -20,6 +20,7 @@ export function DriverOfferCard({
   loading,
   driverName = 'repartidor',
   branchCity = 'Iquique',
+  canAccept = true,
 }) {
   const job = offer?.ep_delivery_jobs || offer?.job || {};
   const fee = offer?.offered_fee || job.delivery_fee || 0;
@@ -117,16 +118,16 @@ export function DriverOfferCard({
           </button>
           <button
             type="button"
-            disabled={loading}
+            disabled={loading || !canAccept}
             onPointerDown={(e) => {
-              if (loading) return;
+              if (loading || !canAccept) return;
               e.preventDefault();
               onAccept?.(offer);
             }}
             className="inline-flex touch-manipulation items-center justify-center gap-1.5 rounded-xl bg-pollon-red py-3 text-sm font-bold text-white active:scale-95 disabled:opacity-50"
           >
             <Check className="h-4 w-4" />
-            Aceptar
+            {canAccept ? 'Aceptar' : 'Cupo lleno'}
           </button>
         </div>
       </div>

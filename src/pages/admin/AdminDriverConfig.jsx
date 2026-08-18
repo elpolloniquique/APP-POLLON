@@ -508,8 +508,9 @@ export function AdminDriverConfig() {
               <div className="dcfg-banner">
                 <Info className="h-4 w-4 shrink-0" aria-hidden />
                 <p>
-                  <strong>Aplicar a repartidores</strong> copia cupo y comisión a quienes tienen esta sucursal preferida.
-                  Los ajustes uno a uno siguen en Repartidores.
+                  <strong>Aplicar a repartidores</strong> copia este cupo y comisión a quienes tienen esta sucursal preferida
+                  y <strong>pisa el valor individual</strong> de cada uno. El tope real al aceptar pedidos es el de cada
+                  cuenta en Repartidores.
                 </p>
               </div>
 
