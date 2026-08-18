@@ -715,7 +715,7 @@ function betterPostcode(a, b) {
   return score(a) >= score(b) ? a || b : b || a;
 }
 
-function buildGpsHit({ lat, lng, road, houseNumber, postcode, city, state, precision, source = 'gps' }) {
+function buildGpsHit({ lat, lng, road, houseNumber, postcode, city, state, precision, source = 'gps', buildingLat, buildingLng }) {
   const cityName = city || guessCityFromCoords(lat, lng);
   const roadName = preferredLocalRoadName(road, cityName) || road || '';
   const shortLabel = formatChileLabel({
@@ -739,6 +739,8 @@ function buildGpsHit({ lat, lng, road, houseNumber, postcode, city, state, preci
     state: state || 'Tarapacá',
     source: 'gps',
     via: source,
+    buildingLat: Number.isFinite(buildingLat) ? buildingLat : null,
+    buildingLng: Number.isFinite(buildingLng) ? buildingLng : null,
   };
 }
 
@@ -761,12 +763,15 @@ function estimateHouseFromNearby(lat, lng, houses) {
     .sort((a, b) => a.d - b.d);
   const closest = withDist[0];
   if (!closest) return null;
-  if (closest.d <= 32) {
+  if (closest.d <= 18) {
     return {
       n: closest.n,
       street: closest.street,
       postcode: closest.postcode,
       precision: 'exact',
+      lat: closest.lat,
+      lng: closest.lng,
+      distM: closest.d,
     };
   }
 
@@ -787,6 +792,9 @@ function estimateHouseFromNearby(lat, lng, houses) {
       street: closest.street,
       postcode: closest.postcode || a.postcode,
       precision: 'interpolated',
+      lat,
+      lng,
+      distM: closest.d,
     };
   }
 
@@ -794,7 +802,10 @@ function estimateHouseFromNearby(lat, lng, houses) {
     n: closest.n,
     street: closest.street,
     postcode: closest.postcode,
-    precision: closest.d < 75 ? 'exact' : 'interpolated',
+    precision: closest.d < 28 ? 'exact' : 'interpolated',
+    lat: closest.lat,
+    lng: closest.lng,
+    distM: closest.d,
   };
 }
 
@@ -818,21 +829,22 @@ function parseOverpassHouses(data) {
     .filter(Boolean);
 }
 
-async function reverseOverpassNearby(lat, lng) {
+async function reverseOverpassNearby(lat, lng, radiusM = 55) {
+  const around = Math.max(25, Math.min(80, Math.round(radiusM)));
   const q = `
 [out:json][timeout:6];
 (
-  node["addr:housenumber"](around:120,${lat},${lng});
-  way["addr:housenumber"](around:120,${lat},${lng});
+  node["addr:housenumber"](around:${around},${lat},${lng});
+  way["addr:housenumber"](around:${around},${lat},${lng});
 );
-out center 50;
+out center 40;
 `.trim();
   const data = await fetchOverpass(q, 6500);
   const houses = parseOverpassHouses(data);
   const est = estimateHouseFromNearby(lat, lng, houses);
-  if (!est) return null;
+  if (!est) return { hit: null, houses };
   const city = houses.find((h) => h.city)?.city || guessCityFromCoords(lat, lng);
-  return buildGpsHit({
+  const hit = buildGpsHit({
     lat,
     lng,
     road: est.street,
@@ -842,7 +854,10 @@ out center 50;
     state: city === 'Arica' ? 'Arica y Parinacota' : 'Tarapacá',
     precision: est.precision,
     source: 'overpass',
+    buildingLat: est.lat,
+    buildingLng: est.lng,
   });
+  return { hit, houses };
 }
 
 function mapReverseNominatim(data, lat, lng) {
@@ -924,17 +939,19 @@ function mapArcGisReverse(data, lat, lng) {
     state: a.Region || 'Tarapacá',
     precision,
     source: 'arcgis',
+    buildingLat: Number(data.location?.y ?? a.Y),
+    buildingLng: Number(data.location?.x ?? a.X),
   });
 }
 
-async function reverseArcGis(lat, lng) {
-  const tryOnce = async (featureTypes) => {
+async function reverseArcGis(lat, lng, distanceM = 28) {
+  const tryOnce = async (featureTypes, distance) => {
     const url = new URL(ARCGIS_REVERSE);
     url.searchParams.set('f', 'json');
     url.searchParams.set('location', `${lng},${lat}`);
     url.searchParams.set('outSR', '4326');
     url.searchParams.set('langCode', 'es');
-    url.searchParams.set('distance', '80');
+    url.searchParams.set('distance', String(Math.max(12, Math.min(45, Math.round(distance)))));
     if (featureTypes) url.searchParams.set('featureTypes', featureTypes);
     const data = await fetchJsonTimeout(
       url.toString(),
@@ -944,10 +961,11 @@ async function reverseArcGis(lat, lng) {
     return mapArcGisReverse(data, lat, lng);
   };
 
-  const precise = await tryOnce('PointAddress,StreetAddress');
-  if (precise?.houseNumber && precise?.road) return precise;
-  if (precise) return precise;
-  return tryOnce('');
+  const rooftop = await tryOnce('PointAddress', distanceM);
+  if (rooftop?.houseNumber && rooftop?.road) return rooftop;
+  const mixed = await tryOnce('PointAddress,StreetAddress', Math.min(40, distanceM + 10));
+  if (mixed?.houseNumber && mixed?.road) return mixed;
+  return mixed || rooftop || tryOnce('', 40);
 }
 
 async function reverseNominatim(lat, lng) {
@@ -1042,37 +1060,98 @@ function firstUsefulReverse(promises, lat, lng) {
   });
 }
 
+function pickClosestHit(hits, lat, lng) {
+  let best = null;
+  let bestD = Infinity;
+  for (const h of hits.filter(Boolean)) {
+    const bLat = Number(h.buildingLat);
+    const bLng = Number(h.buildingLng);
+    if (!Number.isFinite(bLat) || !Number.isFinite(bLng)) continue;
+    const d = haversineM({ lat, lng }, { lat: bLat, lng: bLng });
+    if (d < bestD) {
+      bestD = d;
+      best = { ...h, distM: d };
+    }
+  }
+  return best;
+}
+
+function housesToHits(houses, lat, lng) {
+  const city = houses.find((h) => h.city)?.city || guessCityFromCoords(lat, lng);
+  return houses.map((h) => buildGpsHit({
+    lat,
+    lng,
+    road: h.street,
+    houseNumber: String(h.n),
+    postcode: h.postcode,
+    city,
+    state: city === 'Arica' ? 'Arica y Parinacota' : 'Tarapacá',
+    precision: 'exact',
+    source: 'overpass',
+    buildingLat: h.lat,
+    buildingLng: h.lng,
+  }));
+}
+
 /**
- * Dirección exacta (calle + número) a partir de GPS.
+ * Dirección exacta (calle + número) a partir del GPS real del teléfono.
  */
-export async function reverseGeocodePrecise(lat, lng) {
+export async function reverseGeocodePrecise(lat, lng, opts = {}) {
   const la = Number(lat);
   const ln = Number(lng);
   if (!Number.isFinite(la) || !Number.isFinite(ln)) return null;
 
-  const key = `rev:${la.toFixed(5)},${ln.toFixed(5)}`;
+  const accuracy = Number(opts.accuracy);
+  const radius = Number.isFinite(accuracy)
+    ? Math.max(18, Math.min(40, accuracy * 1.25))
+    : 28;
+
+  const key = `rev:${la.toFixed(6)},${ln.toFixed(6)},${Math.round(radius)}`;
   if (searchCache.has(key)) return searchCache.get(key);
 
-  const arcP = reverseArcGis(la, ln);
-  const overpassP = reverseOverpassNearby(la, ln);
-  const nomP = reverseNominatim(la, ln);
-  const phoP = reversePhoton(la, ln);
+  const [arc, overpack, nom, pho] = await Promise.all([
+    reverseArcGis(la, ln, radius).catch(() => null),
+    reverseOverpassNearby(la, ln, Math.max(40, radius + 10)).catch(() => ({ hit: null, houses: [] })),
+    reverseNominatim(la, ln).catch(() => null),
+    reversePhoton(la, ln).catch(() => null),
+  ]);
 
-  const arc = await arcP;
-  if (arc?.houseNumber && arc?.road) {
-    const hit = { ...arc, lat: la, lng: ln };
-    searchCache.set(key, hit);
-    return hit;
-  }
+  const houses = overpack?.houses || [];
+  const candidates = [
+    arc,
+    overpack?.hit,
+    nom,
+    pho,
+    ...housesToHits(houses, la, ln),
+  ].filter((h) => h?.road || h?.houseNumber);
 
-  let best = await firstUsefulReverse([Promise.resolve(arc), overpassP, nomP, phoP], la, ln);
-  if (!best?.houseNumber) {
-    const all = await Promise.all([Promise.resolve(arc), overpassP, nomP, phoP]);
-    best = mergeReverseHits(all, la, ln);
+  let best = pickClosestHit(
+    candidates.filter((h) => h.houseNumber),
+    la,
+    ln,
+  );
+  if (best && best.distM > 22 && houses.length >= 2) {
+    const est = estimateHouseFromNearby(la, ln, houses);
+    if (est?.n) {
+      best = buildGpsHit({
+        lat: la,
+        lng: ln,
+        road: est.street || best.road,
+        houseNumber: String(est.n),
+        postcode: est.postcode || best.postcode,
+        city: best.city,
+        state: best.state,
+        precision: est.precision,
+        source: 'overpass',
+        buildingLat: est.lat,
+        buildingLng: est.lng,
+      });
+    }
   }
+  if (!best) best = pickClosestHit(candidates, la, ln) || mergeReverseHits(candidates, la, ln);
 
   const result = best
-    ? { ...best, lat: la, lng: ln }
+    ? { ...best, lat: la, lng: ln, source: 'gps' }
     : {
         id: `rev-raw-${la}-${ln}`,
         label: `Ubicación GPS (${la.toFixed(5)}, ${ln.toFixed(5)})`,

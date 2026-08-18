@@ -32,6 +32,7 @@ export function AddressAutocomplete({
   const [loading, setLoading] = useState(false);
   const [gpsLoading, setGpsLoading] = useState(false);
   const [gpsPhase, setGpsPhase] = useState('');
+  const [gpsAccuracy, setGpsAccuracy] = useState(null);
   const [gpsError, setGpsError] = useState('');
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState(!!value);
@@ -146,6 +147,7 @@ export function AddressAutocomplete({
     setGpsError('');
     setGpsLoading(true);
     setGpsPhase('permission');
+    setGpsAccuracy(null);
     try {
       const perm = await getGeoPermissionState();
       if (perm === 'denied') {
@@ -155,11 +157,17 @@ export function AddressAutocomplete({
         throw err;
       }
       setGpsPhase(perm === 'granted' ? 'reading' : 'permission');
-      const pos = await readGpsPosition();
+      const pos = await readGpsPosition({
+        onProgress: (p) => {
+          setGpsPhase('reading');
+          setGpsAccuracy(p?.coords?.accuracy ?? null);
+        },
+      });
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
+      setGpsAccuracy(pos.coords.accuracy ?? null);
       setGpsPhase('geocoding');
-      const geo = await reverseGeocodePrecise(lat, lng);
+      const geo = await reverseGeocodePrecise(lat, lng, { accuracy: pos.coords.accuracy });
       if (!geo) throw new Error('No se pudo leer la dirección de esta ubicación.');
       const item = {
         ...geo,
@@ -174,6 +182,7 @@ export function AddressAutocomplete({
     } finally {
       setGpsLoading(false);
       setGpsPhase('');
+      setGpsAccuracy(null);
     }
   };
 
@@ -284,9 +293,13 @@ export function AddressAutocomplete({
 
       {gpsLoading && (
         <p className="mt-1 px-0.5 text-[11px] leading-snug text-gray-600">
-          {gpsPhase === 'permission' && 'Permite el acceso a tu ubicación para completar la dirección…'}
-          {gpsPhase === 'reading' && 'Leyendo tu GPS…'}
-          {gpsPhase === 'geocoding' && 'Completando calle y número de casa…'}
+          {gpsPhase === 'permission' && 'Permite el acceso al GPS de tu teléfono para completar la dirección…'}
+          {gpsPhase === 'reading' && (
+            gpsAccuracy
+              ? `Leyendo GPS del teléfono… precisión ±${Math.round(gpsAccuracy)} m`
+              : 'Leyendo GPS real del teléfono, espera un momento…'
+          )}
+          {gpsPhase === 'geocoding' && 'Detectando calle y número de casa en tu punto GPS…'}
           {!gpsPhase && 'Obteniendo tu dirección exacta…'}
         </p>
       )}
