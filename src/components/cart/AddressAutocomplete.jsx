@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import { MapPin, Loader2, X, Crosshair, LocateFixed } from 'lucide-react';
 import {
   searchAddressesProgressive,
-  reverseGeocodePrecise,
   parseAddressQuery,
   previewLocalAddresses,
 } from '../../utils/addressGeocode';
@@ -12,6 +11,7 @@ import {
   locateWithPrecisePermission,
   ADDRESS_LIST_HINT,
 } from '../../utils/gpsLocation';
+import { GpsMapPickerModal } from './GpsMapPickerModal';
 
 /**
  * Autocompletado de dirección preciso (calle + número + CP + coords).
@@ -39,6 +39,8 @@ export function AddressAutocomplete({
   const [selectedPrecision, setSelectedPrecision] = useState(null);
   const [fromGps, setFromGps] = useState(false);
   const [askGps, setAskGps] = useState(false);
+  const [mapPickerOpen, setMapPickerOpen] = useState(false);
+  const [mapPickerCenter, setMapPickerCenter] = useState(null);
   const [activeIdx, setActiveIdx] = useState(-1);
   const timerRef = useRef(null);
   const inputRef = useRef(null);
@@ -172,17 +174,8 @@ export function AddressAutocomplete({
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
       setGpsAccuracy(pos.coords.accuracy ?? null);
-      setGpsPhase('geocoding');
-      const geo = await reverseGeocodePrecise(lat, lng, { accuracy: pos.coords.accuracy });
-      if (!geo) throw new Error('No se pudo leer la dirección de esta ubicación.');
-      const item = {
-        ...geo,
-        lat,
-        lng,
-        source: 'gps',
-        precision: geo.houseNumber ? (geo.precision || 'exact') : 'street',
-      };
-      handleSelect(item);
+      setMapPickerCenter({ lat, lng });
+      setMapPickerOpen(true);
     } catch (err) {
       setGpsError(gpsErrorMessage(err));
     } finally {
@@ -190,6 +183,16 @@ export function AddressAutocomplete({
       setGpsPhase('');
       setGpsAccuracy(null);
     }
+  };
+
+  const handleMapConfirm = (item) => {
+    if (!item) return;
+    handleSelect({
+      ...item,
+      source: 'gps',
+      precision: item.houseNumber ? (item.precision || 'exact') : 'street',
+    });
+    setMapPickerOpen(false);
   };
 
   const handleKeyDown = (e) => {
@@ -305,7 +308,7 @@ export function AddressAutocomplete({
               ? `Afinando GPS… precisión ${Math.round(gpsAccuracy)} m${gpsAccuracy <= 20 ? ' ✓' : ' (espera)'}`
               : 'GPS activado — afinando ubicación…'
           )}
-          {gpsPhase === 'geocoding' && 'Detectando calle y número exacto…'}
+          {gpsPhase === 'geocoding' && 'Abriendo mapa para confirmar tu punto exacto…'}
           {!gpsPhase && 'Obteniendo tu dirección exacta…'}
         </p>
       )}
@@ -319,6 +322,13 @@ export function AddressAutocomplete({
           <span>{gpsError || ADDRESS_LIST_HINT}</span>
         </p>
       )}
+
+      <GpsMapPickerModal
+        open={mapPickerOpen}
+        initialCenter={mapPickerCenter}
+        onClose={() => setMapPickerOpen(false)}
+        onConfirm={handleMapConfirm}
+      />
 
       {askGps && typeof document !== 'undefined' && createPortal(
         <div
@@ -339,7 +349,7 @@ export function AddressAutocomplete({
               Ubicación precisa
             </h3>
             <p className="mt-2 text-center text-[13px] leading-snug text-gray-600">
-              Para completar tu dirección exacta (calle y número de casa) necesitamos el GPS preciso de tu teléfono, no una ubicación aproximada.
+              Para abrir el mapa en tu zona exacta y guardar tu dirección completa necesitamos el GPS preciso de tu teléfono, no una ubicación aproximada.
             </p>
             <p className="mt-2 text-center text-[12px] leading-snug text-gray-500">
               En el aviso del celular elige <span className="font-semibold text-gray-700">Permitir</span> y, si aparece, <span className="font-semibold text-gray-700">Ubicación precisa</span>.
