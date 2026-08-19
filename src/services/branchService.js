@@ -37,6 +37,9 @@ function mapBranch(row) {
     lat: row.lat != null ? Number(row.lat) : null,
     lng: row.lng != null ? Number(row.lng) : null,
     paymentMethods: normalizePaymentMethods(row.payment_methods),
+    alertEnabled: row.alert_enabled === true,
+    alertTitle: row.alert_title || 'Aviso importante',
+    alertMessage: row.alert_message || '',
   };
 }
 

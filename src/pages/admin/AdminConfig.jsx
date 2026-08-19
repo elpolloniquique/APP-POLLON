@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getSupabase, isSupabaseConfigured } from '../../services/supabaseClient';
-import { adminSaveBranch } from '../../services/branchService';
+import { adminSaveBranch, adminListAllBranches } from '../../services/branchService';
 import { Button } from '../../components/ui/Button';
 import { useStaffBranch } from '../../hooks/useStaffBranch';
 import { useAuth } from '../../context/AuthContext';
@@ -81,6 +81,8 @@ export function AdminConfig() {
     payment_methods: [...DEFAULT_BRANCH_PAYMENT_METHODS],
   });
   const [siteAlert, setSiteAlert] = useState(emptySiteAlert);
+  const [alertBranchId, setAlertBranchId] = useState('');
+  const [alertBranches, setAlertBranches] = useState([]);
   const [saving, setSaving] = useState(false);
   const [testingPrinter, setTestingPrinter] = useState(false);
   const [printerTestMsg, setPrinterTestMsg] = useState('');
@@ -122,13 +124,32 @@ export function AdminConfig() {
   }, [branch, isBranchScoped]);
 
   useEffect(() => {
-    fetchSiteAlert().then(setSiteAlert);
-  }, []);
+    if (isBranchScoped) {
+      setAlertBranchId(branchId || '');
+      return;
+    }
+    adminListAllBranches()
+      .then((list) => {
+        setAlertBranches(list);
+        setAlertBranchId((current) => current || list[0]?.id || '');
+      })
+      .catch(() => setAlertBranches([]));
+  }, [isBranchScoped, branchId]);
+
+  const alertTargetId = isBranchScoped ? branchId : alertBranchId;
+
+  useEffect(() => {
+    if (!alertTargetId) {
+      setSiteAlert(emptySiteAlert());
+      return;
+    }
+    fetchSiteAlert(alertTargetId).then(setSiteAlert);
+  }, [alertTargetId]);
 
   const save = async () => {
     setSaving(true);
     try {
-      const savedAlert = await saveSiteAlert(siteAlert);
+      const savedAlert = await saveSiteAlert(siteAlert, alertTargetId);
       setSiteAlert(savedAlert);
 
       if (isBranchScoped && branchId && branch) {
@@ -253,11 +274,34 @@ export function AdminConfig() {
         <div className="admin-config-scroll admin-scroll-panel">
           <ConfigSection
             title="Aviso en pantalla"
-            description="Al activarlo, los clientes ven un aviso grande al entrar a la web. Pueden cerrarlo con la X. Sirve para lluvia, mantenimiento o zonas sin delivery."
+            description="El aviso es por sucursal. Si lo activas en Iquique, solo aparece cuando el cliente elige esa sucursal. Si cambia a otra, desaparece."
           >
             <div className="admin-config-stack">
+              {!isBranchScoped && (
+                <ConfigField
+                  label="Sucursal del aviso"
+                  hint="Elige a qué local aplica este aviso. Cada sucursal tiene el suyo."
+                  span={2}
+                >
+                  <select
+                    value={alertBranchId}
+                    onChange={(e) => setAlertBranchId(e.target.value)}
+                    className={INPUT}
+                  >
+                    {alertBranches.length === 0 && <option value="">Cargando sucursales…</option>}
+                    {alertBranches.map((b) => (
+                      <option key={b.id} value={b.id}>{b.name}{b.city ? ` · ${b.city}` : ''}</option>
+                    ))}
+                  </select>
+                </ConfigField>
+              )}
+              {isBranchScoped && (
+                <p className="admin-config-field__hint">
+                  Aplica solo a <strong>{branchName}</strong>. Los clientes de otras sucursales no lo verán.
+                </p>
+              )}
               <ConfigToggle
-                label="Mostrar aviso a pantalla completa"
+                label="Mostrar aviso a pantalla completa en esta sucursal"
                 checked={!!siteAlert.enabled}
                 onChange={(e) => setSiteAlert((a) => ({ ...a, enabled: e.target.checked }))}
               />
@@ -290,7 +334,7 @@ export function AdminConfig() {
               </div>
               {siteAlert.enabled && siteAlert.message.trim() && (
                 <p className="admin-config-alert-preview">
-                  El aviso quedará visible en inicio, menú y el resto del sitio (no en el panel admin ni en la app del repartidor) hasta que lo desactives o el cliente lo cierre.
+                  El aviso de esta sucursal se mostrará al elegirla en la web. Si el cliente cambia de sucursal, este aviso se oculta.
                 </p>
               )}
             </div>

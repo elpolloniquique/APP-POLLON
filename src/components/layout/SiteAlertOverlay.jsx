@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { AlertTriangle, X } from 'lucide-react';
+import { useBranch } from '../../context/BranchContext';
 import {
-  dismissSiteAlert,
+  alertFromBranch,
   emptySiteAlert,
   fetchSiteAlert,
-  wasSiteAlertDismissed,
 } from '../../services/siteAlertService';
 
 function shouldHideOnPath(pathname) {
@@ -14,20 +14,28 @@ function shouldHideOnPath(pathname) {
 
 export function SiteAlertOverlay() {
   const { pathname } = useLocation();
+  const { branch } = useBranch();
   const [alert, setAlert] = useState(emptySiteAlert);
-  const [open, setOpen] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
 
   const applyAlert = useCallback((next) => {
     setAlert(next);
-    const hide = shouldHideOnPath(window.location.pathname);
-    setOpen(Boolean(next.enabled && next.message && !hide && !wasSiteAlertDismissed(next)));
   }, []);
 
   useEffect(() => {
+    setDismissed(false);
+    const branchId = branch?.id;
+    if (!branchId) {
+      applyAlert(emptySiteAlert());
+      return undefined;
+    }
+
+    applyAlert(alertFromBranch(branch));
+
     let cancelled = false;
     const load = async () => {
-      const next = await fetchSiteAlert();
-      if (!cancelled) applyAlert(next);
+      const next = await fetchSiteAlert(branchId);
+      if (!cancelled && next.branchId === branchId) applyAlert(next);
     };
     load();
     const timer = window.setInterval(load, 40000);
@@ -40,53 +48,47 @@ export function SiteAlertOverlay() {
       window.clearInterval(timer);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [applyAlert]);
+  }, [branch?.id, branch?.alertEnabled, branch?.alertTitle, branch?.alertMessage, applyAlert]);
 
-  useEffect(() => {
-    if (shouldHideOnPath(pathname)) {
-      setOpen(false);
-      return;
-    }
-    setOpen(Boolean(alert.enabled && alert.message && !wasSiteAlertDismissed(alert)));
-  }, [pathname, alert]);
+  const hide = shouldHideOnPath(pathname);
+  const open = Boolean(
+    !hide &&
+    !dismissed &&
+    alert.enabled &&
+    alert.message &&
+    alert.branchId &&
+    alert.branchId === branch?.id,
+  );
 
   useEffect(() => {
     if (!open) return undefined;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const onKey = (event) => {
-      if (event.key === 'Escape') {
-        dismissSiteAlert(alert);
-        setOpen(false);
-      }
+      if (event.key === 'Escape') setDismissed(true);
     };
     window.addEventListener('keydown', onKey);
     return () => {
       document.body.style.overflow = prev;
       window.removeEventListener('keydown', onKey);
     };
-  }, [open, alert]);
-
-  const close = () => {
-    dismissSiteAlert(alert);
-    setOpen(false);
-  };
+  }, [open]);
 
   if (!open) return null;
 
   return (
     <div className="site-alert" role="alertdialog" aria-modal="true" aria-labelledby="site-alert-title">
       <div className="site-alert__panel">
-        <button type="button" className="site-alert__close" onClick={close} aria-label="Cerrar aviso">
+        <button type="button" className="site-alert__close" onClick={() => setDismissed(true)} aria-label="Cerrar aviso">
           <X size={20} strokeWidth={2.4} />
         </button>
         <div className="site-alert__icon" aria-hidden>
           <AlertTriangle size={34} strokeWidth={2.15} />
         </div>
-        <p className="site-alert__kicker">Aviso</p>
+        <p className="site-alert__kicker">Aviso · {branch?.name || 'Sucursal'}</p>
         <h2 id="site-alert-title" className="site-alert__title">{alert.title}</h2>
         <p className="site-alert__message">{alert.message}</p>
-        <button type="button" className="site-alert__ok" onClick={close}>
+        <button type="button" className="site-alert__ok" onClick={() => setDismissed(true)}>
           Entendido
         </button>
       </div>
