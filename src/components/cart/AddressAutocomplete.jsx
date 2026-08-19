@@ -220,10 +220,10 @@ export function AddressAutocomplete({
 
   const parsed = parseAddressQuery(query);
   const borderColor = selected
-    ? 'border-green-500 ring-2 ring-green-200'
+    ? 'border-emerald-600'
     : query && !selected && !loading && !gpsLoading
-      ? 'border-amber-400'
-      : 'border-gray-200';
+      ? 'border-amber-500'
+      : 'border-[#d4d4d4]';
 
   const primaryLine = (label) => {
     const i = label.indexOf(',');
@@ -250,8 +250,8 @@ export function AddressAutocomplete({
 
   return (
     <div ref={containerRef} className="relative">
-      <div className={`flex min-h-[2.45rem] items-center gap-1.5 rounded-[0.7rem] border px-2.5 py-[0.4rem] transition ${borderColor} bg-white`}>
-        <MapPin className={`h-4 w-4 flex-none ${selected ? 'text-green-500' : 'text-gray-400'}`} />
+      <div className={`flex min-h-[2.4rem] items-center gap-1.5 rounded-[0.32rem] border px-2.5 py-[0.38rem] transition ${borderColor} bg-white`}>
+        <MapPin className={`h-4 w-4 flex-none ${selected ? 'text-emerald-600' : 'text-gray-400'}`} />
         <input
           ref={inputRef}
           type="text"
@@ -283,7 +283,7 @@ export function AddressAutocomplete({
           disabled={disabled || gpsLoading}
           title="Usar ubicación precisa del teléfono"
           aria-label="Pedir permiso de GPS preciso y completar calle y número"
-          className={`flex h-8 w-8 flex-none items-center justify-center rounded-lg transition disabled:opacity-50 ${
+          className={`flex h-7 w-7 flex-none items-center justify-center rounded-[0.28rem] transition disabled:opacity-50 ${
             fromGps
               ? 'bg-emerald-50 text-emerald-600'
               : 'bg-red-50 text-pollon-red hover:bg-pollon-red hover:text-white'
@@ -304,7 +304,7 @@ export function AddressAutocomplete({
       {!gpsLoading && (
         <p
           className={`mt-1 flex items-start gap-1.5 px-0.5 text-[11px] leading-snug ${
-            gpsError ? 'text-red-600' : selected ? 'text-green-700' : 'text-gray-500'
+            gpsError ? 'text-red-600' : selected ? 'text-emerald-700' : 'text-gray-500'
           }`}
         >
           {selected && <Crosshair className="mt-0.5 h-3 w-3 shrink-0" />}
@@ -321,7 +321,7 @@ export function AddressAutocomplete({
           onClick={() => setAskGps(false)}
         >
           <div
-            className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl"
+            className="w-full max-w-sm rounded-[0.4rem] bg-white p-5 shadow-2xl"
             onClick={(ev) => ev.stopPropagation()}
           >
             <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-pollon-red">
@@ -340,14 +340,14 @@ export function AddressAutocomplete({
               <button
                 type="button"
                 onClick={() => setAskGps(false)}
-                className="rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                className="rounded-[0.32rem] border border-gray-200 px-3 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
               >
                 Cancelar
               </button>
               <button
                 type="button"
                 onClick={handleAllowPreciseGps}
-                className="rounded-xl bg-pollon-red px-3 py-2.5 text-sm font-extrabold text-white hover:bg-red-700"
+                className="rounded-[0.32rem] bg-pollon-red px-3 py-2.5 text-sm font-extrabold text-white hover:bg-red-700"
               >
                 Permitir GPS
               </button>
@@ -361,7 +361,7 @@ export function AddressAutocomplete({
         <ul
           ref={listRef}
           role="listbox"
-          className="absolute left-0 right-0 z-[200] mt-1 max-h-72 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-xl"
+          className="absolute left-0 right-0 z-[200] mt-1 max-h-72 overflow-y-auto rounded-[0.32rem] border border-gray-200 bg-white shadow-xl"
         >
           {suggestions.map((s, idx) => (
             <li

@@ -31,7 +31,7 @@ function OrderTypeHint({ hint }) {
   const isWarning = hint.variant === 'warning';
   return (
     <p
-      className={`mt-1.5 rounded-lg px-2.5 py-1.5 text-[11px] leading-snug ${
+      className={`mb-2 rounded-[0.32rem] px-2.5 py-1.5 text-[11px] leading-snug ${
         isWarning ? 'bg-amber-50 text-amber-900 ring-1 ring-amber-200' : 'bg-blue-50 text-blue-900 ring-1 ring-blue-100'
       }`}
     >
@@ -294,13 +294,13 @@ export function CheckoutModal() {
             </header>
 
             <div className="checkout-modal__body admin-scroll-panel">
-              <div className="rounded-2xl border border-green-200 bg-green-50/80 p-5 text-center">
+              <div className="rounded-[0.4rem] border border-green-200 bg-green-50/80 p-5 text-center">
                 <p className="text-xs font-bold uppercase tracking-widest text-green-800">Código de seguimiento</p>
                 <p className="mt-2 font-display text-4xl tracking-wider text-pollon-black">#{code}</p>
                 <p className="mt-3 text-xs text-gray-500 break-all">ID: {confirmedOrder.id}</p>
               </div>
 
-              <div className="rounded-xl bg-pollon-cream/80 px-4 py-3 text-sm">
+              <div className="rounded-[0.32rem] bg-pollon-cream/80 px-4 py-3 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Total pagado</span>
                   <span className="font-bold text-pollon-red">{money(confirmedOrder.total)}</span>
@@ -342,7 +342,7 @@ export function CheckoutModal() {
                 <Link
                   to={`/cuenta/seguimiento/${confirmedOrder.id}`}
                   onClick={closeModal}
-                  className="block w-full rounded-xl border-2 border-pollon-red py-3 text-center text-sm font-bold uppercase tracking-wide text-pollon-red transition hover:bg-red-50"
+                  className="block w-full rounded-[0.32rem] border-2 border-pollon-red py-3 text-center text-sm font-bold uppercase tracking-wide text-pollon-red transition hover:bg-red-50"
                 >
                   Seguir mi pedido
                 </Link>
@@ -350,7 +350,7 @@ export function CheckoutModal() {
               <button
                 type="button"
                 onClick={closeModal}
-                className="w-full rounded-xl bg-gray-100 py-3 text-sm font-bold text-gray-700 transition hover:bg-gray-200"
+                className="w-full rounded-[0.32rem] bg-gray-100 py-3 text-sm font-bold text-gray-700 transition hover:bg-gray-200"
               >
                 Seguir comprando
               </button>
@@ -380,38 +380,39 @@ export function CheckoutModal() {
             >
               <X className="h-[18px] w-[18px]" />
             </button>
-            <h2 id="checkout-modal-title" className="checkout-modal__title">
-              Confirmar pedido
-            </h2>
-            <p className="checkout-modal__subtitle">Sucursal: {branch?.name}</p>
+            <div className="checkout-modal__headline">
+              <h2 id="checkout-modal-title" className="checkout-modal__title">
+                Confirmar pedido
+              </h2>
+              {availableOrderTypes.length > 0 && (
+                <span className="checkout-label checkout-modal__type-label">Tipo de pedido</span>
+              )}
+              <p className="checkout-modal__subtitle">Sucursal: {branch?.name}</p>
+              {availableOrderTypes.length > 0 && (
+                <div className="checkout-type-row checkout-type-row--compact" role="group" aria-label="Tipo de pedido">
+                  {ORDER_TYPES.filter((t) => availableOrderTypes.includes(t)).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => update('orderType', t)}
+                      className={`checkout-type-btn checkout-type-btn--compact ${form.orderType === t ? 'is-selected' : ''}`}
+                    >
+                      {ORDER_TYPE_LABELS[t] || t}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </header>
 
           <form onSubmit={handleSubmit} className="checkout-modal__form">
             <div className="checkout-modal__body admin-scroll-panel">
-              <div className="checkout-field">
-                <label className="checkout-label">Tipo de pedido</label>
-                {availableOrderTypes.length ? (
-                  <>
-                    <div className="checkout-type-row">
-                      {ORDER_TYPES.filter((t) => availableOrderTypes.includes(t)).map((t) => (
-                        <button
-                          key={t}
-                          type="button"
-                          onClick={() => update('orderType', t)}
-                          className={`checkout-type-btn ${form.orderType === t ? 'is-selected' : ''}`}
-                        >
-                          {ORDER_TYPE_LABELS[t] || t}
-                        </button>
-                      ))}
-                    </div>
-                    <OrderTypeHint hint={orderTypeHint} />
-                  </>
-                ) : (
-                  <p className="mt-1.5 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-amber-200">
-                    Esta sucursal no tiene tipos de pedido habilitados. Contacta al local.
-                  </p>
-                )}
-              </div>
+              {!availableOrderTypes.length && (
+                <p className="mb-2 rounded-[0.32rem] bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-amber-200">
+                  Esta sucursal no tiene tipos de pedido habilitados. Contacta al local.
+                </p>
+              )}
+              {availableOrderTypes.length > 0 && <OrderTypeHint hint={orderTypeHint} />}
 
               <div className="checkout-identity">
                 <div className="checkout-field">
@@ -489,7 +490,7 @@ export function CheckoutModal() {
 
               <div className="checkout-field">
                 <label className="checkout-label">Método de pago</label>
-                <p className="checkout-label__hint">Selecciona cómo pagarás tu pedido</p>
+                <p className="checkout-label__hint">Selecciona cómo pagarás al recibir tu pedido</p>
                 <div
                   className="checkout-pay-grid"
                   style={{ '--pay-count': Math.max(1, availablePaymentMethods.length) }}
