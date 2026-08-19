@@ -13,10 +13,34 @@ export async function getSetting(key, branchId = null) {
 export async function setSetting(key, value, branchId = null) {
   if (!isSupabaseConfigured()) throw new Error('Supabase no configurado');
   const sb = getSupabase();
+  if (!branchId) {
+    await upsertGlobalSetting(key, value);
+    return;
+  }
   const { error } = await sb.from('settings').upsert(
     { key, value, branch_id: branchId },
     { onConflict: 'key,branch_id' }
   );
+  if (error) throw error;
+}
+
+/** Postgres trata cada NULL como distinto en UNIQUE(key, branch_id); upsert global va por id. */
+export async function upsertGlobalSetting(key, value) {
+  if (!isSupabaseConfigured()) throw new Error('Supabase no configurado');
+  const sb = getSupabase();
+  const { data, error: readError } = await sb
+    .from('settings')
+    .select('id')
+    .eq('key', key)
+    .is('branch_id', null)
+    .maybeSingle();
+  if (readError) throw readError;
+  if (data?.id) {
+    const { error } = await sb.from('settings').update({ value, updated_at: new Date().toISOString() }).eq('id', data.id);
+    if (error) throw error;
+    return;
+  }
+  const { error } = await sb.from('settings').insert({ key, value, branch_id: null });
   if (error) throw error;
 }
 

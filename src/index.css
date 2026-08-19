@@ -732,6 +732,23 @@
     font-size: 0.84rem;
     font-weight: 700;
   }
+  .admin-config-input--area {
+    min-height: 7.25rem;
+    resize: vertical;
+    line-height: 1.45;
+    padding-top: 0.7rem;
+    padding-bottom: 0.7rem;
+  }
+  .admin-config-alert-preview {
+    margin-top: 0.75rem;
+    border-radius: 0.32rem;
+    border: 1px solid #f0c989;
+    background: #fff8eb;
+    padding: 0.7rem 0.8rem;
+    color: #7c4a12;
+    font-size: 0.78rem;
+    line-height: 1.4;
+  }
 
   .admin-config-toggle {
     border-radius: 0.55rem;
@@ -2053,6 +2070,121 @@
   .product-modal-radio--active {
     @apply border-pollon-red bg-pollon-red;
     box-shadow: 0 2px 6px rgb(192 0 0 / 0.25);
+  }
+
+  /* ── Aviso a pantalla completa ── */
+  .site-alert {
+    position: fixed;
+    inset: 0;
+    z-index: 110;
+    display: flex;
+    align-items: stretch;
+    justify-content: stretch;
+    padding: 0.7rem;
+    padding-top: max(0.7rem, env(safe-area-inset-top, 0px));
+    padding-bottom: max(0.7rem, env(safe-area-inset-bottom, 0px));
+    background: rgb(17 17 17 / 0.58);
+    backdrop-filter: blur(7px);
+    -webkit-font-smoothing: antialiased;
+  }
+  .site-alert__panel {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 100%;
+    overflow: auto;
+    border-radius: 0.4rem;
+    border: 1px solid #e0b36a;
+    background:
+      linear-gradient(180deg, #fffdf8 0%, #fff6e8 42%, #ffefd6 100%);
+    box-shadow: 0 28px 70px rgb(0 0 0 / 0.32);
+    padding: 2.4rem 1.5rem 1.8rem;
+    text-align: center;
+  }
+  .site-alert__close {
+    position: absolute;
+    top: 0.7rem;
+    right: 0.7rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.15rem;
+    height: 2.15rem;
+    border-radius: 0.32rem;
+    color: #7c4a12;
+    background: rgb(255 255 255 / 0.7);
+    border: 1px solid #ead2a8;
+    transition: background 0.15s, color 0.15s;
+  }
+  .site-alert__close:hover {
+    background: #fff;
+    color: #1a1a1a;
+  }
+  .site-alert__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 3.6rem;
+    height: 3.6rem;
+    margin-bottom: 1rem;
+    border-radius: 0.4rem;
+    background: #fff4d6;
+    color: #c2410c;
+    border: 1px solid #f0c989;
+  }
+  .site-alert__kicker {
+    margin: 0 0 0.35rem;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #c2410c;
+  }
+  .site-alert__title {
+    margin: 0;
+    max-width: 36rem;
+    font-family: var(--font-body, Inter, sans-serif);
+    font-size: clamp(1.35rem, 3.4vw, 2rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    color: #1c1917;
+  }
+  .site-alert__message {
+    margin: 1rem auto 0;
+    max-width: 38rem;
+    font-size: clamp(0.95rem, 2.2vw, 1.12rem);
+    font-weight: 500;
+    line-height: 1.55;
+    color: #44403c;
+    white-space: pre-wrap;
+  }
+  .site-alert__ok {
+    margin-top: 1.6rem;
+    min-height: 2.7rem;
+    padding: 0.7rem 1.4rem;
+    border-radius: 0.32rem;
+    background: #c2410c;
+    color: #fff;
+    font-size: 0.82rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    transition: background 0.15s;
+  }
+  .site-alert__ok:hover {
+    background: #9a3412;
+  }
+  @media (min-width: 640px) {
+    .site-alert {
+      padding: 1.15rem;
+    }
+    .site-alert__panel {
+      padding: 3rem 3rem 2.4rem;
+    }
   }
 
   /* ── Modal checkout ── */

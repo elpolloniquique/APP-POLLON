@@ -13,6 +13,7 @@ import { ReservationScheduleEditor } from '../../components/admin/ReservationSch
 import { normalizeReservationSchedule, DEFAULT_RESERVATION_SLOT } from '../../utils/orderTypeConfig';
 import { DEFAULT_BRANCH_PAYMENT_METHODS, normalizePaymentMethods } from '../../utils/paymentMethods';
 import { PaymentMethodsEditor } from '../../components/admin/PaymentMethodsEditor';
+import { emptySiteAlert, fetchSiteAlert, saveSiteAlert } from '../../services/siteAlertService';
 
 const INPUT = 'admin-config-input';
 const INPUT_MONO = 'admin-config-input admin-config-input--mono';
@@ -79,6 +80,7 @@ export function AdminConfig() {
     thermal_print_bridge_url: '',
     payment_methods: [...DEFAULT_BRANCH_PAYMENT_METHODS],
   });
+  const [siteAlert, setSiteAlert] = useState(emptySiteAlert);
   const [saving, setSaving] = useState(false);
   const [testingPrinter, setTestingPrinter] = useState(false);
   const [printerTestMsg, setPrinterTestMsg] = useState('');
@@ -119,9 +121,16 @@ export function AdminConfig() {
     });
   }, [branch, isBranchScoped]);
 
+  useEffect(() => {
+    fetchSiteAlert().then(setSiteAlert);
+  }, []);
+
   const save = async () => {
     setSaving(true);
     try {
+      const savedAlert = await saveSiteAlert(siteAlert);
+      setSiteAlert(savedAlert);
+
       if (isBranchScoped && branchId && branch) {
         await adminSaveBranch({
           ...branch,
@@ -161,7 +170,13 @@ export function AdminConfig() {
 
       const sb = getSupabase();
       if (!sb) return;
-      await sb.from('configuracion_tienda').upsert({ id: 1, ...cfg });
+      const {
+        aviso_activo: _avisoActivo,
+        aviso_titulo: _avisoTitulo,
+        aviso_mensaje: _avisoMensaje,
+        ...storeCfg
+      } = cfg;
+      await sb.from('configuracion_tienda').upsert({ id: 1, ...storeCfg });
       alert('Configuración global guardada');
     } catch (e) {
       const msg = e.message || 'Error al guardar';
@@ -236,6 +251,51 @@ export function AdminConfig() {
 
       <div className="admin-config-shell ring-1 ring-black/5">
         <div className="admin-config-scroll admin-scroll-panel">
+          <ConfigSection
+            title="Aviso en pantalla"
+            description="Al activarlo, los clientes ven un aviso grande al entrar a la web. Pueden cerrarlo con la X. Sirve para lluvia, mantenimiento o zonas sin delivery."
+          >
+            <div className="admin-config-stack">
+              <ConfigToggle
+                label="Mostrar aviso a pantalla completa"
+                checked={!!siteAlert.enabled}
+                onChange={(e) => setSiteAlert((a) => ({ ...a, enabled: e.target.checked }))}
+              />
+              <div className="admin-config-grid">
+                <ConfigField
+                  label="Título"
+                  hint="Ej: Aviso importante, Mantenimiento, Delivery limitado."
+                  span={2}
+                >
+                  <input
+                    value={siteAlert.title}
+                    onChange={(e) => setSiteAlert((a) => ({ ...a, title: e.target.value }))}
+                    placeholder="Aviso importante"
+                    className={INPUT}
+                  />
+                </ConfigField>
+                <ConfigField
+                  label="Texto del aviso"
+                  hint="Este texto aparece en el centro de la pantalla. Ejemplo: Solo estamos haciendo delivery zona centro porque por la lluvia no hay salida a otras zonas."
+                  span={2}
+                >
+                  <textarea
+                    value={siteAlert.message}
+                    onChange={(e) => setSiteAlert((a) => ({ ...a, message: e.target.value }))}
+                    placeholder="Solo estamos haciendo el delivery zona centro por el motivo que por esta lluvia no hay salida a otras zonas."
+                    className={`${INPUT} admin-config-input--area`}
+                    rows={5}
+                  />
+                </ConfigField>
+              </div>
+              {siteAlert.enabled && siteAlert.message.trim() && (
+                <p className="admin-config-alert-preview">
+                  El aviso quedará visible en inicio, menú y el resto del sitio (no en el panel admin ni en la app del repartidor) hasta que lo desactives o el cliente lo cierre.
+                </p>
+              )}
+            </div>
+          </ConfigSection>
+
           <ConfigSection
             title="Datos del local"
             description="Información que ven tus clientes en la tienda y en el checkout."
