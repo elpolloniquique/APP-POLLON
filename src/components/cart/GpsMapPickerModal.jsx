@@ -6,7 +6,8 @@ import 'leaflet/dist/leaflet.css';
 import { reverseGeocodePrecise, precisionHint } from '../../utils/addressGeocode';
 import { locateWithPrecisePermission, gpsErrorMessage } from '../../utils/gpsLocation';
 
-const DEFAULT_ZOOM = 18;
+const DEFAULT_ZOOM = 19;
+const MAX_ZOOM = 21;
 
 function MapSync({ center, recenterToken }) {
   const map = useMap();
@@ -62,10 +63,20 @@ function MapMoveWatcher({ onCenterChange }) {
 function FixedPin() {
   return (
     <div className="pointer-events-none absolute inset-0 z-[700] flex items-center justify-center">
-      <div className="relative -translate-y-5">
-        <div className="absolute left-1/2 top-full h-5 w-5 -translate-x-1/2 rounded-full bg-black/20 blur-md" />
-        <div className="flex h-11 w-11 items-center justify-center rounded-full border-4 border-white bg-pollon-red text-white shadow-[0_10px_26px_rgba(0,0,0,0.30)]">
-          <MapPin className="h-5 w-5" strokeWidth={2.5} />
+      <div className="relative -translate-y-9">
+        <div className="absolute left-1/2 top-[96%] h-4 w-4 -translate-x-1/2 rounded-full bg-black/20 blur-md" />
+        <div className="relative flex flex-col items-center">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full border-[3px] border-white bg-pollon-red text-white shadow-[0_10px_24px_rgba(0,0,0,0.28)]">
+            <MapPin className="h-4 w-4" strokeWidth={2.5} />
+          </div>
+          <div className="-mt-1 h-0 w-0 border-l-[5px] border-r-[5px] border-t-[16px] border-l-transparent border-r-transparent border-t-pollon-red drop-shadow-[0_6px_10px_rgba(0,0,0,0.25)]" />
+          <div className="-mt-[1px] h-4.5 w-[2px] rounded-full bg-white/95" />
+          <div className="-mt-[1px] h-3 w-[3px] rounded-full bg-pollon-red" />
+          <div className="mt-[1px] h-2.5 w-2.5 rounded-full border border-white bg-pollon-red shadow-[0_0_0_2px_rgba(255,255,255,0.30)]" />
+          <div className="absolute left-1/2 top-[calc(100%+14px)] h-5 w-5 -translate-x-1/2 rounded-full border border-white/60 bg-white/18" />
+          <div className="absolute left-1/2 top-[calc(100%+16px)] h-[1px] w-7 -translate-x-1/2 bg-white/85" />
+          <div className="absolute left-1/2 top-[calc(100%+16px)] h-7 w-[1px] -translate-x-1/2 -translate-y-1/2 bg-white/85" />
+          <div className="absolute left-1/2 top-[calc(100%+16px)] h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-pollon-red shadow-[0_0_0_2px_rgba(255,255,255,0.92)]" />
         </div>
       </div>
     </div>
@@ -185,12 +196,14 @@ export function GpsMapPickerModal({
             <MapContainer
               center={[center.lat, center.lng]}
               zoom={DEFAULT_ZOOM}
+              maxZoom={MAX_ZOOM}
               scrollWheelZoom
               className="h-full w-full"
             >
               <TileLayer
                 url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
                 attribution="&copy; OpenStreetMap contributors"
+                maxZoom={MAX_ZOOM}
               />
               <MapSync center={center} recenterToken={recenterToken} />
               <MapMoveWatcher onCenterChange={setCenter} />
