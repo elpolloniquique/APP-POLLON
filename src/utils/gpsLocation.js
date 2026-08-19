@@ -1,7 +1,13 @@
 import { Capacitor } from '@capacitor/core';
 import { Geolocation } from '@capacitor/geolocation';
 
-const FIX_TIMEOUT_MS = 12000;
+/**
+ * Precisión objetivo: ≤ 20 m = fix de satélite real (no wifi/celular).
+ * Si en 18 s no se alcanza, usa el mejor fix disponible.
+ */
+const TARGET_ACCURACY_M = 20;
+const WATCH_TIMEOUT_MS = 18000;
+const WATCH_POLL_MS = 200;
 
 export const ADDRESS_LIST_HINT =
   'Si no está exacto, escribe calle y número y elige de la lista.';
@@ -62,7 +68,70 @@ function assertUsable(pos) {
   return toWebPosition(pos);
 }
 
-async function nativePreciseFix() {
+/**
+ * Usa watchPosition para obtener el fix más preciso posible.
+ * Resuelve cuando accuracy ≤ TARGET_ACCURACY_M o cuando vence el timeout.
+ * onImprove se llama cada vez que llega un fix mejor (para actualizar la UI).
+ */
+function webWatchFix(onImprove) {
+  if (typeof navigator === 'undefined' || !navigator.geolocation) {
+    return Promise.reject(new Error('Este dispositivo no tiene GPS / geolocalización.'));
+  }
+  return new Promise((resolve, reject) => {
+    let watchId = null;
+    let best = null;
+    let settled = false;
+
+    const finish = (pos) => {
+      if (settled) return;
+      settled = true;
+      if (watchId !== null) {
+        try { navigator.geolocation.clearWatch(watchId); } catch { /* ignore */ }
+      }
+      resolve(assertUsable(pos));
+    };
+
+    const timer = setTimeout(() => {
+      if (best) finish(best);
+      else {
+        settled = true;
+        if (watchId !== null) {
+          try { navigator.geolocation.clearWatch(watchId); } catch { /* ignore */ }
+        }
+        const err = new Error('GPS tardó demasiado. Inténtalo de nuevo al aire libre.');
+        err.code = 3;
+        reject(err);
+      }
+    }, WATCH_TIMEOUT_MS);
+
+    watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const acc = pos?.coords?.accuracy ?? Infinity;
+        const prevAcc = best?.coords?.accuracy ?? Infinity;
+        if (acc < prevAcc) {
+          best = pos;
+          try { onImprove?.(toWebPosition(pos)); } catch { /* ignore */ }
+        }
+        if (acc <= TARGET_ACCURACY_M) {
+          clearTimeout(timer);
+          finish(pos);
+        }
+      },
+      (err) => {
+        clearTimeout(timer);
+        settled = true;
+        if (watchId !== null) {
+          try { navigator.geolocation.clearWatch(watchId); } catch { /* ignore */ }
+        }
+        if (err?.code === 1) reject(denyError('Debes permitir la ubicación precisa del teléfono.'));
+        else reject(err);
+      },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: WATCH_TIMEOUT_MS },
+    );
+  });
+}
+
+async function nativePreciseFix(onImprove) {
   const perm = await Geolocation.requestPermissions();
   if (perm?.location !== 'granted') {
     if (perm?.coarseLocation === 'granted') {
@@ -73,55 +142,41 @@ async function nativePreciseFix() {
     }
     throw denyError('Debes permitir la ubicación precisa del teléfono.');
   }
-  const pos = await Geolocation.getCurrentPosition({
-    enableHighAccuracy: true,
-    timeout: FIX_TIMEOUT_MS,
-    maximumAge: 0,
-  });
-  return assertUsable(pos);
-}
-
-function webSingleFix(timeoutMs, maxAge) {
-  return new Promise((resolve, reject) => {
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        try {
-          resolve(assertUsable(pos));
-        } catch (err) {
-          reject(err);
-        }
-      },
-      (err) => {
-        if (err?.code === 1) reject(denyError('Debes permitir la ubicación precisa del teléfono.'));
-        else reject(err);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: timeoutMs,
-        maximumAge: maxAge,
-      },
-    );
-  });
-}
-
-async function webPreciseFix() {
-  if (typeof navigator === 'undefined' || !navigator.geolocation) {
-    throw new Error('Este dispositivo no tiene GPS / geolocalización.');
+  // Capacitor no expone watchPosition con la misma API; hacemos polling
+  let best = null;
+  const deadline = Date.now() + WATCH_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    const pos = await Geolocation.getCurrentPosition({
+      enableHighAccuracy: true,
+      timeout: 6000,
+      maximumAge: 0,
+    }).catch(() => null);
+    if (!pos) break;
+    const acc = pos?.coords?.accuracy ?? Infinity;
+    const prevAcc = best?.coords?.accuracy ?? Infinity;
+    if (acc < prevAcc) {
+      best = pos;
+      try { onImprove?.(toWebPosition(pos)); } catch { /* ignore */ }
+    }
+    if (acc <= TARGET_ACCURACY_M) break;
+    await new Promise((r) => setTimeout(r, WATCH_POLL_MS));
   }
-  try {
-    return await webSingleFix(FIX_TIMEOUT_MS, 0);
-  } catch (first) {
-    if (first?.code === 1) throw first;
-    return await webSingleFix(FIX_TIMEOUT_MS, 5000);
+  if (!best) {
+    const err = new Error('GPS tardó demasiado. Inténtalo de nuevo al aire libre.');
+    err.code = 3;
+    throw err;
   }
+  return assertUsable(best);
 }
 
 /**
- * Siempre pide permiso de ubicación precisa y, al aceptar, lee el GPS al instante.
- * Un solo getCurrentPosition (sin esperar 10–20 s de refinamiento).
+ * Pide permiso de ubicación precisa y espera el fix de satélite real.
+ * onImprove se llama con cada mejora intermedia para actualizar la UI.
  */
 export async function locateWithPrecisePermission(opts = {}) {
-  const pos = isNativeApp() ? await nativePreciseFix() : await webPreciseFix();
+  const pos = isNativeApp()
+    ? await nativePreciseFix(opts.onImprove)
+    : await webWatchFix(opts.onImprove);
   opts.onProgress?.(pos);
   return pos;
 }

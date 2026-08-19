@@ -1092,44 +1092,59 @@ function housesToHits(houses, lat, lng) {
 /**
  * Dirección exacta (calle + número) a partir del GPS real del teléfono.
  */
+function applyLocalRoadName(hit, city) {
+  if (!hit?.road) return hit;
+  const corrected = preferredLocalRoadName(hit.road, city) || hit.road;
+  if (corrected === hit.road) return hit;
+  const label = formatChileLabel({
+    road: corrected,
+    houseNumber: hit.houseNumber,
+    postcode: hit.postcode,
+    city: hit.city || city,
+    state: hit.state || 'Tarapacá',
+  });
+  return { ...hit, road: corrected, label, shortLabel: label };
+}
+
 export async function reverseGeocodePrecise(lat, lng, opts = {}) {
   const la = Number(lat);
   const ln = Number(lng);
   if (!Number.isFinite(la) || !Number.isFinite(ln)) return null;
 
   const accuracy = Number(opts.accuracy);
-  const radius = Number.isFinite(accuracy)
+  const overpassRadius = Number.isFinite(accuracy)
+    ? Math.max(20, Math.min(80, Math.round(accuracy * 1.5)))
+    : 45;
+  const arcRadius = Number.isFinite(accuracy)
     ? Math.max(18, Math.min(50, accuracy * 1.35))
     : 35;
 
-  const key = `rev:${la.toFixed(6)},${ln.toFixed(6)},${Math.round(radius)}`;
+  const key = `rev:${la.toFixed(6)},${ln.toFixed(6)},${Math.round(arcRadius)}`;
   if (searchCache.has(key)) return searchCache.get(key);
 
-  const [arc, pho, nom] = await Promise.all([
-    reverseArcGis(la, ln, radius).catch(() => null),
+  // Lanzar todas las fuentes en paralelo
+  const [ovResult, arc, pho, nom] = await Promise.all([
+    reverseOverpassNearby(la, ln, overpassRadius).catch(() => ({ hit: null, houses: [] })),
+    reverseArcGis(la, ln, arcRadius).catch(() => null),
     reversePhoton(la, ln).catch(() => null),
     reverseNominatim(la, ln).catch(() => null),
   ]);
 
-  const best = mergeReverseHits([arc, pho, nom], la, ln);
+  const city = guessCityFromCoords(la, ln);
 
-  if (best?.road) {
-    const city = best.city || guessCityFromCoords(la, ln);
-    best.road = preferredLocalRoadName(best.road, city) || best.road;
-    const label = formatChileLabel({
-      road: best.road,
-      houseNumber: best.houseNumber,
-      postcode: best.postcode,
-      city,
-      state: best.state || 'Tarapacá',
-    });
-    best.shortLabel = label;
-    best.label = label;
-    best.city = city;
+  // Overpass es la fuente más fiable para OSM Chile — tiene prioridad si tiene número
+  if (ovResult?.hit?.houseNumber) {
+    const corrected = applyLocalRoadName(ovResult.hit, city);
+    const result = { ...corrected, lat: la, lng: ln, source: 'gps' };
+    searchCache.set(key, result);
+    if (searchCache.size > 80) searchCache.delete(searchCache.keys().next().value);
+    return result;
   }
 
-  const result = best
-    ? { ...best, lat: la, lng: ln, source: 'gps' }
+  const best = mergeReverseHits([arc, pho, nom], la, ln);
+
+  const finalHit = best
+    ? applyLocalRoadName({ ...best, lat: la, lng: ln, source: 'gps', city: best.city || city }, city)
     : {
         id: `rev-raw-${la}-${ln}`,
         label: `Ubicación GPS (${la.toFixed(5)}, ${ln.toFixed(5)})`,
@@ -1140,17 +1155,14 @@ export async function reverseGeocodePrecise(lat, lng, opts = {}) {
         houseNumber: null,
         postcode: null,
         road: '',
-        city: guessCityFromCoords(la, ln),
+        city,
         state: '',
         source: 'gps',
       };
 
-  if (result.houseNumber) searchCache.set(key, result);
-  if (searchCache.size > 80) {
-    const first = searchCache.keys().next().value;
-    searchCache.delete(first);
-  }
-  return result;
+  if (finalHit.houseNumber) searchCache.set(key, finalHit);
+  if (searchCache.size > 80) searchCache.delete(searchCache.keys().next().value);
+  return finalHit;
 }
 
 export function precisionHint(precision) {

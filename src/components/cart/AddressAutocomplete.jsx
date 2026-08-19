@@ -164,6 +164,10 @@ export function AddressAutocomplete({
           setGpsPhase('reading');
           setGpsAccuracy(p?.coords?.accuracy ?? null);
         },
+        onImprove: (p) => {
+          setGpsPhase('reading');
+          setGpsAccuracy(p?.coords?.accuracy ?? null);
+        },
       });
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
@@ -296,8 +300,12 @@ export function AddressAutocomplete({
       {gpsLoading && (
         <p className="mt-1 px-0.5 text-[11px] leading-snug text-gray-600">
           {gpsPhase === 'permission' && 'Permite la ubicación precisa en el aviso del teléfono…'}
-          {gpsPhase === 'reading' && 'GPS activado — cargando tu dirección…'}
-          {gpsPhase === 'geocoding' && 'Completando calle y número…'}
+          {gpsPhase === 'reading' && (
+            gpsAccuracy != null
+              ? `Afinando GPS… precisión ${Math.round(gpsAccuracy)} m${gpsAccuracy <= 20 ? ' ✓' : ' (espera)'}`
+              : 'GPS activado — afinando ubicación…'
+          )}
+          {gpsPhase === 'geocoding' && 'Detectando calle y número exacto…'}
           {!gpsPhase && 'Obteniendo tu dirección exacta…'}
         </p>
       )}
