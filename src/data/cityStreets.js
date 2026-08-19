@@ -25,6 +25,7 @@ export const CITY_STREETS = {
     { name: 'Serrano', lat: -20.2112, lng: -70.1485 },
     { name: 'Riquelme', lat: -20.2196, lng: -70.1436 },
     { name: 'Latorre', lat: -20.2214, lng: -70.1424 },
+    { name: "Bernardo O'Higgins", lat: -20.2248, lng: -70.1412 },
     { name: "O'Higgins", lat: -20.2248, lng: -70.1412 },
     { name: 'Héroes de la Concepción', lat: -20.2286, lng: -70.1388 },
     { name: 'Salvador Allende', lat: -20.2364, lng: -70.1402 },
@@ -147,7 +148,7 @@ export function preferredLocalRoadName(road, city = 'Iquique') {
     return n === nRoad || nRoad.includes(n) || n.includes(nRoad) || (last && (n === last || n.endsWith(` ${last}`)));
   });
   if (!matches.length) return raw;
-  matches.sort((a, b) => a.name.length - b.name.length);
+  matches.sort((a, b) => b.name.length - a.name.length);
   return matches[0].name;
 }
 

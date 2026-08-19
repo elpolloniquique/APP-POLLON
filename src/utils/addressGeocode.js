@@ -987,19 +987,23 @@ function mergeReverseHits(hits, lat, lng) {
   const rank = (h) => {
     let s = 0;
     if (h.houseNumber) s += 20;
-    if (h.via === 'arcgis') s += 22;
+    if (h.via === 'arcgis') s += 18;
     if (h.via === 'overpass') s += 12;
+    if (h.via === 'nominatim') s += 14;
     if (h.precision === 'exact') s += 8;
     if (h.road) s += 3;
     return s;
   };
   const withHouse = list.filter((h) => h.houseNumber).sort((a, b) => rank(b) - rank(a));
   const preferred = withHouse[0] || list[0];
-  const road = preferred.road || list.find((h) => h.road)?.road || '';
   const houseNumber = preferred.houseNumber || list.find((h) => h.houseNumber)?.houseNumber || null;
   const postcode = list.reduce((acc, h) => betterPostcode(acc, h.postcode), null);
   const city = preferred.city || list.find((h) => h.city)?.city || guessCityFromCoords(lat, lng);
   const state = preferred.state || list.find((h) => h.state)?.state || '';
+
+  const roads = list.filter((h) => h.road).map((h) => h.road);
+  const road = roads.sort((a, b) => b.length - a.length)[0] || '';
+
   return buildGpsHit({
     lat,
     lng,
@@ -1095,24 +1099,35 @@ export async function reverseGeocodePrecise(lat, lng, opts = {}) {
 
   const accuracy = Number(opts.accuracy);
   const radius = Number.isFinite(accuracy)
-    ? Math.max(18, Math.min(40, accuracy * 1.25))
-    : 32;
+    ? Math.max(18, Math.min(50, accuracy * 1.35))
+    : 35;
 
   const key = `rev:${la.toFixed(6)},${ln.toFixed(6)},${Math.round(radius)}`;
   if (searchCache.has(key)) return searchCache.get(key);
 
-  const arc = await reverseArcGis(la, ln, radius).catch(() => null);
-  if (arc?.houseNumber && arc?.road) {
-    const hit = { ...arc, lat: la, lng: ln, source: 'gps' };
-    searchCache.set(key, hit);
-    return hit;
-  }
-
-  const [pho, nom] = await Promise.all([
+  const [arc, pho, nom] = await Promise.all([
+    reverseArcGis(la, ln, radius).catch(() => null),
     reversePhoton(la, ln).catch(() => null),
     reverseNominatim(la, ln).catch(() => null),
   ]);
+
   const best = mergeReverseHits([arc, pho, nom], la, ln);
+
+  if (best?.road) {
+    const city = best.city || guessCityFromCoords(la, ln);
+    best.road = preferredLocalRoadName(best.road, city) || best.road;
+    const label = formatChileLabel({
+      road: best.road,
+      houseNumber: best.houseNumber,
+      postcode: best.postcode,
+      city,
+      state: best.state || 'Tarapacá',
+    });
+    best.shortLabel = label;
+    best.label = label;
+    best.city = city;
+  }
+
   const result = best
     ? { ...best, lat: la, lng: ln, source: 'gps' }
     : {

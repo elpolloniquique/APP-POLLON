@@ -1,7 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { Geolocation } from '@capacitor/geolocation';
 
-const FIX_TIMEOUT_MS = 7000;
+const FIX_TIMEOUT_MS = 12000;
 
 export const ADDRESS_LIST_HINT =
   'Si no está exacto, escribe calle y número y elige de la lista.';
@@ -76,15 +76,12 @@ async function nativePreciseFix() {
   const pos = await Geolocation.getCurrentPosition({
     enableHighAccuracy: true,
     timeout: FIX_TIMEOUT_MS,
-    maximumAge: 800,
+    maximumAge: 0,
   });
   return assertUsable(pos);
 }
 
-function webPreciseFix() {
-  if (typeof navigator === 'undefined' || !navigator.geolocation) {
-    return Promise.reject(new Error('Este dispositivo no tiene GPS / geolocalización.'));
-  }
+function webSingleFix(timeoutMs, maxAge) {
   return new Promise((resolve, reject) => {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -100,11 +97,23 @@ function webPreciseFix() {
       },
       {
         enableHighAccuracy: true,
-        timeout: FIX_TIMEOUT_MS,
-        maximumAge: 800,
+        timeout: timeoutMs,
+        maximumAge: maxAge,
       },
     );
   });
+}
+
+async function webPreciseFix() {
+  if (typeof navigator === 'undefined' || !navigator.geolocation) {
+    throw new Error('Este dispositivo no tiene GPS / geolocalización.');
+  }
+  try {
+    return await webSingleFix(FIX_TIMEOUT_MS, 0);
+  } catch (first) {
+    if (first?.code === 1) throw first;
+    return await webSingleFix(FIX_TIMEOUT_MS, 5000);
+  }
 }
 
 /**
