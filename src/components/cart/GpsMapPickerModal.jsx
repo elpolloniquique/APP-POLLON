@@ -70,13 +70,9 @@ function FixedPin() {
             <MapPin className="h-4 w-4" strokeWidth={2.5} />
           </div>
           <div className="-mt-1 h-0 w-0 border-l-[5px] border-r-[5px] border-t-[16px] border-l-transparent border-r-transparent border-t-pollon-red drop-shadow-[0_6px_10px_rgba(0,0,0,0.25)]" />
-          <div className="-mt-[1px] h-4.5 w-[2px] rounded-full bg-white/95" />
-          <div className="-mt-[1px] h-3 w-[3px] rounded-full bg-pollon-red" />
-          <div className="mt-[1px] h-2.5 w-2.5 rounded-full border border-white bg-pollon-red shadow-[0_0_0_2px_rgba(255,255,255,0.30)]" />
-          <div className="absolute left-1/2 top-[calc(100%+14px)] h-5 w-5 -translate-x-1/2 rounded-full border border-white/60 bg-white/18" />
-          <div className="absolute left-1/2 top-[calc(100%+16px)] h-[1px] w-7 -translate-x-1/2 bg-white/85" />
-          <div className="absolute left-1/2 top-[calc(100%+16px)] h-7 w-[1px] -translate-x-1/2 -translate-y-1/2 bg-white/85" />
-          <div className="absolute left-1/2 top-[calc(100%+16px)] h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-pollon-red shadow-[0_0_0_2px_rgba(255,255,255,0.92)]" />
+          <div className="-mt-[1px] h-5 w-[2px] rounded-full bg-white/95" />
+          <div className="-mt-[1px] h-3.5 w-[2px] rounded-full bg-pollon-red" />
+          <div className="mt-[1px] h-2 w-2 rounded-full border border-white bg-pollon-red shadow-[0_0_0_2px_rgba(255,255,255,0.34)]" />
         </div>
       </div>
     </div>
