@@ -22,7 +22,7 @@ import {
 import * as orderService from '../../services/orderService';
 import { quoteDelivery } from '../../services/pricingService';
 import { haversineKm, formatDistance } from '../../utils/geo';
-import { parseAddressQuery } from '../../utils/addressGeocode';
+import { parseAddressQuery, snapAddressCoordsForBranch } from '../../utils/addressGeocode';
 import { useToast } from '../../hooks/useToast';
 
 const ORDER_TYPES = ['delivery', 'retiro', 'reserva'];
@@ -452,22 +452,27 @@ export function CheckoutModal() {
                     cityBias={branch?.city || 'Iquique'}
                     biasLat={branch?.lat}
                     biasLng={branch?.lng}
+                    branchAddress={branch?.address || ''}
                     branchHouseNumber={parseAddressQuery(branch?.address || '').houseNumber}
                     onChange={(label, geo) => {
+                      const snapped = geo
+                        ? snapAddressCoordsForBranch(geo, branch)
+                        : null;
                       setForm((f) => ({
                         ...f,
                         address: label,
-                        addressLat: geo?.lat ?? null,
-                        addressLng: geo?.lng ?? null,
+                        addressLat: snapped?.lat ?? geo?.lat ?? null,
+                        addressLng: snapped?.lng ?? geo?.lng ?? null,
                       }));
                     }}
                     onSelect={(geo) => {
                       if (geo) {
+                        const snapped = snapAddressCoordsForBranch(geo, branch);
                         setForm((f) => ({
                           ...f,
-                          address: geo.shortLabel,
-                          addressLat: geo.lat,
-                          addressLng: geo.lng,
+                          address: snapped.shortLabel || geo.shortLabel,
+                          addressLat: snapped.lat,
+                          addressLng: snapped.lng,
                         }));
                       }
                     }}

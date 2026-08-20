@@ -6,6 +6,7 @@ import {
   parseAddressQuery,
   previewLocalAddresses,
   filterAddressSuggestionsForCheckout,
+  snapAddressCoordsForBranch,
 } from '../../utils/addressGeocode';
 import {
   gpsErrorMessage,
@@ -28,6 +29,7 @@ export function AddressAutocomplete({
   biasLat,
   biasLng,
   branchHouseNumber = null,
+  branchAddress = '',
 }) {
   const [query, setQuery] = useState(value || '');
   const [suggestions, setSuggestions] = useState([]);
@@ -88,12 +90,19 @@ export function AddressAutocomplete({
 
     const applyHits = (hits, reqId) => {
       if (reqId !== reqIdRef.current) return;
-      const list = filterAddressSuggestionsForCheckout(hits || [], q, cityBias, {
+      let list = filterAddressSuggestionsForCheckout(hits || [], q, cityBias, {
         lat: biasLat,
         lng: biasLng,
       });
+      const branchRef = {
+        lat: biasLat,
+        lng: biasLng,
+        address: branchAddress || (branchHouseNumber ? `Vivar ${branchHouseNumber}` : ''),
+        city: cityBias,
+      };
+      list = list.map((h) => snapAddressCoordsForBranch(h, branchRef));
       if (!list.length && localNow.length) return;
-      const display = list.length ? list : localNow;
+      const display = list.length ? list : localNow.map((h) => snapAddressCoordsForBranch(h, branchRef));
       setSuggestions(display);
       setOpen(display.length > 0);
       setActiveIdx(display.length ? 0 : -1);
@@ -114,7 +123,7 @@ export function AddressAutocomplete({
         if (reqId === reqIdRef.current) setLoading(false);
       }
     }, 140);
-  }, [cityBias, biasLat, biasLng, branchHouseNumber]);
+  }, [cityBias, biasLat, biasLng, branchHouseNumber, branchAddress]);
 
   const handleChange = (e) => {
     const q = e.target.value;
@@ -129,15 +138,21 @@ export function AddressAutocomplete({
 
   const handleSelect = (item) => {
     if (parsed.houseNumber && !item?.houseNumber) return;
-    setQuery(item.shortLabel);
+    const finalItem = snapAddressCoordsForBranch(item, {
+      lat: biasLat,
+      lng: biasLng,
+      address: branchAddress || (branchHouseNumber ? `${item.road || ''} ${branchHouseNumber}` : ''),
+      city: cityBias,
+    });
+    setQuery(finalItem.shortLabel);
     setSelected(true);
-    setSelectedPrecision(item.precision);
-    setFromGps(item.source === 'gps');
+    setSelectedPrecision(finalItem.precision);
+    setFromGps(finalItem.source === 'gps');
     setOpen(false);
     setSuggestions([]);
     setGpsError('');
-    onChange?.(item.shortLabel, item);
-    onSelect?.(item);
+    onChange?.(finalItem.shortLabel, finalItem);
+    onSelect?.(finalItem);
   };
 
   const handleClear = () => {
