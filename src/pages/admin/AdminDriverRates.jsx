@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Pencil, Plus, Trash2, X, RefreshCw } from 'lucide-react';
+import { Pencil, Plus, Trash2, X, RefreshCw, Save } from 'lucide-react';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { useAdminBranchFilter } from '../../hooks/useAdminBranchFilter';
 import { AdminBranchFilter } from '../../components/admin/AdminBranchFilter';
@@ -18,6 +18,7 @@ import {
   nextZoneColor,
   nextZoneName,
   normalizeZones,
+  quoteFromZones,
 } from '../../utils/deliveryZones';
 import { money } from '../../utils/format';
 import { Loader } from '../../components/ui/Loader';
@@ -179,6 +180,15 @@ export function AdminDriverRates() {
   const [editor, setEditor] = useState(null); // zone form or null
   const [highlightId, setHighlightId] = useState(null);
   const [dirty, setDirty] = useState(false);
+  const [saveOk, setSaveOk] = useState('');
+
+  const chainZones = useCallback((list) => {
+    const sorted = normalizeZones(list);
+    return sorted.map((item, i) => ({
+      ...item,
+      from_km: i === 0 ? 0 : sorted[i - 1].to_km,
+    }));
+  }, []);
 
   const activeBranch = useMemo(() => {
     const list = allBranches.length ? allBranches : filterBranches;
@@ -219,21 +229,33 @@ export function AdminDriverRates() {
   const persist = async (nextZones, nextActive = kmActive) => {
     setSaving(true);
     setError('');
+    setSaveOk('');
     try {
+      const chained = chainZones(nextZones);
       const saved = await saveBranchDeliveryZones({
         branchId: filterBranch || activeBranch?.id || null,
-        zones: nextZones,
+        zones: chained,
         ruleId: rule?.id,
         isActive: nextActive,
       });
       setRule(saved);
-      setZones(normalizeZones(saved.tiers || nextZones));
+      setZones(normalizeZones(saved.tiers || chained));
       setDirty(false);
+      setSaveOk('Tarifas actualizadas y guardadas correctamente.');
+      return saved;
     } catch (e) {
       setError(e.message || 'No se pudo guardar');
       throw e;
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveAll = async () => {
+    try {
+      await persist(zones, kmActive);
+    } catch {
+      /* error shown */
     }
   };
 
@@ -264,10 +286,7 @@ export function AdminDriverRates() {
       next = normalizeZones(zones.map((x) => (x.id === zone.id ? zone : x)));
     }
     // Recalc from_km chain
-    next = next.map((item, i) => ({
-      ...item,
-      from_km: i === 0 ? 0 : next[i - 1].to_km,
-    }));
+    next = chainZones(next);
     setZones(next);
     setEditor(null);
     try {
@@ -279,11 +298,7 @@ export function AdminDriverRates() {
 
   const removeZone = async (id) => {
     if (!confirm('¿Eliminar esta zona de tarifa?')) return;
-    const cleaned = normalizeZones(zones.filter((z) => z.id !== id));
-    const chained = cleaned.map((item, i) => ({
-      ...item,
-      from_km: i === 0 ? 0 : cleaned[i - 1].to_km,
-    }));
+    const chained = chainZones(zones.filter((z) => z.id !== id));
     setZones(chained);
     try {
       await persist(chained);
@@ -313,6 +328,14 @@ export function AdminDriverRates() {
       })
     : '—';
 
+  const previewQuotes = useMemo(() => {
+    const samples = [0.05, 0.8, 2.5, 6];
+    return samples.map((km) => {
+      const q = quoteFromZones(zones, km);
+      return { km, ...q };
+    });
+  }, [zones]);
+
   return (
     <div className="admin-page flex h-[calc(100dvh-3.5rem)] flex-col">
       <AdminPageHeader
@@ -329,6 +352,12 @@ export function AdminDriverRates() {
           </div>
         ) : null}
       />
+
+      {saveOk && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">
+          {saveOk}
+        </div>
+      )}
 
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
@@ -372,10 +401,20 @@ export function AdminDriverRates() {
                   type="button"
                   onClick={openNew}
                   disabled={!kmActive || saving}
-                  className="mb-3 flex w-full items-center justify-center gap-1.5 rounded-xl bg-pollon-red py-2.5 text-sm font-bold text-white shadow-sm transition hover:brightness-95 disabled:opacity-50"
+                  className="mb-2 flex w-full items-center justify-center gap-1.5 rounded-xl bg-pollon-red py-2.5 text-sm font-bold text-white shadow-sm transition hover:brightness-95 disabled:opacity-50"
                 >
                   <Plus className="h-4 w-4" />
                   Agregar Tarifa
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveAll}
+                  disabled={saving || !kmActive}
+                  className="mb-3 flex w-full items-center justify-center gap-1.5 rounded-xl border-2 border-emerald-600 bg-emerald-50 py-2.5 text-sm font-bold text-emerald-800 shadow-sm transition hover:bg-emerald-100 disabled:opacity-50"
+                >
+                  <Save className={`h-4 w-4 ${saving ? 'animate-pulse' : ''}`} />
+                  {saving ? 'Guardando…' : 'Actualizar y guardar'}
                 </button>
 
                 <div className="space-y-2">
@@ -502,8 +541,29 @@ export function AdminDriverRates() {
             )}
 
             {dirty && (
-              <p className="mt-2 text-xs text-amber-700">Hay cambios sin guardar en el servidor.</p>
+              <p className="mt-2 text-xs text-amber-700">
+                Hay cambios sin guardar. Pulsa <strong>Actualizar y guardar</strong> para aplicarlos en el checkout.
+              </p>
             )}
+
+            {kmActive && zones.length > 0 && (
+              <div className="mt-3 rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-2.5">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500">
+                  Verificación de cotización (desde sucursal)
+                </p>
+                <ul className="mt-1.5 space-y-1 text-[11px] text-gray-700">
+                  {previewQuotes.map(({ km, fee, zone, outOfRange }) => (
+                    <li key={km} className="flex justify-between gap-2">
+                      <span>{km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`}</span>
+                      <span className="font-semibold">
+                        {outOfRange ? 'Fuera de cobertura' : `${zone?.name || 'Zona'} · ${money(fee)}`}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             {!activeBranch?.lat && (
               <p className="mt-2 text-xs text-amber-700">
                 Esta sucursal no tiene coordenadas GPS. Configura lat/lng en Supursales o ejecuta el SQL de GPS para centrar el mapa correctamente.

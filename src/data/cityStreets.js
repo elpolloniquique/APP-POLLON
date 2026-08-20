@@ -167,8 +167,9 @@ export function matchLocalStreets(query, { city = 'Iquique', houseNumber = null,
     const words = n.split(' ').filter(Boolean);
     const lastWord = words[words.length - 1] || '';
     let score = 0;
-    if (n === q) score = 100;
-    else if (lastWord === q) score = 96;
+    if (lastWord === q && words.length > 1) score = 100;
+    else if (n === q) score = 94;
+    else if (lastWord === q) score = 92;
     else if (n.startsWith(q)) score = 90;
     else if (words.some((w) => w.startsWith(q))) score = 80;
     else if (n.includes(q)) score = 55;
@@ -176,7 +177,7 @@ export function matchLocalStreets(query, { city = 'Iquique', houseNumber = null,
     scored.push({ ...s, score });
   }
 
-  scored.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, 'es'));
+  scored.sort((a, b) => b.score - a.score || b.name.length - a.name.length || a.name.localeCompare(b.name, 'es'));
 
   const seen = new Set();
   const out = [];

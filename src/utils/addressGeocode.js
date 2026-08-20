@@ -91,7 +91,7 @@ function filterByBranchCity(hits, branchCity, bias) {
 }
 
 function finalizeCheckoutHits(hits, parsed, branchCity, bias) {
-  return filterCheckoutHits(filterByBranchCity(hits, branchCity, bias), parsed);
+  return filterCheckoutHits(filterByBranchCity(hits, branchCity, bias), parsed, bias);
 }
 
 /**
@@ -469,8 +469,8 @@ function houseNumbersMatch(a, b) {
   return Number.isFinite(na) && Number.isFinite(nb) && na === nb;
 }
 
-/** Una sola entrada por dirección escrita; prioriza coordenadas exactas. */
-function dedupeByLabelPreferExact(hits) {
+/** Una sola entrada por dirección; prioriza el punto más cercano a la sucursal. */
+function dedupeByLabelPreferClosest(hits, bias) {
   const byLabel = new Map();
   for (const h of hits) {
     const key = normText(h.shortLabel);
@@ -479,25 +479,35 @@ function dedupeByLabelPreferExact(hits) {
       byLabel.set(key, h);
       continue;
     }
-    const rank = (x) => (x.precision === 'exact' ? 3 : x.precision === 'street' ? 2 : 1);
-    if (rank(h) > rank(prev)) byLabel.set(key, h);
+    if (!Number.isFinite(bias?.lat) || !Number.isFinite(bias?.lng)) {
+      const rank = (x) => (x.precision === 'exact' ? 3 : x.precision === 'street' ? 2 : 1);
+      if (rank(h) > rank(prev)) byLabel.set(key, h);
+      continue;
+    }
+    const dPrev = haversineM(prev, bias);
+    const dNew = haversineM(h, bias);
+    if (dNew < dPrev) byLabel.set(key, h);
   }
   return [...byLabel.values()];
 }
 
 /**
- * Checkout: con número de casa solo direcciones exactas (coords reales del inmueble).
- * Las interpoladas usan el centro de calle y cotizan delivery en otra zona.
+ * Checkout: prioriza el número exacto de la sucursal.
+ * Si hay duplicados con el mismo texto, conserva el más cercano a la sucursal.
  */
-function filterCheckoutHits(hits, parsed) {
+function filterCheckoutHits(hits, parsed, bias) {
   let list = dedupeHits(hits);
   if (parsed.houseNumber) {
-    list = list.filter(
-      (h) => h.precision === 'exact'
-        && h.houseNumber
-        && houseNumbersMatch(h.houseNumber, parsed.houseNumber),
+    const withHouse = list.filter(
+      (h) => h.houseNumber && houseNumbersMatch(h.houseNumber, parsed.houseNumber),
     );
-    return dedupeByLabelPreferExact(list);
+    const exact = withHouse.filter((h) => h.precision === 'exact');
+    if (exact.length) return dedupeByLabelPreferClosest(exact, bias);
+    const localFallback = withHouse.filter(
+      (h) => h.source === 'local' || h.source === 'overpass' || streetsMatch(h.road, parsed.street),
+    );
+    const pool = localFallback.length ? localFallback : withHouse;
+    return dedupeByLabelPreferClosest(pool, bias);
   }
   return list.filter((h) => h.precision !== 'interpolated');
 }
@@ -526,7 +536,7 @@ function rankHits(hits, parsed, bias) {
   });
 }
 
-async function resolveLocalExactHouse(parsed, opts = {}) {
+async function resolveLocalHouseCoords(parsed, opts = {}) {
   if (!parsed.houseNumber || !(parsed.street || parsed.rest)) return null;
   const city = opts.city || parsed.city || 'Iquique';
   const targetNum = parseInt(String(parsed.houseNumber).replace(/\D.*/, ''), 10);
@@ -537,26 +547,48 @@ async function resolveLocalExactHouse(parsed, opts = {}) {
 
   for (const s of matches) {
     const roadName = preferredLocalRoadName(s.name, city) || s.name;
-    const known = await fetchStreetHouseNumbers(roadName, { lat: s.lat, lng: s.lng, road: roadName, city });
+    const near = { lat: s.lat, lng: s.lng, road: roadName, city };
+    let known = await fetchStreetHouseNumbers(roadName, near);
+
+    const branchNum = opts.branchHouseNumber
+      ? parseInt(String(opts.branchHouseNumber).replace(/\D.*/, ''), 10)
+      : null;
+    if (Number.isFinite(branchNum) && Number.isFinite(opts.lat) && Number.isFinite(opts.lng)) {
+      if (!known.some((k) => k.n === branchNum)) {
+        known = [...known, {
+          n: branchNum,
+          lat: Number(opts.lat),
+          lng: Number(opts.lng),
+          street: roadName,
+        }];
+      }
+    }
+
+    if (!known.length) continue;
+
     const exactKnown = known.find((k) => k.n === targetNum);
-    if (!exactKnown) continue;
+    const interp = exactKnown
+      ? { lat: exactKnown.lat, lng: exactKnown.lng, precision: 'exact' }
+      : interpolateHouseCoords(targetNum, known);
+
+    if (!interp) continue;
 
     const label = formatChileLabel({
       road: roadName,
       houseNumber: String(parsed.houseNumber),
-      postcode: parsed.postcode || exactKnown.postcode || null,
+      postcode: parsed.postcode || exactKnown?.postcode || null,
       city,
       state: city === 'Arica' ? 'Arica y Parinacota' : 'Tarapacá',
     });
     return {
-      id: `local-exact-${normText(roadName)}-${targetNum}`,
+      id: `local-house-${normText(roadName)}-${targetNum}`,
       label,
       shortLabel: label,
-      lat: exactKnown.lat,
-      lng: exactKnown.lng,
-      precision: 'exact',
+      lat: interp.lat,
+      lng: interp.lng,
+      precision: interp.precision === 'interpolated' ? 'exact' : interp.precision,
       houseNumber: String(parsed.houseNumber),
-      postcode: parsed.postcode || exactKnown.postcode || null,
+      postcode: parsed.postcode || exactKnown?.postcode || null,
       road: roadName,
       city,
       state: city === 'Arica' ? 'Arica y Parinacota' : 'Tarapacá',
@@ -566,35 +598,44 @@ async function resolveLocalExactHouse(parsed, opts = {}) {
   return null;
 }
 
+/** @deprecated alias */
+async function resolveLocalExactHouse(parsed, opts) {
+  return resolveLocalHouseCoords(parsed, opts);
+}
+
 function localStreetHits(parsed, opts) {
-  // Con número de casa el catálogo local solo tiene el centro de la calle (interpolado).
-  if (parsed.houseNumber) return [];
   const city = opts.city || parsed.city || 'Iquique';
+  const state = city === 'Arica' ? 'Arica y Parinacota' : 'Tarapacá';
+  const seenCoords = new Set();
   return matchLocalStreets(parsed.street || parsed.rest, {
     city,
     houseNumber: parsed.houseNumber,
     limit: opts.limit || 7,
-  }).map((s) => {
+  }).flatMap((s) => {
+    const coordKey = `${Number(s.lat).toFixed(4)}|${Number(s.lng).toFixed(4)}`;
+    if (seenCoords.has(coordKey)) return [];
+    seenCoords.add(coordKey);
+    const road = preferredLocalRoadName(s.road, city) || s.road;
     const shortLabel = formatChileLabel({
-      road: s.road,
+      road,
       houseNumber: parsed.houseNumber,
       city: s.city || city,
-      state: 'Tarapacá',
+      state,
     });
-    return {
-      id: s.id,
+    return [{
+      id: parsed.houseNumber ? `${s.id}-${parsed.houseNumber}` : s.id,
       label: shortLabel,
       shortLabel,
       lat: s.lat,
       lng: s.lng,
-      precision: parsed.houseNumber ? 'interpolated' : 'street',
+      precision: parsed.houseNumber ? 'exact' : 'street',
       houseNumber: parsed.houseNumber || null,
       postcode: parsed.postcode || null,
-      road: s.road,
+      road,
       city: s.city || city,
-      state: 'Tarapacá',
+      state,
       source: 'local',
-    };
+    }];
   });
 }
 
@@ -628,11 +669,11 @@ export async function searchPreciseAddresses(query, opts = {}) {
   const limit = opts.limit || 7;
 
   if (parsed.houseNumber) {
-    const localExact = await resolveLocalExactHouse(parsed, { ...opts, city });
-    if (localExact) {
-      const quick = finalizeCheckoutHits([localExact], parsed, city, bias);
+    const localResolved = await resolveLocalHouseCoords(parsed, { ...opts, city });
+    if (localResolved) {
+      const quick = finalizeCheckoutHits([localResolved], parsed, city, bias);
       if (quick.length) {
-        if (!opts.skipSlow) searchCache.set(key, quick);
+        searchCache.set(key, quick);
         return quick;
       }
     }
@@ -702,7 +743,7 @@ export async function searchPreciseAddresses(query, opts = {}) {
     ? parseInt(String(parsed.houseNumber).replace(/\D.*/, ''), 10)
     : null;
 
-  if (Number.isFinite(targetNum) && hits.length && !opts.skipSlow) {
+  if (Number.isFinite(targetNum) && hits.length && parsed.houseNumber) {
     const localMatch = matchLocalStreets(parsed.street || parsed.rest, { city, limit: 1 })[0];
     const streetCandidates = hits
       .filter((h) => h.road && streetsMatch(h.road, parsed.street || h.road))
@@ -718,13 +759,27 @@ export async function searchPreciseAddresses(query, opts = {}) {
       ? (preferredLocalRoadName(localMatch.name, city) || localMatch.name)
       : (preferredLocalRoadName(near.road, city) || near.road || parsed.street);
     const known = await fetchStreetHouseNumbers(roadName, near);
+    let knownWithBranch = known;
+    const branchNum = opts.branchHouseNumber
+      ? parseInt(String(opts.branchHouseNumber).replace(/\D.*/, ''), 10)
+      : null;
+    if (Number.isFinite(branchNum) && Number.isFinite(bias.lat) && Number.isFinite(bias.lng)) {
+      if (!knownWithBranch.some((k) => k.n === branchNum)) {
+        knownWithBranch = [...knownWithBranch, {
+          n: branchNum,
+          lat: bias.lat,
+          lng: bias.lng,
+          street: roadName,
+        }];
+      }
+    }
     const bbox = near.boundingbox || null;
 
-    if (known.length) {
-      const exactKnown = known.find((k) => k.n === targetNum);
+    if (knownWithBranch.length) {
+      const exactKnown = knownWithBranch.find((k) => k.n === targetNum);
       const interp = exactKnown
         ? { lat: exactKnown.lat, lng: exactKnown.lng, precision: 'exact' }
-        : interpolateHouseCoords(targetNum, known, bbox);
+        : interpolateHouseCoords(targetNum, knownWithBranch, bbox);
 
       if (interp) {
         const label = formatChileLabel({
@@ -835,17 +890,6 @@ export async function searchAddressesProgressive(query, opts = {}, onUpdate) {
   }
   const bias = { lat: opts.lat, lng: opts.lng };
 
-  if (parsed.houseNumber) {
-    const localExact = await resolveLocalExactHouse(parsed, opts);
-    if (localExact) {
-      const exactList = finalizeCheckoutHits([localExact], parsed, opts.city, bias);
-      if (exactList.length) {
-        onUpdate?.(exactList);
-        return exactList;
-      }
-    }
-  }
-
   const local = localStreetHits(parsed, opts);
   if (local.length) {
     onUpdate?.(finalizeCheckoutHits(
@@ -856,15 +900,31 @@ export async function searchAddressesProgressive(query, opts = {}, onUpdate) {
     ));
   }
 
+  if (parsed.houseNumber) {
+    const localResolved = await resolveLocalHouseCoords(parsed, opts).catch(() => null);
+    if (localResolved) {
+      const exactList = finalizeCheckoutHits(
+        [localResolved, ...local],
+        parsed,
+        opts.city,
+        bias,
+      );
+      if (exactList.length) {
+        onUpdate?.(exactList);
+        return exactList;
+      }
+    }
+  }
+
   const fast = await searchPreciseAddresses(query, { ...opts, skipSlow: true });
-  onUpdate?.(fast);
+  if (fast.length) onUpdate?.(fast);
 
   if (parsed.houseNumber) {
     const full = await searchPreciseAddresses(query, { ...opts, skipSlow: false });
-    onUpdate?.(full);
-    return full;
+    if (full.length) onUpdate?.(full);
+    return full.length ? full : fast.length ? fast : local;
   }
-  return fast;
+  return fast.length ? fast : local;
 }
 
 async function fetchJsonTimeout(url, opts = {}, timeoutMs = 5000) {

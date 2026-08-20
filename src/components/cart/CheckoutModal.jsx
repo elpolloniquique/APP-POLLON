@@ -22,6 +22,7 @@ import {
 import * as orderService from '../../services/orderService';
 import { quoteDelivery } from '../../services/pricingService';
 import { haversineKm, formatDistance } from '../../utils/geo';
+import { parseAddressQuery } from '../../utils/addressGeocode';
 import { useToast } from '../../hooks/useToast';
 
 const ORDER_TYPES = ['delivery', 'retiro', 'reserva'];
@@ -451,6 +452,7 @@ export function CheckoutModal() {
                     cityBias={branch?.city || 'Iquique'}
                     biasLat={branch?.lat}
                     biasLng={branch?.lng}
+                    branchHouseNumber={parseAddressQuery(branch?.address || '').houseNumber}
                     onChange={(label, geo) => {
                       setForm((f) => ({
                         ...f,

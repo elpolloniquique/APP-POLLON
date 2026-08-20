@@ -27,6 +27,7 @@ export function AddressAutocomplete({
   cityBias = 'Iquique',
   biasLat,
   biasLng,
+  branchHouseNumber = null,
 }) {
   const [query, setQuery] = useState(value || '');
   const [suggestions, setSuggestions] = useState([]);
@@ -74,6 +75,7 @@ export function AddressAutocomplete({
       city: cityBias,
       lat: biasLat,
       lng: biasLng,
+      branchHouseNumber,
       limit: 8,
     };
 
@@ -112,7 +114,7 @@ export function AddressAutocomplete({
         if (reqId === reqIdRef.current) setLoading(false);
       }
     }, 140);
-  }, [cityBias, biasLat, biasLng]);
+  }, [cityBias, biasLat, biasLng, branchHouseNumber]);
 
   const handleChange = (e) => {
     const q = e.target.value;
@@ -126,7 +128,7 @@ export function AddressAutocomplete({
   };
 
   const handleSelect = (item) => {
-    if (parsed.houseNumber && item.precision !== 'exact') return;
+    if (parsed.houseNumber && !item?.houseNumber) return;
     setQuery(item.shortLabel);
     setSelected(true);
     setSelectedPrecision(item.precision);
@@ -412,7 +414,7 @@ export function AddressAutocomplete({
                   <span className="mt-0.5 block text-[12px] text-gray-500">{secondaryLine(s.shortLabel)}</span>
                 )}
                 <span className="mt-1 inline-flex items-center rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600">
-                  {s.precision === 'exact' && 'Exacto'}
+                  {(s.precision === 'exact' || s.precision === 'interpolated') && 'Exacto'}
                   {s.precision === 'street' && 'Calle'}
                 </span>
               </span>
