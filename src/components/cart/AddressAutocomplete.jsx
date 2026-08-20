@@ -86,7 +86,10 @@ export function AddressAutocomplete({
 
     const applyHits = (hits, reqId) => {
       if (reqId !== reqIdRef.current) return;
-      const list = filterAddressSuggestionsForCheckout(hits || [], q);
+      const list = filterAddressSuggestionsForCheckout(hits || [], q, cityBias, {
+        lat: biasLat,
+        lng: biasLng,
+      });
       if (!list.length && localNow.length) return;
       const display = list.length ? list : localNow;
       setSuggestions(display);

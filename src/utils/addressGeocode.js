@@ -39,6 +39,61 @@ function viewboxForCity(city) {
   return VIEWBOX_BY_CITY[key] || DEFAULT_VIEWBOX;
 }
 
+function normalizeBranchCity(city) {
+  const n = normText(city);
+  if (/hospicio/.test(n)) return 'alto hospicio';
+  if (/arica/.test(n)) return 'arica';
+  return 'iquique';
+}
+
+function viewboxKeyForBranch(city) {
+  const branch = normalizeBranchCity(city);
+  if (branch === 'alto hospicio') return 'Alto Hospicio';
+  if (branch === 'arica') return 'Arica';
+  return 'Iquique';
+}
+
+function isInViewbox(lat, lng, viewboxStr) {
+  const parts = String(viewboxStr || DEFAULT_VIEWBOX).split(',').map(Number);
+  if (parts.length !== 4 || parts.some((v) => !Number.isFinite(v))) return false;
+  const [west, south, east, north] = parts;
+  return lat >= south && lat <= north && lng >= west && lng <= east;
+}
+
+/** Solo direcciones de la comuna/sucursal activa (evita Santiago u otras ciudades). */
+function hitMatchesBranchCity(hit, branchCity, bias) {
+  if (!Number.isFinite(hit?.lat) || !Number.isFinite(hit?.lng)) return false;
+
+  const blob = normText(`${hit.city || ''} ${hit.state || ''}`);
+  if (/santiago|metropolitan|metropolitana|valparaiso|concepcion|temuco|calama|la serena|coquimbo|rancagua|talca/.test(blob)) {
+    return false;
+  }
+
+  if (Number.isFinite(bias?.lat) && Number.isFinite(bias?.lng)) {
+    const dM = haversineM({ lat: hit.lat, lng: hit.lng }, bias);
+    if (dM > 28000) return false;
+  }
+
+  const branch = normalizeBranchCity(branchCity);
+  const vb = VIEWBOX_BY_CITY[viewboxKeyForBranch(branchCity)] || DEFAULT_VIEWBOX;
+  if (!isInViewbox(hit.lat, hit.lng, vb)) return false;
+
+  if (branch === 'iquique' && /hospicio/.test(blob) && !/iquique/.test(blob)) return false;
+  if (branch === 'alto hospicio' && /iquique/.test(blob) && !/hospicio/.test(blob)) {
+    if (Number.isFinite(bias?.lat) && haversineM({ lat: hit.lat, lng: hit.lng }, bias) > 9000) return false;
+  }
+
+  return true;
+}
+
+function filterByBranchCity(hits, branchCity, bias) {
+  return (hits || []).filter((h) => hitMatchesBranchCity(h, branchCity || 'Iquique', bias));
+}
+
+function finalizeCheckoutHits(hits, parsed, branchCity, bias) {
+  return filterCheckoutHits(filterByBranchCity(hits, branchCity, bias), parsed);
+}
+
 /**
  * @typedef {{ street: string, houseNumber: string|null, postcode: string|null, city: string|null, region: string|null, rest: string }} ParsedAddress
  * @typedef {{ id: string, label: string, shortLabel: string, lat: number, lng: number, precision: 'exact'|'interpolated'|'street', houseNumber: string|null, postcode: string|null, road: string, city: string, state: string }} GeocodeHit
@@ -269,13 +324,13 @@ async function photonSearch(query, { lat, lng, limit = 7 } = {}) {
   }
 }
 
-function mapNominatimHit(r, parsed) {
+function mapNominatimHit(r, parsed, branchCity = 'Iquique') {
   const a = r.address || {};
   const road = a.road || a.pedestrian || a.footway || a.neighbourhood || r.name || '';
   const osmHouse = a.house_number || null;
   const houseNumber = osmHouse || parsed.houseNumber || null;
   const postcode = parsed.postcode || a.postcode || null;
-  const city = a.city || a.town || a.village || a.municipality || parsed.city || '';
+  const city = branchCity || a.city || a.town || a.village || a.municipality || parsed.city || '';
   const state = a.state || parsed.region || '';
   const shortLabel = formatChileLabel({
     road,
@@ -312,14 +367,14 @@ function mapNominatimHit(r, parsed) {
   };
 }
 
-function mapPhotonHit(f, parsed) {
+function mapPhotonHit(f, parsed, branchCity = 'Iquique') {
   const p = f.properties || {};
   const [lng, lat] = f.geometry?.coordinates || [];
   const road = p.name || p.street || '';
   const osmHouse = p.housenumber || null;
   const houseNumber = osmHouse || parsed.houseNumber || null;
   const postcode = parsed.postcode || p.postcode || null;
-  const city = p.city || parsed.city || '';
+  const city = branchCity || p.city || parsed.city || '';
   const state = p.state || parsed.region || '';
   const shortLabel = formatChileLabel({
     road: p.street || road,
@@ -471,6 +526,46 @@ function rankHits(hits, parsed, bias) {
   });
 }
 
+async function resolveLocalExactHouse(parsed, opts = {}) {
+  if (!parsed.houseNumber || !(parsed.street || parsed.rest)) return null;
+  const city = opts.city || parsed.city || 'Iquique';
+  const targetNum = parseInt(String(parsed.houseNumber).replace(/\D.*/, ''), 10);
+  if (!Number.isFinite(targetNum)) return null;
+
+  const matches = matchLocalStreets(parsed.street || parsed.rest, { city, limit: 4 });
+  if (!matches.length) return null;
+
+  for (const s of matches) {
+    const roadName = preferredLocalRoadName(s.name, city) || s.name;
+    const known = await fetchStreetHouseNumbers(roadName, { lat: s.lat, lng: s.lng, road: roadName, city });
+    const exactKnown = known.find((k) => k.n === targetNum);
+    if (!exactKnown) continue;
+
+    const label = formatChileLabel({
+      road: roadName,
+      houseNumber: String(parsed.houseNumber),
+      postcode: parsed.postcode || exactKnown.postcode || null,
+      city,
+      state: city === 'Arica' ? 'Arica y Parinacota' : 'Tarapacá',
+    });
+    return {
+      id: `local-exact-${normText(roadName)}-${targetNum}`,
+      label,
+      shortLabel: label,
+      lat: exactKnown.lat,
+      lng: exactKnown.lng,
+      precision: 'exact',
+      houseNumber: String(parsed.houseNumber),
+      postcode: parsed.postcode || exactKnown.postcode || null,
+      road: roadName,
+      city,
+      state: city === 'Arica' ? 'Arica y Parinacota' : 'Tarapacá',
+      source: 'local',
+    };
+  }
+  return null;
+}
+
 function localStreetHits(parsed, opts) {
   // Con número de casa el catálogo local solo tiene el centro de la calle (interpolado).
   if (parsed.houseNumber) return [];
@@ -518,7 +613,12 @@ export async function searchPreciseAddresses(query, opts = {}) {
   if ((parsed.street || parsed.rest).length < 2) return [];
 
   const key = cacheKey(query, opts);
-  if (searchCache.has(key)) return filterCheckoutHits(searchCache.get(key), parsed);
+  if (searchCache.has(key)) {
+    return finalizeCheckoutHits(searchCache.get(key), parsed, opts.city, {
+      lat: opts.lat,
+      lng: opts.lng,
+    });
+  }
 
   const city = opts.city || parsed.city || 'Iquique';
   const bias = {
@@ -526,6 +626,17 @@ export async function searchPreciseAddresses(query, opts = {}) {
     lng: opts.lng != null ? Number(opts.lng) : -70.14,
   };
   const limit = opts.limit || 7;
+
+  if (parsed.houseNumber) {
+    const localExact = await resolveLocalExactHouse(parsed, { ...opts, city });
+    if (localExact) {
+      const quick = finalizeCheckoutHits([localExact], parsed, city, bias);
+      if (quick.length) {
+        if (!opts.skipSlow) searchCache.set(key, quick);
+        return quick;
+      }
+    }
+  }
 
   const local = localStreetHits(parsed, { ...opts, city, limit });
 
@@ -556,7 +667,7 @@ export async function searchPreciseAddresses(query, opts = {}) {
         q: freeQ,
         limit: String(limit),
         viewbox: viewboxForCity(city),
-        bounded: '0',
+        bounded: '1',
       }).catch(() => []),
     );
   }
@@ -579,11 +690,12 @@ export async function searchPreciseAddresses(query, opts = {}) {
 
   let hits = [
     ...local,
-    ...nomFree.map((r) => mapNominatimHit(r, parsed)),
-    ...nomStruct.map((r) => mapNominatimHit(r, parsed)),
-    ...photon.map((f) => mapPhotonHit(f, parsed)).filter(Boolean),
+    ...nomFree.map((r) => mapNominatimHit(r, parsed, city)),
+    ...nomStruct.map((r) => mapNominatimHit(r, parsed, city)),
+    ...photon.map((f) => mapPhotonHit(f, parsed, city)).filter(Boolean),
   ];
 
+  hits = filterByBranchCity(hits, city, bias);
   hits = dedupeHits(hits);
 
   const targetNum = parsed.houseNumber
@@ -591,6 +703,7 @@ export async function searchPreciseAddresses(query, opts = {}) {
     : null;
 
   if (Number.isFinite(targetNum) && hits.length && !opts.skipSlow) {
+    const localMatch = matchLocalStreets(parsed.street || parsed.rest, { city, limit: 1 })[0];
     const streetCandidates = hits
       .filter((h) => h.road && streetsMatch(h.road, parsed.street || h.road))
       .sort((a, b) => {
@@ -598,8 +711,12 @@ export async function searchPreciseAddresses(query, opts = {}) {
         const db = haversineM({ lat: b.lat, lng: b.lng }, bias);
         return da - db;
       });
-    const near = streetCandidates[0] || hits.find((h) => h.road) || hits[0];
-    const roadName = near.road || parsed.street;
+    const near = localMatch
+      ? { lat: localMatch.lat, lng: localMatch.lng, road: localMatch.name, city }
+      : streetCandidates[0] || hits.find((h) => h.road) || hits[0];
+    const roadName = localMatch
+      ? (preferredLocalRoadName(localMatch.name, city) || localMatch.name)
+      : (preferredLocalRoadName(near.road, city) || near.road || parsed.street);
     const known = await fetchStreetHouseNumbers(roadName, near);
     const bbox = near.boundingbox || null;
 
@@ -627,8 +744,8 @@ export async function searchPreciseAddresses(query, opts = {}) {
           houseNumber: String(parsed.houseNumber),
           postcode: parsed.postcode || near.postcode,
           road: roadName,
-          city: near.city || city,
-          state: near.state || 'Tarapacá',
+          city,
+          state: city === 'Arica' ? 'Arica y Parinacota' : 'Tarapacá',
           source: 'overpass',
         };
         hits = [
@@ -682,7 +799,7 @@ export async function searchPreciseAddresses(query, opts = {}) {
     }
   }
 
-  const ranked = filterCheckoutHits(rankHits(hits, parsed, bias), parsed).slice(0, limit);
+  const ranked = finalizeCheckoutHits(rankHits(hits, parsed, bias), parsed, city, bias).slice(0, limit);
   if (ranked.length && !opts.skipSlow) searchCache.set(key, ranked);
   if (searchCache.size > 80) {
     const first = searchCache.keys().next().value;
@@ -692,8 +809,8 @@ export async function searchPreciseAddresses(query, opts = {}) {
 }
 
 /** Filtra sugerencias del checkout: solo exactas cuando hay número de casa. */
-export function filterAddressSuggestionsForCheckout(hits, query) {
-  return filterCheckoutHits(hits || [], parseAddressQuery(query));
+export function filterAddressSuggestionsForCheckout(hits, query, branchCity, bias = {}) {
+  return finalizeCheckoutHits(hits || [], parseAddressQuery(query), branchCity, bias);
 }
 
 /**
@@ -703,9 +820,11 @@ export function previewLocalAddresses(query, opts = {}) {
   const parsed = parseAddressQuery(query);
   if ((parsed.street || parsed.rest).length < 2) return [];
   const local = localStreetHits(parsed, opts);
-  return filterCheckoutHits(
+  return finalizeCheckoutHits(
     rankHits(local, parsed, { lat: opts.lat, lng: opts.lng }),
     parsed,
+    opts.city,
+    { lat: opts.lat, lng: opts.lng },
   );
 }
 export async function searchAddressesProgressive(query, opts = {}, onUpdate) {
@@ -714,11 +833,26 @@ export async function searchAddressesProgressive(query, opts = {}, onUpdate) {
     onUpdate?.([]);
     return [];
   }
+  const bias = { lat: opts.lat, lng: opts.lng };
+
+  if (parsed.houseNumber) {
+    const localExact = await resolveLocalExactHouse(parsed, opts);
+    if (localExact) {
+      const exactList = finalizeCheckoutHits([localExact], parsed, opts.city, bias);
+      if (exactList.length) {
+        onUpdate?.(exactList);
+        return exactList;
+      }
+    }
+  }
+
   const local = localStreetHits(parsed, opts);
   if (local.length) {
-    onUpdate?.(filterCheckoutHits(
-      rankHits(local, parsed, { lat: opts.lat, lng: opts.lng }),
+    onUpdate?.(finalizeCheckoutHits(
+      rankHits(local, parsed, bias),
       parsed,
+      opts.city,
+      bias,
     ));
   }
 
