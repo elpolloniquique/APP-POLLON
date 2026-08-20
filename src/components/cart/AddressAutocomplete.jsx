@@ -5,6 +5,7 @@ import {
   searchAddressesProgressive,
   parseAddressQuery,
   previewLocalAddresses,
+  filterAddressSuggestionsForCheckout,
 } from '../../utils/addressGeocode';
 import {
   gpsErrorMessage,
@@ -85,11 +86,12 @@ export function AddressAutocomplete({
 
     const applyHits = (hits, reqId) => {
       if (reqId !== reqIdRef.current) return;
-      const list = hits || [];
+      const list = filterAddressSuggestionsForCheckout(hits || [], q);
       if (!list.length && localNow.length) return;
-      setSuggestions(list.length ? list : localNow);
-      setOpen((list.length ? list : localNow).length > 0);
-      setActiveIdx((list.length ? list : localNow).length ? 0 : -1);
+      const display = list.length ? list : localNow;
+      setSuggestions(display);
+      setOpen(display.length > 0);
+      setActiveIdx(display.length ? 0 : -1);
     };
 
     const reqId = ++reqIdRef.current;
@@ -121,6 +123,7 @@ export function AddressAutocomplete({
   };
 
   const handleSelect = (item) => {
+    if (parsed.houseNumber && item.precision !== 'exact') return;
     setQuery(item.shortLabel);
     setSelected(true);
     setSelectedPrecision(item.precision);
@@ -407,7 +410,6 @@ export function AddressAutocomplete({
                 )}
                 <span className="mt-1 inline-flex items-center rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600">
                   {s.precision === 'exact' && 'Exacto'}
-                  {s.precision === 'interpolated' && 'Por número de casa'}
                   {s.precision === 'street' && 'Calle'}
                 </span>
               </span>

@@ -285,7 +285,7 @@ function mapNominatimHit(r, parsed) {
     state,
     neighbourhood: a.neighbourhood,
   });
-  const hasExactHouse = !!(osmHouse && parsed.houseNumber && String(osmHouse) === String(parsed.houseNumber));
+  const hasExactHouse = houseNumbersMatch(osmHouse, parsed.houseNumber);
   return {
     id: `nom-${r.place_id}`,
     placeId: r.place_id,
@@ -295,7 +295,13 @@ function mapNominatimHit(r, parsed) {
     shortLabel,
     lat: parseFloat(r.lat),
     lng: parseFloat(r.lon),
-    precision: hasExactHouse ? 'exact' : osmHouse ? 'exact' : 'street',
+    precision: hasExactHouse
+      ? 'exact'
+      : parsed.houseNumber
+        ? 'interpolated'
+        : osmHouse
+          ? 'exact'
+          : 'street',
     houseNumber,
     postcode,
     road,
@@ -325,6 +331,7 @@ function mapPhotonHit(f, parsed) {
   // Preferir "street" type with house in query over bus stops named like streets
   const isBusStop = p.osm_key === 'highway' && p.osm_value === 'bus_stop';
   if (isBusStop && !osmHouse) return null;
+  const hasExactHouse = houseNumbersMatch(osmHouse, parsed.houseNumber);
   return {
     id: `pho-${p.osm_type}-${p.osm_id}`,
     osmType: p.osm_type === 'W' ? 'way' : p.osm_type === 'N' ? 'node' : 'relation',
@@ -333,7 +340,13 @@ function mapPhotonHit(f, parsed) {
     shortLabel,
     lat: Number(lat),
     lng: Number(lng),
-    precision: osmHouse ? 'exact' : 'street',
+    precision: hasExactHouse
+      ? 'exact'
+      : parsed.houseNumber
+        ? 'interpolated'
+        : osmHouse
+          ? 'exact'
+          : 'street',
     houseNumber,
     postcode,
     road: p.street || road,
@@ -394,6 +407,46 @@ function dedupeHits(hits) {
   return out;
 }
 
+function houseNumbersMatch(a, b) {
+  if (!a || !b) return false;
+  const na = parseInt(String(a).replace(/\D.*/, ''), 10);
+  const nb = parseInt(String(b).replace(/\D.*/, ''), 10);
+  return Number.isFinite(na) && Number.isFinite(nb) && na === nb;
+}
+
+/** Una sola entrada por dirección escrita; prioriza coordenadas exactas. */
+function dedupeByLabelPreferExact(hits) {
+  const byLabel = new Map();
+  for (const h of hits) {
+    const key = normText(h.shortLabel);
+    const prev = byLabel.get(key);
+    if (!prev) {
+      byLabel.set(key, h);
+      continue;
+    }
+    const rank = (x) => (x.precision === 'exact' ? 3 : x.precision === 'street' ? 2 : 1);
+    if (rank(h) > rank(prev)) byLabel.set(key, h);
+  }
+  return [...byLabel.values()];
+}
+
+/**
+ * Checkout: con número de casa solo direcciones exactas (coords reales del inmueble).
+ * Las interpoladas usan el centro de calle y cotizan delivery en otra zona.
+ */
+function filterCheckoutHits(hits, parsed) {
+  let list = dedupeHits(hits);
+  if (parsed.houseNumber) {
+    list = list.filter(
+      (h) => h.precision === 'exact'
+        && h.houseNumber
+        && houseNumbersMatch(h.houseNumber, parsed.houseNumber),
+    );
+    return dedupeByLabelPreferExact(list);
+  }
+  return list.filter((h) => h.precision !== 'interpolated');
+}
+
 function rankHits(hits, parsed, bias) {
   return [...hits].sort((a, b) => {
     const score = (h) => {
@@ -419,6 +472,8 @@ function rankHits(hits, parsed, bias) {
 }
 
 function localStreetHits(parsed, opts) {
+  // Con número de casa el catálogo local solo tiene el centro de la calle (interpolado).
+  if (parsed.houseNumber) return [];
   const city = opts.city || parsed.city || 'Iquique';
   return matchLocalStreets(parsed.street || parsed.rest, {
     city,
@@ -463,7 +518,7 @@ export async function searchPreciseAddresses(query, opts = {}) {
   if ((parsed.street || parsed.rest).length < 2) return [];
 
   const key = cacheKey(query, opts);
-  if (searchCache.has(key)) return searchCache.get(key);
+  if (searchCache.has(key)) return filterCheckoutHits(searchCache.get(key), parsed);
 
   const city = opts.city || parsed.city || 'Iquique';
   const bias = {
@@ -588,16 +643,21 @@ export async function searchPreciseAddresses(query, opts = {}) {
               city: h.city,
               state: h.state,
             });
-            return {
+            const next = {
               ...h,
               houseNumber: String(parsed.houseNumber),
               postcode: parsed.postcode || h.postcode,
               shortLabel: nextLabel,
               label: nextLabel,
-              ...(sameStreet
-                ? { lat: interp.lat, lng: interp.lng, precision: interp.precision }
-                : {}),
             };
+            if (!sameStreet) return next;
+            if (interp.precision === 'exact') {
+              return { ...next, lat: interp.lat, lng: interp.lng, precision: 'exact' };
+            }
+            if (h.precision !== 'exact') {
+              return { ...next, lat: interp.lat, lng: interp.lng, precision: interp.precision };
+            }
+            return next;
           }),
         ];
         hits = dedupeHits(hits);
@@ -622,13 +682,18 @@ export async function searchPreciseAddresses(query, opts = {}) {
     }
   }
 
-  const ranked = rankHits(hits, parsed, bias).slice(0, limit);
+  const ranked = filterCheckoutHits(rankHits(hits, parsed, bias), parsed).slice(0, limit);
   if (ranked.length && !opts.skipSlow) searchCache.set(key, ranked);
   if (searchCache.size > 80) {
     const first = searchCache.keys().next().value;
     searchCache.delete(first);
   }
   return ranked;
+}
+
+/** Filtra sugerencias del checkout: solo exactas cuando hay número de casa. */
+export function filterAddressSuggestionsForCheckout(hits, query) {
+  return filterCheckoutHits(hits || [], parseAddressQuery(query));
 }
 
 /**
@@ -638,7 +703,10 @@ export function previewLocalAddresses(query, opts = {}) {
   const parsed = parseAddressQuery(query);
   if ((parsed.street || parsed.rest).length < 2) return [];
   const local = localStreetHits(parsed, opts);
-  return rankHits(local, parsed, { lat: opts.lat, lng: opts.lng });
+  return filterCheckoutHits(
+    rankHits(local, parsed, { lat: opts.lat, lng: opts.lng }),
+    parsed,
+  );
 }
 export async function searchAddressesProgressive(query, opts = {}, onUpdate) {
   const parsed = parseAddressQuery(query);
@@ -647,7 +715,12 @@ export async function searchAddressesProgressive(query, opts = {}, onUpdate) {
     return [];
   }
   const local = localStreetHits(parsed, opts);
-  if (local.length) onUpdate?.(rankHits(local, parsed, { lat: opts.lat, lng: opts.lng }));
+  if (local.length) {
+    onUpdate?.(filterCheckoutHits(
+      rankHits(local, parsed, { lat: opts.lat, lng: opts.lng }),
+      parsed,
+    ));
+  }
 
   const fast = await searchPreciseAddresses(query, { ...opts, skipSlow: true });
   onUpdate?.(fast);
