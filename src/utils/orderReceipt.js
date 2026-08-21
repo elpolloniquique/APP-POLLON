@@ -11,7 +11,18 @@ const THERMAL_PX = 302;
  */
 const WIN_WIDTH = 420;
 const WIN_HEIGHT = 560;
-const RECEIPT_RULE = '----------------------------------------------';
+const RECEIPT_RULE = '--------------------------------';
+const RECEIPT_BULLET = '♦';
+const ESCPOS_BULLET = '*';
+
+function formatDistanceKm(km) {
+  if (km == null || !Number.isFinite(Number(km))) return '';
+  return Number(km).toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+}
+
+function brandTitle(orderTypeLabel) {
+  return `${String(orderTypeLabel || 'Delivery').toUpperCase()} - POLLERÍA EL POLLÓN`;
+}
 
 export function paymentLabel(method) {
   const m = PAYMENT_METHODS.find((p) => p.id === method);
@@ -90,9 +101,6 @@ function formatMoneyPlain(n) {
   return `$${(Number(n) || 0).toLocaleString('es-CL')}`;
 }
 
-const RECEIPT_BULLET = '.';
-const ESCPOS_BULLET = '.';
-
 function buildDeliveryFooterLines(m, bullet = RECEIPT_BULLET) {
   if (m.orderType === 'delivery' && m.deliveryFee <= 0) {
     return [`${bullet} El delivery no está incluido en este total.`];
@@ -100,22 +108,29 @@ function buildDeliveryFooterLines(m, bullet = RECEIPT_BULLET) {
   return [];
 }
 
-function buildTotalsPlain(m) {
+function padMoneyRow(label, amount, width = 32) {
+  const money = formatMoneyPlain(amount);
+  const gap = Math.max(1, width - label.length - money.length);
+  return `${label}${' '.repeat(gap)}${money}`;
+}
+
+function buildTotalsPlain(m, bullet = RECEIPT_BULLET) {
   const lines = [RECEIPT_RULE];
   if (m.deliveryFee > 0) {
-    lines.push(`Subtotal: ${formatMoneyPlain(m.subtotal)}`);
-    const dist = m.deliveryDistanceKm != null ? ` (${m.deliveryDistanceKm.toFixed(1)} km)` : '';
-    lines.push(`Delivery${dist}: ${formatMoneyPlain(m.deliveryFee)}`);
+    lines.push(padMoneyRow('Subtotal', m.subtotal));
+    const dist = m.deliveryDistanceKm != null ? ` (${formatDistanceKm(m.deliveryDistanceKm)} km)` : '';
+    lines.push(padMoneyRow(`Delivery${dist}`, m.deliveryFee));
+    lines.push(RECEIPT_RULE);
   }
-  lines.push(`TOTAL: ${formatMoneyPlain(m.total)}`);
-  lines.push(`Pago: ${m.payment}`);
-  lines.push(...buildDeliveryFooterLines(m));
+  lines.push(padMoneyRow('TOTAL', m.total));
+  lines.push(`Pago: ${String(m.payment || '').toUpperCase()}`);
+  lines.push(...buildDeliveryFooterLines(m, bullet));
   return lines.join('\n');
 }
 
 function buildCustomerPlain(customer, bullet = RECEIPT_BULLET) {
   const lines = [];
-  lines.push(`${bullet} Nombre:   ${customer.name || '-'}`);
+  lines.push(`${bullet} Nombre: ${customer.name || '-'}`);
   lines.push(`${bullet} Teléfono: ${customer.phone || '-'}`);
   lines.push(`${bullet} Dirección:`);
   const addr = wrapText(customer.address || '-', 30);
@@ -135,35 +150,28 @@ function buildItemsPlain(items, bullet = RECEIPT_BULLET) {
   if (!items.length) return 'Sin productos';
   return items.map((it) => {
     const qty = it.qty ?? 1;
-    const extras = getItemExtraLines(it);
+    const extras = getItemExtraLines(it).map((l) => `  ${l}`);
     const block = [
       `${bullet} ${qty}x ${it.name}`,
       ...extras,
-      formatMoneyPlain(it.total || 0),
+      `  ${formatMoneyPlain(it.total || 0)}`,
       '',
     ];
     return block.join('\n');
   }).join('\n');
 }
 
-function buildReceiptCore(m, { customerBlock, itemsBlock, footerExtra = [], compact = false }) {
+function buildReceiptCore(m, { customerBlock, itemsBlock, footerExtra = [], compact = false, bullet = RECEIPT_BULLET }) {
   const footer = [
-    buildTotalsPlain(m),
+    buildTotalsPlain(m, bullet),
     ...footerExtra,
   ].filter(Boolean).join('\n');
 
-  const titleBranch = String(m.sucursal || 'El Pollón')
-    .replace(/^Pollería\s+/i, '')
-    .trim()
-    .toUpperCase();
-  const title = `${m.orderTypeLabel.toUpperCase()} – ${titleBranch}`;
-
   const header = [
-    title,
+    brandTitle(m.orderTypeLabel),
     compact ? null : '',
-    `Sucursal: ${m.sucursal}`,
-    `${m.ticketShort}        ${m.fechaStr}       ${m.horaStr}`,
     `CODIGO DE SEGUIMIENTO: ${m.ticket}`,
+    `Pedido: ${m.ticket}  ${m.fechaStr}  ${m.horaStr}`,
     RECEIPT_RULE,
     'DATOS DEL CLIENTE',
     RECEIPT_RULE,
@@ -187,7 +195,6 @@ export function buildOrderReceiptText(order, branch) {
   return buildReceiptCore(m, {
     customerBlock: buildCustomerPlain(m.customer),
     itemsBlock: buildItemsPlain(m.items),
-    footerExtra: buildDeliveryFooterLines(m),
   });
 }
 
@@ -197,8 +204,8 @@ export function buildOrderReceiptTextEscPos(order, branch) {
   return buildReceiptCore(m, {
     customerBlock: buildCustomerPlain(m.customer, ESCPOS_BULLET),
     itemsBlock: buildItemsPlain(m.items, ESCPOS_BULLET),
-    footerExtra: buildDeliveryFooterLines(m, ESCPOS_BULLET),
     compact: true,
+    bullet: ESCPOS_BULLET,
   });
 }
 
@@ -236,31 +243,32 @@ function ruleHtml() {
 }
 
 function buildCustomerHtml(customer) {
+  const bullet = RECEIPT_BULLET;
   const addrLines = wrapText(customer.address || '-', 28)
     .split('\n')
-    .map((l) => `<div class="field-value field-value--indent">${esc(l)}</div>`)
+    .map((l) => `<div class="indent">${esc(l)}</div>`)
     .join('');
 
   const obsHtml = customer.comments?.trim()
     ? `<div class="field field--block">
-         <div class="field-head"><span class="bullet">◆</span> Observaciones:</div>
-         ${wrapText(customer.comments, 28).split('\n').map((l) => `<div class="field-value field-value--indent">${esc(l)}</div>`).join('')}
+         <div class="field-head"><span class="bullet">${bullet}</span> <strong>Observaciones:</strong></div>
+         ${wrapText(customer.comments, 28).split('\n').map((l) => `<div class="indent">${esc(l)}</div>`).join('')}
        </div>`
     : '';
 
   return `
   <div class="field">
-    <span class="bullet">◆</span>
-    <span class="field-label">Nombre:</span>
+    <span class="bullet">${bullet}</span>
+    <strong class="field-label">Nombre:</strong>
     <span class="field-value">${esc(customer.name || '-')}</span>
   </div>
   <div class="field">
-    <span class="bullet">◆</span>
-    <span class="field-label">Teléfono:</span>
+    <span class="bullet">${bullet}</span>
+    <strong class="field-label">Teléfono:</strong>
     <span class="field-value">${esc(customer.phone || '-')}</span>
   </div>
   <div class="field field--block">
-    <div class="field-head"><span class="bullet">◆</span> Dirección:</div>
+    <div class="field-head"><span class="bullet">${bullet}</span> <strong>Dirección:</strong></div>
     ${addrLines}
   </div>
   ${obsHtml}`;
@@ -268,17 +276,18 @@ function buildCustomerHtml(customer) {
 
 function buildItemsHtml(items) {
   if (!items.length) return '<div class="item-empty">Sin productos</div>';
+  const bullet = RECEIPT_BULLET;
 
   return items.map((it) => {
     const qty = it.qty ?? 1;
     const extras = getItemExtraLines(it)
-      .map((line) => `<div class="item-sub">${esc(line)}</div>`)
+      .map((line) => `<div class="indent item-sub">${esc(line)}</div>`)
       .join('');
     return `
     <div class="item">
-      <div class="item-line"><span class="bullet">◆</span> <strong class="item-qty">${qty}x</strong> ${esc(it.name)}</div>
+      <div class="item-line"><span class="bullet">${bullet}</span> <strong>${qty}x ${esc(it.name)}</strong></div>
       ${extras}
-      <div class="item-price">${formatMoneyPlain(it.total || 0)}</div>
+      <div class="indent item-price"><strong>${formatMoneyPlain(it.total || 0)}</strong></div>
     </div>`;
   }).join('');
 }
@@ -288,20 +297,25 @@ function buildFooterHtml(m) {
     .map((line) => `<div class="note-line">${esc(line)}</div>`)
     .join('');
 
+  const distLabel = m.deliveryDistanceKm != null
+    ? `Delivery (${formatDistanceKm(m.deliveryDistanceKm)} km)`
+    : 'Delivery';
+
   const deliveryBlock = m.deliveryFee > 0
-    ? `<div class="pay-line">Subtotal: ${formatMoneyPlain(m.subtotal)}</div>
-  <div class="pay-line">Delivery${m.deliveryDistanceKm != null ? ` (${m.deliveryDistanceKm.toFixed(1)} km)` : ''}: ${formatMoneyPlain(m.deliveryFee)}</div>`
+    ? `<div class="money-row"><strong>Subtotal</strong><strong>${formatMoneyPlain(m.subtotal)}</strong></div>
+  <div class="money-row"><span>${esc(distLabel)}</span><span>${formatMoneyPlain(m.deliveryFee)}</span></div>
+  ${ruleHtml()}`
     : '';
 
   return `
   ${ruleHtml()}
   ${deliveryBlock}
-  <div class="total-line">TOTAL: ${formatMoneyPlain(m.total)}</div>
-  <div class="pay-line">Pago: ${esc(m.payment)}</div>
+  <div class="money-row money-row--total"><strong>TOTAL</strong><strong>${formatMoneyPlain(m.total)}</strong></div>
+  <div class="pay-line"><strong>Pago:</strong> ${esc(String(m.payment || '').toUpperCase())}</div>
   ${deliveryNote}`;
 }
 
-/** HTML ticket térmico 80mm — estilo impresora monocromo */
+/** HTML ticket térmico 80mm — tipografía monoespaciada estilo POS */
 export function buildThermalReceiptHtml(order, branch) {
   const m = getOrderReceiptMeta(order, branch);
   const { customer, items } = m;
@@ -332,144 +346,145 @@ export function buildThermalReceiptHtml(order, branch) {
     width: ${THERMAL_MM};
     max-width: ${THERMAL_MM};
     min-width: ${THERMAL_MM};
-    margin: 0;
+    margin: 0 auto;
     padding: 0;
     overflow-x: hidden;
-    font-family: Arial, Helvetica, 'Segoe UI', sans-serif;
-    font-size: 13px;
-    line-height: 1.4;
+    font-family: "Courier New", Courier, "Lucida Console", monospace;
+    font-size: 12px;
+    line-height: 1.35;
     background: #fff;
     color: #000;
+    font-weight: 400;
   }
   .ticket {
     width: 100%;
-    padding: 8px 10px 12px;
+    padding: 6px 8px 10px;
   }
   .ticket__feed-top {
-    height: 10mm;
-    min-height: 10mm;
+    height: 8mm;
+    min-height: 8mm;
   }
   .ticket__feed-bottom {
-    height: 22mm;
-    min-height: 22mm;
+    height: 18mm;
+    min-height: 18mm;
   }
   .title {
     font-weight: 700;
-    font-size: 14px;
-    letter-spacing: 0.01em;
+    font-size: 13px;
+    text-align: center;
     text-transform: uppercase;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
+    line-height: 1.2;
+    letter-spacing: 0;
+  }
+  .track {
+    font-weight: 700;
+    font-size: 12px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
     line-height: 1.25;
   }
-  .sucursal {
-    margin-bottom: 4px;
-    font-size: 13px;
-    line-height: 1.35;
-  }
-  .sucursal strong {
-    font-weight: 700;
-  }
   .meta-row {
-    font-size: 13px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 4px;
+    font-size: 11px;
     margin-bottom: 2px;
     white-space: nowrap;
-    letter-spacing: 0.01em;
   }
+  .meta-row span { flex: 0 1 auto; }
   .hr {
-    margin: 7px 0;
-    font-size: 12px;
+    margin: 6px 0;
+    font-size: 11px;
     line-height: 1;
-    letter-spacing: 0;
+    letter-spacing: -0.5px;
     white-space: nowrap;
     overflow: hidden;
     color: #000;
     user-select: none;
+    text-align: center;
   }
   .section-head {
     font-weight: 700;
-    font-size: 13px;
-    letter-spacing: 0.03em;
+    font-size: 12px;
     text-transform: uppercase;
     line-height: 1.2;
+    text-align: left;
   }
   .field {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
-    gap: 0 3px;
-    margin: 4px 0;
-    line-height: 1.35;
+    gap: 0 4px;
+    margin: 3px 0;
+    line-height: 1.3;
   }
   .field--block {
     display: block;
-    margin: 5px 0;
+    margin: 4px 0;
   }
   .field-head {
     margin-bottom: 1px;
-    font-weight: 400;
   }
   .bullet {
     flex-shrink: 0;
-    margin-right: 1px;
+    font-weight: 700;
   }
   .field-label {
-    font-weight: 400;
-    margin-right: 3px;
+    font-weight: 700;
   }
   .field-value {
-    font-weight: 700;
+    font-weight: 400;
     word-break: break-word;
   }
-  .field-value--indent {
+  .indent {
     display: block;
-    padding-left: 1.15em;
+    padding-left: 1.1em;
     margin-top: 1px;
-    font-weight: 700;
+    font-weight: 400;
+    word-break: break-word;
   }
   .item {
-    margin: 8px 0;
+    margin: 6px 0 8px;
   }
   .item-line {
-    font-weight: 400;
     word-wrap: break-word;
     overflow-wrap: anywhere;
-    line-height: 1.35;
-  }
-  .item-qty {
-    font-weight: 700;
+    line-height: 1.3;
   }
   .item-sub {
-    margin-top: 1px;
-    padding-left: 1.15em;
-    font-weight: 400;
-    line-height: 1.35;
+    line-height: 1.3;
   }
   .item-price {
-    margin-top: 3px;
-    padding-left: 1.15em;
-    font-weight: 700;
-    font-size: 13px;
+    margin-top: 2px;
   }
   .item-empty {
     margin: 4px 0;
-    font-style: italic;
   }
-  .total-line {
-    font-weight: 700;
-    font-size: 15px;
-    letter-spacing: 0.01em;
-    margin-bottom: 4px;
+  .money-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    margin: 2px 0;
+    font-size: 12px;
     line-height: 1.3;
   }
+  .money-row--total {
+    font-size: 14px;
+    font-weight: 700;
+    margin: 4px 0 6px;
+  }
   .pay-line {
-    font-weight: 400;
-    font-size: 13px;
-    margin-bottom: 3px;
+    font-size: 12px;
+    margin-top: 2px;
+    line-height: 1.3;
   }
   .note-line {
-    margin-top: 2px;
-    font-size: 13px;
-    line-height: 1.4;
+    margin-top: 4px;
+    font-size: 11px;
+    line-height: 1.3;
   }
   @media screen {
     html { background: #ececec; }
@@ -493,15 +508,15 @@ export function buildThermalReceiptHtml(order, branch) {
       box-shadow: none !important;
     }
     .ticket {
-      padding: 10mm 8px 0 8px !important;
+      padding: 8mm 6px 0 6px !important;
     }
     .ticket__feed-top {
-      height: 12mm !important;
-      min-height: 12mm !important;
+      height: 10mm !important;
+      min-height: 10mm !important;
     }
     .ticket__feed-bottom {
-      height: 28mm !important;
-      min-height: 28mm !important;
+      height: 22mm !important;
+      min-height: 22mm !important;
     }
   }
 </style>
@@ -509,9 +524,13 @@ export function buildThermalReceiptHtml(order, branch) {
 <body>
 <div class="ticket">
   <div class="ticket__feed-top" aria-hidden="true"></div>
-  <div class="title">${esc(m.orderTypeLabel.toUpperCase())} - POLLERÍA EL POLLÓN</div>
-  <div class="sucursal">Sucursal: <strong>${esc(m.sucursal)}</strong></div>
-  <div class="meta-row">${esc(m.ticketShort)}&nbsp;&nbsp;${esc(m.fechaStr)}&nbsp;&nbsp;${esc(m.horaStr)}</div>
+  <div class="title">${esc(brandTitle(m.orderTypeLabel))}</div>
+  <div class="track">CODIGO DE SEGUIMIENTO: ${esc(m.ticket)}</div>
+  <div class="meta-row">
+    <span>Pedido: ${esc(m.ticket)}</span>
+    <span>${esc(m.fechaStr)}</span>
+    <span>${esc(m.horaStr)}</span>
+  </div>
 
   ${ruleHtml()}
   <div class="section-head">DATOS DEL CLIENTE</div>
