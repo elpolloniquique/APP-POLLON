@@ -17,9 +17,10 @@ function makeStoreIcon(label = 'EL POLLÓN') {
   });
 }
 
-function FitZones({ center, maxKm }) {
+function FitZones({ center, maxKm, lockView = false }) {
   const map = useMap();
   useEffect(() => {
+    if (lockView) return;
     if (center?.lat == null || center?.lng == null) return;
     const t = setTimeout(() => {
       map.invalidateSize();
@@ -32,7 +33,14 @@ function FitZones({ center, maxKm }) {
       }
     }, 80);
     return () => clearTimeout(t);
-  }, [map, center?.lat, center?.lng, maxKm]);
+  }, [map, center?.lat, center?.lng, maxKm, lockView]);
+
+  // En edición: sigue el pin al elegir dirección (sin reencuadrar zonas)
+  useEffect(() => {
+    if (!lockView) return;
+    if (center?.lat == null || center?.lng == null) return;
+    map.panTo([center.lat, center.lng], { animate: true, duration: 0.35 });
+  }, [map, center?.lat, center?.lng, lockView]);
 
   // Al abrir/cerrar menú hamburguesa, reajusta el lienzo del mapa
   useEffect(() => {
@@ -49,6 +57,7 @@ function FitZones({ center, maxKm }) {
 /**
  * Mapa de tarifas: círculos concéntricos desde la sucursal.
  * zones: [{ name, color, to_km, from_km, fee }]
+ * editableCenter + onCenterChange: arrastrar el pin (Zona 00).
  */
 export function RatesZoneMap({
   className = '',
@@ -58,6 +67,8 @@ export function RatesZoneMap({
   styleId = 'streets',
   onStyleChange,
   highlightZoneId = null,
+  editableCenter = false,
+  onCenterChange,
 }) {
   const list = useMemo(() => normalizeZones(zones), [zones]);
   const maxKm = list.length ? Math.max(...list.map((z) => z.to_km)) : 0;
@@ -90,7 +101,7 @@ export function RatesZoneMap({
         scrollWheelZoom
       >
         <TileLayer url={tiles.url} attribution={tiles.attribution} />
-        <FitZones center={mapCenter} maxKm={maxKm} />
+        <FitZones center={mapCenter} maxKm={maxKm} lockView={editableCenter} />
 
         {circles.map((z) => {
           const active = highlightZoneId && highlightZoneId === z.id;
@@ -116,16 +127,36 @@ export function RatesZoneMap({
           );
         })}
 
-        <Marker position={[mapCenter.lat, mapCenter.lng]} icon={makeStoreIcon(storeLabel)}>
+        <Marker
+          position={[mapCenter.lat, mapCenter.lng]}
+          icon={makeStoreIcon(storeLabel)}
+          draggable={editableCenter}
+          eventHandlers={
+            editableCenter && typeof onCenterChange === 'function'
+              ? {
+                  dragend: (e) => {
+                    const p = e.target.getLatLng();
+                    onCenterChange({ lat: p.lat, lng: p.lng });
+                  },
+                }
+              : undefined
+          }
+        >
           <Popup>
             <strong>{storeLabel}</strong>
             <br />
-            Centro 0.0 km
+            {editableCenter ? 'Zona 00 · arrastra para ajustar' : 'Centro 0.0 km (Zona 00)'}
           </Popup>
         </Marker>
       </MapContainer>
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-white/40 to-transparent" />
+
+      {editableCenter && (
+        <div className="pointer-events-none absolute left-3 top-3 z-[5] max-w-[220px] rounded-lg border border-amber-200 bg-amber-50/95 px-2.5 py-1.5 text-[10px] font-semibold leading-snug text-amber-900 shadow-sm">
+          Modo edición: arrastra el pin para fijar Zona 00
+        </div>
+      )}
 
       {typeof onStyleChange === 'function' && (
         <div className="absolute right-3 top-3 z-[5] flex overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">

@@ -4449,3 +4449,26 @@
   border-color: rgb(255 255 255 / 0.4);
   box-shadow: 0 8px 20px rgb(254 44 85 / 0.25);
 }
+
+/* Tarifas de delivery — pie compacto (más mapa, menos aire vacío) */
+.admin-page:has(.rates-footer) {
+  gap: 0.5rem;
+  row-gap: 0.5rem;
+}
+.admin-page:has(.rates-footer).space-y-4 > :not([hidden]) ~ :not([hidden]),
+.admin-page:has(.rates-footer).sm\:space-y-5 > :not([hidden]) ~ :not([hidden]),
+.admin-page:has(.rates-footer).md\:space-y-6 > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 0.5rem;
+}
+.rates-footer {
+  line-height: 1.15;
+}
+.rates-zone-chip {
+  min-height: 1.75rem;
+}
+.rates-verify-grid {
+  align-items: stretch;
+}
+.rates-verify-grid > li {
+  white-space: nowrap;
+}

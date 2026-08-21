@@ -243,11 +243,62 @@ export async function adminSaveBranch(branch, user) {
     thermal_print_bridge_url: branch.thermalPrintBridgeUrl?.trim() || '',
     thermal_network_print_enabled: branch.thermalNetworkPrintEnabled === true,
     payment_methods: normalizePaymentMethods(branch.paymentMethods),
+    ...(branch.lat != null && Number.isFinite(Number(branch.lat)) ? { lat: Number(branch.lat) } : {}),
+    ...(branch.lng != null && Number.isFinite(Number(branch.lng)) ? { lng: Number(branch.lng) } : {}),
   };
 
   const { data, error } = await sb.from('branches').upsert(row).select().single();
   if (error) throw error;
   await logAudit({ user, branchId: data.id, entityType: 'branch', entityId: data.id, action: branch.id ? 'update' : 'create', newData: data });
+  invalidateAdminBranchesCache();
+  return mapBranch(data);
+}
+
+/** Actualiza dirección + GPS de la sucursal (punto central / Zona 00 para delivery). */
+export async function adminUpdateBranchLocation({ branchId, address, lat, lng, user }) {
+  const sb = getSupabase();
+  if (!sb) throw new Error('Sin conexión Supabase');
+  if (!branchId) throw new Error('Sucursal requerida');
+
+  const latN = Number(lat);
+  const lngN = Number(lng);
+  if (!Number.isFinite(latN) || !Number.isFinite(lngN)) {
+    throw new Error('Coordenadas inválidas. Busca o selecciona una dirección en el mapa.');
+  }
+  const cleanAddress = String(address || '').trim();
+  if (!cleanAddress) throw new Error('La dirección de la sucursal es obligatoria');
+
+  const { data: existing, error: fetchErr } = await sb
+    .from('branches')
+    .select('id, address, lat, lng')
+    .eq('id', branchId)
+    .single();
+  if (fetchErr) throw fetchErr;
+
+  const patch = {
+    address: cleanAddress,
+    lat: latN,
+    lng: lngN,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data, error } = await sb
+    .from('branches')
+    .update(patch)
+    .eq('id', branchId)
+    .select()
+    .single();
+  if (error) throw error;
+
+  await logAudit({
+    user,
+    branchId,
+    entityType: 'branch',
+    entityId: branchId,
+    action: 'update_location',
+    oldData: { address: existing.address, lat: existing.lat, lng: existing.lng },
+    newData: patch,
+  });
   invalidateAdminBranchesCache();
   return mapBranch(data);
 }

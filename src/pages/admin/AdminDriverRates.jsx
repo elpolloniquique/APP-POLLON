@@ -5,12 +5,13 @@ import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { useAdminBranchFilter } from '../../hooks/useAdminBranchFilter';
 import { AdminBranchFilter } from '../../components/admin/AdminBranchFilter';
 import { RatesZoneMap } from '../../components/delivery/RatesZoneMap';
+import { BranchLocationBar } from '../../components/delivery/BranchLocationBar';
 import {
   getBranchDeliveryZones,
   saveBranchDeliveryZones,
   setTiersRuleActive,
 } from '../../services/pricingService';
-import { adminListAllBranches } from '../../services/branchService';
+import { adminListAllBranches, adminUpdateBranchLocation } from '../../services/branchService';
 import {
   DEFAULT_DELIVERY_ZONES,
   coverageKm,
@@ -23,7 +24,8 @@ import {
 import { money } from '../../utils/format';
 import { Loader } from '../../components/ui/Loader';
 import { DEFAULT_MAP_CENTER } from '../../utils/geo';
-
+import { useAuth } from '../../context/AuthContext';
+import { useBranch } from '../../context/BranchContext';
 function emptyZoneForm(zones) {
   const sorted = normalizeZones(zones);
   const lastTo = sorted.length ? sorted[sorted.length - 1].to_km : 0;
@@ -158,6 +160,10 @@ function ZoneEditorModal({ open, initial, onClose, onSave }) {
 }
 
 export function AdminDriverRates() {
+  const { profile } = useAuth();
+  const { refreshBranches } = useBranch();
+  const auditUser = { id: profile?.id, email: profile?.email };
+
   const {
     selectedBranchId,
     setSelectedBranchId,
@@ -181,7 +187,9 @@ export function AdminDriverRates() {
   const [highlightId, setHighlightId] = useState(null);
   const [dirty, setDirty] = useState(false);
   const [saveOk, setSaveOk] = useState('');
-
+  const [locEditing, setLocEditing] = useState(false);
+  const [locSaving, setLocSaving] = useState(false);
+  const [locDraft, setLocDraft] = useState(null);
   const chainZones = useCallback((list) => {
     const sorted = normalizeZones(list);
     return sorted.map((item, i) => ({
@@ -197,11 +205,64 @@ export function AdminDriverRates() {
   }, [allBranches, filterBranches, filterBranch]);
 
   const storeCenter = useMemo(() => {
+    if (locEditing && locDraft?.lat != null && locDraft?.lng != null) {
+      return { lat: Number(locDraft.lat), lng: Number(locDraft.lng) };
+    }
     if (activeBranch?.lat != null && activeBranch?.lng != null) {
       return { lat: Number(activeBranch.lat), lng: Number(activeBranch.lng) };
     }
     return DEFAULT_MAP_CENTER;
-  }, [activeBranch]);
+  }, [activeBranch, locEditing, locDraft]);
+
+  useEffect(() => {
+    setLocEditing(false);
+    setLocDraft(null);
+  }, [activeBranch?.id]);
+
+  const startLocEdit = () => {
+    setLocDraft({
+      address: activeBranch?.address || '',
+      lat: activeBranch?.lat != null ? Number(activeBranch.lat) : storeCenter.lat,
+      lng: activeBranch?.lng != null ? Number(activeBranch.lng) : storeCenter.lng,
+    });
+    setLocEditing(true);
+    setSaveOk('');
+    setError('');
+  };
+
+  const cancelLocEdit = () => {
+    setLocEditing(false);
+    setLocDraft(null);
+  };
+
+  const saveLoc = async (draft) => {
+    const branchId = filterBranch || activeBranch?.id;
+    if (!branchId) {
+      setError('Selecciona una sucursal');
+      return;
+    }
+    setLocSaving(true);
+    setError('');
+    setSaveOk('');
+    try {
+      const updated = await adminUpdateBranchLocation({
+        branchId,
+        address: draft.address,
+        lat: draft.lat,
+        lng: draft.lng,
+        user: auditUser,
+      });
+      setAllBranches((prev) => prev.map((b) => (b.id === updated.id ? { ...b, ...updated } : b)));
+      setLocEditing(false);
+      setLocDraft(null);
+      setSaveOk('Ubicación de sucursal (Zona 00) actualizada. El mapa y las tarifas usan este punto.');
+      refreshBranches?.().catch(() => {});
+    } catch (e) {
+      setError(e.message || 'No se pudo guardar la ubicación');
+    } finally {
+      setLocSaving(false);
+    }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -337,7 +398,7 @@ export function AdminDriverRates() {
   }, [zones]);
 
   return (
-    <div className="admin-page flex h-[calc(100dvh-3.5rem)] flex-col">
+    <div className="admin-page rates-admin-page flex h-[calc(100dvh-3.5rem)] flex-col gap-2 !space-y-0">
       <AdminPageHeader
         title="Tarifas de Delivery"
         subtitle="Configura las tarifas por kilómetro o por zonas de entrega"
@@ -367,24 +428,47 @@ export function AdminDriverRates() {
         <Loader text="Cargando tarifas…" />
       ) : (
         <>
-          <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[1fr_340px]">
+          <BranchLocationBar
+            branch={activeBranch}
+            center={
+              activeBranch?.lat != null
+                ? { lat: Number(activeBranch.lat), lng: Number(activeBranch.lng) }
+                : null
+            }
+            editing={locEditing}
+            draft={locDraft}
+            onDraftChange={setLocDraft}
+            onStartEdit={startLocEdit}
+            onCancel={cancelLocEdit}
+            onSave={saveLoc}
+            saving={locSaving}
+          />
+
+          <div className="grid min-h-0 flex-1 gap-2 lg:grid-cols-[1fr_320px]">
             <RatesZoneMap
-              className="h-full min-h-[380px]"
+              className="h-full min-h-[420px]"
               center={storeCenter}
               zones={kmActive ? zones : []}
               storeLabel="EL POLLÓN"
               styleId={styleId}
               onStyleChange={setStyleId}
               highlightZoneId={highlightId}
+              editableCenter={locEditing}
+              onCenterChange={({ lat, lng }) => {
+                setLocDraft((prev) => ({
+                  address: prev?.address || activeBranch?.address || '',
+                  lat,
+                  lng,
+                }));
+              }}
             />
-
             <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto">
               {/* Tarifas por km */}
               <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
                 <div className="mb-3 flex items-start justify-between gap-2">
                   <div>
                     <h3 className="text-sm font-bold text-gray-900">Tarifas por Kilómetro</h3>
-                    <p className="text-[11px] text-gray-500">Desde el centro de la sucursal (0.0 km)</p>
+                    <p className="text-[11px] text-gray-500">Desde Zona 00 (ubicación de la sucursal)</p>
                   </div>
                   <button
                     type="button"
@@ -485,78 +569,81 @@ export function AdminDriverRates() {
             </aside>
           </div>
 
-          {/* Footer resumen */}
-          <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {/* Footer resumen — compacto para dar más espacio al mapa */}
+          <div className="rates-footer shrink-0 rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm">
+            <div className="rates-footer__meta grid grid-cols-2 gap-x-3 gap-y-1 lg:grid-cols-4">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Centro de referencia</p>
-                <p className="mt-0.5 text-sm font-semibold text-gray-900">
+                <p className="text-[9px] font-bold uppercase tracking-wide text-gray-400">Centro</p>
+                <p className="truncate text-[12px] font-semibold leading-tight text-gray-900">
                   {activeBranch?.name || 'El Pollón'}
                   {activeBranch?.city ? ` — ${activeBranch.city}` : ''}
                 </p>
               </div>
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Última actualización</p>
-                <p className="mt-0.5 text-sm font-semibold text-gray-900">{updatedLabel}</p>
+                <p className="text-[9px] font-bold uppercase tracking-wide text-gray-400">Actualizado</p>
+                <p className="truncate text-[12px] font-semibold leading-tight text-gray-900">{updatedLabel}</p>
               </div>
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Total de zonas</p>
-                <p className="mt-0.5 text-sm font-semibold text-gray-900">
-                  {zones.length} zona{zones.length !== 1 ? 's' : ''} {kmActive ? 'activas' : '(inactivas)'}
+                <p className="text-[9px] font-bold uppercase tracking-wide text-gray-400">Zonas</p>
+                <p className="text-[12px] font-semibold leading-tight text-gray-900">
+                  {zones.length} {kmActive ? 'activas' : 'inactivas'}
                 </p>
               </div>
-              <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center justify-between gap-2">
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Cobertura total</p>
-                  <p className="mt-0.5 text-sm font-semibold text-gray-900">Hasta {maxKm || '—'} km</p>
+                  <p className="text-[9px] font-bold uppercase tracking-wide text-gray-400">Cobertura</p>
+                  <p className="text-[12px] font-semibold leading-tight text-gray-900">Hasta {maxKm || '—'} km</p>
                 </div>
                 <button
                   type="button"
                   onClick={resetDefaults}
-                  className="rounded-lg p-2 text-gray-400 hover:bg-gray-50 hover:text-gray-700"
+                  className="rounded-md p-1.5 text-gray-400 hover:bg-gray-50 hover:text-gray-700"
                   title="Restaurar zonas por defecto"
                 >
-                  <RefreshCw className={`h-4 w-4 ${saving ? 'animate-spin' : ''}`} />
+                  <RefreshCw className={`h-3.5 w-3.5 ${saving ? 'animate-spin' : ''}`} />
                 </button>
               </div>
             </div>
 
             {zones.length > 0 && (
-              <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rates-footer__zones mt-1.5 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
                 {zones.map((z) => (
                   <div
                     key={`sum-${z.id}`}
-                    className="rounded-xl border px-3 py-3"
+                    className="rates-zone-chip flex items-center gap-1.5 rounded-lg border px-2 py-1"
                     style={{ borderColor: `${z.color}55`, background: `${z.color}12` }}
                   >
-                    <div className="flex items-center gap-2">
-                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: z.color }} />
-                      <p className="text-xs font-bold text-gray-800">{z.name}</p>
-                    </div>
-                    <p className="mt-1 text-[11px] text-gray-600">{formatKmRange(z.from_km, z.to_km)}</p>
-                    <p className="mt-1 text-lg font-bold" style={{ color: z.color }}>{money(z.fee)}</p>
+                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: z.color }} />
+                    <span className="min-w-0 flex-1 truncate text-[11px] font-bold text-gray-800">{z.name}</span>
+                    <span className="shrink-0 text-[10px] text-gray-500">{formatKmRange(z.from_km, z.to_km)}</span>
+                    <span className="shrink-0 text-[12px] font-extrabold tabular-nums" style={{ color: z.color }}>{money(z.fee)}</span>
                   </div>
                 ))}
               </div>
             )}
 
             {dirty && (
-              <p className="mt-2 text-xs text-amber-700">
+              <p className="mt-1.5 text-[11px] text-amber-700">
                 Hay cambios sin guardar. Pulsa <strong>Actualizar y guardar</strong> para aplicarlos en el checkout.
               </p>
             )}
 
             {kmActive && zones.length > 0 && (
-              <div className="mt-3 rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-2.5">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500">
-                  Verificación de cotización (desde sucursal)
+              <div className="rates-footer__verify mt-1.5 rounded-lg border border-gray-100 bg-gray-50/90 px-2 py-1.5">
+                <p className="mb-1 text-[9px] font-bold uppercase tracking-wide text-gray-500">
+                  Verificación de cotización
                 </p>
-                <ul className="mt-1.5 space-y-1 text-[11px] text-gray-700">
+                <ul className="rates-verify-grid grid grid-cols-2 gap-1 sm:grid-cols-4">
                   {previewQuotes.map(({ km, fee, zone, outOfRange }) => (
-                    <li key={km} className="flex justify-between gap-2">
-                      <span>{km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`}</span>
-                      <span className="font-semibold">
-                        {outOfRange ? 'Fuera de cobertura' : `${zone?.name || 'Zona'} · ${money(fee)}`}
+                    <li
+                      key={km}
+                      className="flex items-center justify-between gap-1 rounded-md bg-white px-1.5 py-1 text-[10px] leading-none text-gray-700 ring-1 ring-gray-100"
+                    >
+                      <span className="font-medium text-gray-500">
+                        {km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`}
+                      </span>
+                      <span className="font-bold text-gray-900">
+                        {outOfRange ? 'Fuera' : `${zone?.name || 'Zona'} · ${money(fee)}`}
                       </span>
                     </li>
                   ))}
@@ -565,7 +652,7 @@ export function AdminDriverRates() {
             )}
 
             {!activeBranch?.lat && (
-              <p className="mt-2 text-xs text-amber-700">
+              <p className="mt-1.5 text-[11px] text-amber-700">
                 Esta sucursal no tiene coordenadas GPS. Configura lat/lng en Supursales o ejecuta el SQL de GPS para centrar el mapa correctamente.
               </p>
             )}
