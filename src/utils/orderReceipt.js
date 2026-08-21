@@ -4,7 +4,13 @@ import { wrapText } from './format';
 /** 80mm ≈ 302px — ancho ticket térmico */
 const THERMAL_MM = '80mm';
 const THERMAL_PX = 302;
-const WIN_WIDTH = 340;
+/**
+ * Ventana compacta para el ticket.
+ * Mín. ~420×560: el diálogo nativo de Chrome (Destino / Imprimir / Cancelar)
+ * se recorta si la popup es más estrecha o baja (p. ej. 340×480).
+ */
+const WIN_WIDTH = 420;
+const WIN_HEIGHT = 560;
 const RECEIPT_RULE = '----------------------------------------------';
 
 export function paymentLabel(method) {
@@ -550,7 +556,7 @@ function openCompactPrintWindow(html) {
   const top = Math.max(0, 40);
   const features = [
     `width=${WIN_WIDTH}`,
-    'height=480',
+    `height=${WIN_HEIGHT}`,
     `left=${left}`,
     `top=${top}`,
     'menubar=no',
@@ -576,13 +582,14 @@ function openCompactPrintWindow(html) {
       const contentH = Math.max(
         doc.body?.scrollHeight || 0,
         doc.documentElement?.scrollHeight || 0,
-        320,
+        WIN_HEIGHT - 40,
       );
-      const chrome = win.outerHeight - win.innerHeight;
-      const targetH = Math.min(contentH + chrome + 16, 720);
+      const chromePad = Math.max(0, (win.outerHeight || 0) - (win.innerHeight || 0));
+      // Altura mínima para que el pie del diálogo (Imprimir / Cancelar) no quede cortado
+      const targetH = Math.min(Math.max(contentH + chromePad + 24, WIN_HEIGHT), 720);
       win.resizeTo(WIN_WIDTH, targetH);
     } catch {
-      win.resizeTo(WIN_WIDTH, 480);
+      win.resizeTo(WIN_WIDTH, WIN_HEIGHT);
     }
   };
 
