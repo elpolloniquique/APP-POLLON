@@ -246,29 +246,29 @@ function buildCustomerHtml(customer) {
   const bullet = RECEIPT_BULLET;
   const addrLines = wrapText(customer.address || '-', 28)
     .split('\n')
-    .map((l) => `<div class="indent">${esc(l)}</div>`)
+    .map((l) => `<div class="val indent">${esc(l)}</div>`)
     .join('');
 
   const obsHtml = customer.comments?.trim()
     ? `<div class="field field--block">
-         <div class="field-head"><span class="bullet">${bullet}</span> <strong>Observaciones:</strong></div>
-         ${wrapText(customer.comments, 28).split('\n').map((l) => `<div class="indent">${esc(l)}</div>`).join('')}
+         <div class="field-head"><span class="bullet">${bullet}</span> <span class="lbl">Observaciones:</span></div>
+         ${wrapText(customer.comments, 28).split('\n').map((l) => `<div class="val indent">${esc(l)}</div>`).join('')}
        </div>`
     : '';
 
   return `
   <div class="field">
     <span class="bullet">${bullet}</span>
-    <strong class="field-label">Nombre:</strong>
-    <span class="field-value">${esc(customer.name || '-')}</span>
+    <span class="lbl">Nombre:</span>
+    <span class="val">${esc(customer.name || '-')}</span>
   </div>
   <div class="field">
     <span class="bullet">${bullet}</span>
-    <strong class="field-label">Teléfono:</strong>
-    <span class="field-value">${esc(customer.phone || '-')}</span>
+    <span class="lbl">Teléfono:</span>
+    <span class="val">${esc(customer.phone || '-')}</span>
   </div>
   <div class="field field--block">
-    <div class="field-head"><span class="bullet">${bullet}</span> <strong>Dirección:</strong></div>
+    <div class="field-head"><span class="bullet">${bullet}</span> <span class="lbl">Dirección:</span></div>
     ${addrLines}
   </div>
   ${obsHtml}`;
@@ -281,13 +281,13 @@ function buildItemsHtml(items) {
   return items.map((it) => {
     const qty = it.qty ?? 1;
     const extras = getItemExtraLines(it)
-      .map((line) => `<div class="indent item-sub">${esc(line)}</div>`)
+      .map((line) => `<div class="item-sub indent">${esc(line)}</div>`)
       .join('');
     return `
     <div class="item">
-      <div class="item-line"><span class="bullet">${bullet}</span> <strong>${qty}x ${esc(it.name)}</strong></div>
+      <div class="item-line"><span class="bullet">${bullet}</span> <span class="item-name">${qty}x ${esc(it.name)}</span></div>
       ${extras}
-      <div class="indent item-price"><strong>${formatMoneyPlain(it.total || 0)}</strong></div>
+      <div class="item-price indent">${formatMoneyPlain(it.total || 0)}</div>
     </div>`;
   }).join('');
 }
@@ -302,16 +302,16 @@ function buildFooterHtml(m) {
     : 'Delivery';
 
   const deliveryBlock = m.deliveryFee > 0
-    ? `<div class="money-row"><strong>Subtotal</strong><strong>${formatMoneyPlain(m.subtotal)}</strong></div>
-  <div class="money-row"><span>${esc(distLabel)}</span><span>${formatMoneyPlain(m.deliveryFee)}</span></div>
+    ? `<div class="money-row"><span class="money-lbl">Subtotal</span><span class="money-val">${formatMoneyPlain(m.subtotal)}</span></div>
+  <div class="money-row"><span class="money-lbl">${esc(distLabel)}</span><span class="money-val">${formatMoneyPlain(m.deliveryFee)}</span></div>
   ${ruleHtml()}`
     : '';
 
   return `
   ${ruleHtml()}
   ${deliveryBlock}
-  <div class="money-row money-row--total"><strong>TOTAL</strong><strong>${formatMoneyPlain(m.total)}</strong></div>
-  <div class="pay-line"><strong>Pago:</strong> ${esc(String(m.payment || '').toUpperCase())}</div>
+  <div class="money-row money-row--total"><span>TOTAL</span><span>${formatMoneyPlain(m.total)}</span></div>
+  <div class="pay-line"><span class="lbl">Pago:</span> <span class="val">${esc(String(m.payment || '').toUpperCase())}</span></div>
   ${deliveryNote}`;
 }
 
@@ -327,10 +327,7 @@ export function buildThermalReceiptHtml(order, branch) {
 <meta name="viewport" content="width=${THERMAL_PX}"/>
 <title>Pedido ${esc(m.ticket)}</title>
 <style>
-  @page {
-    size: ${THERMAL_MM} auto;
-    margin: 0;
-  }
+  @page { size: ${THERMAL_MM} auto; margin: 0; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html {
     width: ${THERMAL_MM};
@@ -349,42 +346,42 @@ export function buildThermalReceiptHtml(order, branch) {
     margin: 0 auto;
     padding: 0;
     overflow-x: hidden;
-    font-family: "Courier New", Courier, monospace;
-    font-size: 13px;
-    line-height: 1.38;
     background: #fff;
     color: #000;
-    font-weight: 700;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 12px;
+    line-height: 1.4;
     -webkit-font-smoothing: none;
     -moz-osx-font-smoothing: unset;
     font-smooth: never;
     text-rendering: geometricPrecision;
   }
-  .ticket {
-    width: 100%;
-    padding: 6px 7px 10px;
-  }
-  .ticket__feed-top {
-    height: 8mm;
-    min-height: 8mm;
-  }
-  .ticket__feed-bottom {
-    height: 18mm;
-    min-height: 18mm;
-  }
+  .ticket { width: 100%; padding: 6px 7px 10px; }
+  .ticket__feed-top { height: 8mm; min-height: 8mm; }
+  .ticket__feed-bottom { height: 18mm; min-height: 18mm; }
+
+  /* Título principal — sans condensado / impacto */
   .title {
-    font-weight: 700;
-    font-size: 14px;
+    font-family: Arial Black, "Arial Bold", Arial, Helvetica, sans-serif;
+    font-weight: 900;
+    font-size: 13px;
     text-align: center;
     text-transform: uppercase;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
     line-height: 1.2;
+    letter-spacing: 0.02em;
+  }
+
+  /* Meta / seguimiento — monoespaciado tipo ticket */
+  .track, .meta-row {
+    font-family: "Courier New", Courier, monospace;
+    font-weight: 700;
+    color: #000;
   }
   .track {
-    font-weight: 700;
-    font-size: 13px;
+    font-size: 12px;
     text-transform: uppercase;
-    margin-bottom: 4px;
+    margin-bottom: 5px;
     line-height: 1.25;
   }
   .meta-row {
@@ -392,120 +389,188 @@ export function buildThermalReceiptHtml(order, branch) {
     justify-content: space-between;
     align-items: baseline;
     gap: 4px;
-    font-size: 12px;
-    font-weight: 700;
-    margin-bottom: 2px;
+    font-size: 11px;
+    margin-bottom: 4px;
     white-space: nowrap;
   }
   .meta-row span { flex: 0 1 auto; }
+
+  /* Separadores con más aire */
   .hr {
     display: block;
     width: 100%;
     height: 0;
-    margin: 7px 0;
+    margin: 11px 0;
     border: 0;
     border-top: 2px dashed #000;
   }
+
+  /* Títulos de sección — sans bold distinto */
   .section-head {
-    font-weight: 700;
-    font-size: 13px;
+    font-family: Arial, Helvetica, "Segoe UI", sans-serif;
+    font-weight: 800;
+    font-size: 12px;
     text-transform: uppercase;
-    line-height: 1.2;
-    text-align: left;
+    letter-spacing: 0.06em;
+    line-height: 1.25;
+    text-align: center;
+    padding: 2px 0;
   }
-  .field {
+
+  /* —— DATOS DEL CLIENTE —— */
+  .sec-customer {
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    padding: 2px 0 4px;
+  }
+  .sec-customer .field {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
-    gap: 0 4px;
-    margin: 4px 0;
-    line-height: 1.35;
-    font-weight: 700;
-  }
-  .field--block {
-    display: block;
+    gap: 0 5px;
     margin: 5px 0;
+    line-height: 1.4;
   }
-  .field-head {
-    margin-bottom: 1px;
-    font-weight: 700;
-  }
-  .bullet {
+  .sec-customer .field--block { display: block; margin: 6px 0; }
+  .sec-customer .field-head { margin-bottom: 2px; }
+  .sec-customer .bullet {
     flex-shrink: 0;
+    font-family: Arial, sans-serif;
     font-weight: 700;
+    font-size: 11px;
   }
-  .field-label,
-  .field-value,
-  .indent,
-  .item-line,
-  .item-sub,
-  .item-price,
-  .item-empty,
-  .pay-line,
-  .note-line,
-  strong {
+  /* Etiquetas (Nombre:, Teléfono:) — semi-bold */
+  .sec-customer .lbl {
+    font-family: Arial, Helvetica, sans-serif;
     font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 0.01em;
   }
-  .field-value,
-  .indent {
+  /* Valores autocompletados — finos pero nítidos al 100% */
+  .sec-customer .val {
+    font-family: "Segoe UI", Calibri, Arial, Helvetica, sans-serif;
+    font-weight: 400;
+    font-size: 12.5px;
+    letter-spacing: 0.015em;
+    color: #000;
     word-break: break-word;
+    -webkit-font-smoothing: none;
+    font-smooth: never;
+    text-rendering: geometricPrecision;
   }
-  .indent {
+  .sec-customer .indent {
     display: block;
-    padding-left: 1.1em;
-    margin-top: 1px;
+    padding-left: 1.15em;
+    margin-top: 2px;
   }
-  .item {
-    margin: 7px 0 9px;
+
+  /* —— DETALLE DEL PEDIDO —— */
+  .sec-items {
+    font-family: "Courier New", Courier, monospace;
+    padding: 2px 0 4px;
   }
-  .item-line {
+  .sec-items .item { margin: 8px 0 10px; }
+  .sec-items .bullet {
+    font-family: Arial, sans-serif;
+    font-weight: 700;
+  }
+  .sec-items .item-name {
+    font-family: "Courier New", Courier, monospace;
+    font-weight: 700;
+    font-size: 12px;
     word-wrap: break-word;
     overflow-wrap: anywhere;
-    line-height: 1.35;
   }
-  .item-sub { line-height: 1.35; }
-  .item-price { margin-top: 2px; }
-  .item-empty { margin: 4px 0; }
+  .sec-items .item-sub {
+    font-family: "Courier New", Courier, monospace;
+    font-weight: 400;
+    font-size: 11.5px;
+    line-height: 1.35;
+    letter-spacing: 0.01em;
+    -webkit-font-smoothing: none;
+    font-smooth: never;
+  }
+  .sec-items .item-price {
+    font-family: "Courier New", Courier, monospace;
+    font-weight: 700;
+    font-size: 12px;
+    margin-top: 3px;
+  }
+  .sec-items .indent {
+    display: block;
+    padding-left: 1.15em;
+    margin-top: 1px;
+  }
+  .sec-items .item-empty {
+    font-family: "Courier New", Courier, monospace;
+    margin: 4px 0;
+  }
+
+  /* Totales */
+  .sec-totals {
+    font-family: Arial, Helvetica, sans-serif;
+    padding-top: 2px;
+  }
   .money-row {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
     gap: 8px;
-    margin: 3px 0;
-    font-size: 13px;
-    font-weight: 700;
-    line-height: 1.35;
-  }
-  .money-row--total {
-    font-size: 15px;
-    font-weight: 700;
-    margin: 5px 0 7px;
-  }
-  .pay-line {
-    font-size: 13px;
-    margin-top: 2px;
-    line-height: 1.35;
-  }
-  .note-line {
-    margin-top: 4px;
+    margin: 4px 0;
     font-size: 12px;
     line-height: 1.35;
   }
+  .money-lbl {
+    font-weight: 700;
+    font-family: Arial, Helvetica, sans-serif;
+  }
+  .money-val {
+    font-weight: 400;
+    font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+    letter-spacing: 0.02em;
+    -webkit-font-smoothing: none;
+    font-smooth: never;
+  }
+  .money-row--total {
+    font-family: Arial Black, Arial, Helvetica, sans-serif;
+    font-size: 14px;
+    font-weight: 900;
+    margin: 8px 0 8px;
+  }
+  .pay-line {
+    margin-top: 4px;
+    line-height: 1.4;
+  }
+  .pay-line .lbl {
+    font-family: Arial, Helvetica, sans-serif;
+    font-weight: 700;
+    font-size: 12px;
+  }
+  .pay-line .val {
+    font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+    font-weight: 400;
+    font-size: 12.5px;
+    letter-spacing: 0.02em;
+    -webkit-font-smoothing: none;
+    font-smooth: never;
+  }
+  .note-line {
+    margin-top: 6px;
+    font-size: 11px;
+    font-weight: 400;
+    font-family: "Segoe UI", Arial, sans-serif;
+  }
+
   @media screen {
     html { background: #ececec; }
     body { box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18); }
   }
   @media print {
-    @page {
-      size: ${THERMAL_MM} auto;
-      margin: 0;
-    }
+    @page { size: ${THERMAL_MM} auto; margin: 0; }
     html, body {
       width: ${THERMAL_MM} !important;
       max-width: ${THERMAL_MM} !important;
       min-width: ${THERMAL_MM} !important;
       height: auto !important;
-      min-height: 0 !important;
       margin: 0 !important;
       padding: 0 !important;
       background: #fff !important;
@@ -514,21 +579,20 @@ export function buildThermalReceiptHtml(order, branch) {
       -webkit-font-smoothing: none !important;
       font-smooth: never !important;
     }
-    .ticket {
-      padding: 8mm 5px 0 5px !important;
-    }
+    .ticket { padding: 8mm 5px 0 5px !important; }
     .hr {
       width: 100% !important;
+      margin: 11px 0 !important;
       border-top: 2px dashed #000 !important;
     }
-    .ticket__feed-top {
-      height: 10mm !important;
-      min-height: 10mm !important;
+    .val, .money-val, .item-sub, .pay-line .val {
+      -webkit-font-smoothing: none !important;
+      font-smooth: never !important;
+      font-weight: 400 !important;
+      color: #000 !important;
     }
-    .ticket__feed-bottom {
-      height: 22mm !important;
-      min-height: 22mm !important;
-    }
+    .ticket__feed-top { height: 10mm !important; min-height: 10mm !important; }
+    .ticket__feed-bottom { height: 22mm !important; min-height: 22mm !important; }
   }
 </style>
 </head>
@@ -547,14 +611,21 @@ export function buildThermalReceiptHtml(order, branch) {
   <div class="section-head">DATOS DEL CLIENTE</div>
   ${ruleHtml()}
 
+  <div class="sec-customer">
   ${buildCustomerHtml(customer)}
+  </div>
 
   ${ruleHtml()}
   <div class="section-head">DETALLE DEL PEDIDO</div>
   ${ruleHtml()}
 
+  <div class="sec-items">
   ${buildItemsHtml(items)}
+  </div>
+
+  <div class="sec-totals">
   ${buildFooterHtml(m)}
+  </div>
   <div class="ticket__feed-bottom" aria-hidden="true"></div>
 </div>
 <script>
