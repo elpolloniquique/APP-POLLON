@@ -239,7 +239,7 @@ function esc(str) {
 }
 
 function ruleHtml() {
-  return `<div class="hr" aria-hidden="true">${RECEIPT_RULE}</div>`;
+  return `<div class="hr" aria-hidden="true"></div>`;
 }
 
 function buildCustomerHtml(customer) {
@@ -315,7 +315,7 @@ function buildFooterHtml(m) {
   ${deliveryNote}`;
 }
 
-/** HTML ticket térmico 80mm — tipografía monoespaciada estilo POS */
+/** HTML ticket térmico 80mm — tipografía nítida + reglas a todo el ancho */
 export function buildThermalReceiptHtml(order, branch) {
   const m = getOrderReceiptMeta(order, branch);
   const { customer, items } = m;
@@ -349,16 +349,20 @@ export function buildThermalReceiptHtml(order, branch) {
     margin: 0 auto;
     padding: 0;
     overflow-x: hidden;
-    font-family: "Courier New", Courier, "Lucida Console", monospace;
-    font-size: 12px;
-    line-height: 1.35;
+    font-family: "Courier New", Courier, monospace;
+    font-size: 13px;
+    line-height: 1.38;
     background: #fff;
     color: #000;
-    font-weight: 400;
+    font-weight: 700;
+    -webkit-font-smoothing: none;
+    -moz-osx-font-smoothing: unset;
+    font-smooth: never;
+    text-rendering: geometricPrecision;
   }
   .ticket {
     width: 100%;
-    padding: 6px 8px 10px;
+    padding: 6px 7px 10px;
   }
   .ticket__feed-top {
     height: 8mm;
@@ -370,16 +374,15 @@ export function buildThermalReceiptHtml(order, branch) {
   }
   .title {
     font-weight: 700;
-    font-size: 13px;
+    font-size: 14px;
     text-align: center;
     text-transform: uppercase;
     margin-bottom: 8px;
     line-height: 1.2;
-    letter-spacing: 0;
   }
   .track {
     font-weight: 700;
-    font-size: 12px;
+    font-size: 13px;
     text-transform: uppercase;
     margin-bottom: 4px;
     line-height: 1.25;
@@ -389,25 +392,23 @@ export function buildThermalReceiptHtml(order, branch) {
     justify-content: space-between;
     align-items: baseline;
     gap: 4px;
-    font-size: 11px;
+    font-size: 12px;
+    font-weight: 700;
     margin-bottom: 2px;
     white-space: nowrap;
   }
   .meta-row span { flex: 0 1 auto; }
   .hr {
-    margin: 6px 0;
-    font-size: 11px;
-    line-height: 1;
-    letter-spacing: -0.5px;
-    white-space: nowrap;
-    overflow: hidden;
-    color: #000;
-    user-select: none;
-    text-align: center;
+    display: block;
+    width: 100%;
+    height: 0;
+    margin: 7px 0;
+    border: 0;
+    border-top: 2px dashed #000;
   }
   .section-head {
     font-weight: 700;
-    font-size: 12px;
+    font-size: 13px;
     text-transform: uppercase;
     line-height: 1.2;
     text-align: left;
@@ -417,74 +418,78 @@ export function buildThermalReceiptHtml(order, branch) {
     flex-wrap: wrap;
     align-items: baseline;
     gap: 0 4px;
-    margin: 3px 0;
-    line-height: 1.3;
+    margin: 4px 0;
+    line-height: 1.35;
+    font-weight: 700;
   }
   .field--block {
     display: block;
-    margin: 4px 0;
+    margin: 5px 0;
   }
   .field-head {
     margin-bottom: 1px;
+    font-weight: 700;
   }
   .bullet {
     flex-shrink: 0;
     font-weight: 700;
   }
-  .field-label {
+  .field-label,
+  .field-value,
+  .indent,
+  .item-line,
+  .item-sub,
+  .item-price,
+  .item-empty,
+  .pay-line,
+  .note-line,
+  strong {
     font-weight: 700;
   }
-  .field-value {
-    font-weight: 400;
+  .field-value,
+  .indent {
     word-break: break-word;
   }
   .indent {
     display: block;
     padding-left: 1.1em;
     margin-top: 1px;
-    font-weight: 400;
-    word-break: break-word;
   }
   .item {
-    margin: 6px 0 8px;
+    margin: 7px 0 9px;
   }
   .item-line {
     word-wrap: break-word;
     overflow-wrap: anywhere;
-    line-height: 1.3;
+    line-height: 1.35;
   }
-  .item-sub {
-    line-height: 1.3;
-  }
-  .item-price {
-    margin-top: 2px;
-  }
-  .item-empty {
-    margin: 4px 0;
-  }
+  .item-sub { line-height: 1.35; }
+  .item-price { margin-top: 2px; }
+  .item-empty { margin: 4px 0; }
   .money-row {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
     gap: 8px;
-    margin: 2px 0;
-    font-size: 12px;
-    line-height: 1.3;
+    margin: 3px 0;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.35;
   }
   .money-row--total {
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 700;
-    margin: 4px 0 6px;
+    margin: 5px 0 7px;
   }
   .pay-line {
-    font-size: 12px;
+    font-size: 13px;
     margin-top: 2px;
-    line-height: 1.3;
+    line-height: 1.35;
   }
   .note-line {
     margin-top: 4px;
-    font-size: 11px;
-    line-height: 1.3;
+    font-size: 12px;
+    line-height: 1.35;
   }
   @media screen {
     html { background: #ececec; }
@@ -506,9 +511,15 @@ export function buildThermalReceiptHtml(order, branch) {
       background: #fff !important;
       color: #000 !important;
       box-shadow: none !important;
+      -webkit-font-smoothing: none !important;
+      font-smooth: never !important;
     }
     .ticket {
-      padding: 8mm 6px 0 6px !important;
+      padding: 8mm 5px 0 5px !important;
+    }
+    .hr {
+      width: 100% !important;
+      border-top: 2px dashed #000 !important;
     }
     .ticket__feed-top {
       height: 10mm !important;
