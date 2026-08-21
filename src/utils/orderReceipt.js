@@ -527,6 +527,11 @@ export function buildThermalReceiptHtml(order, branch) {
   ${buildFooterHtml(m)}
   <div class="ticket__feed-bottom" aria-hidden="true"></div>
 </div>
+<script>
+  window.addEventListener('afterprint', function () {
+    setTimeout(function () { try { window.close(); } catch (e) {} }, 150);
+  });
+</script>
 </body>
 </html>`;
 }
@@ -576,6 +581,22 @@ function openCompactPrintWindow(html) {
 
   printWinRef = win;
 
+  const closePrintWindow = () => {
+    try {
+      URL.revokeObjectURL(url);
+    } catch {
+      /* ignore */
+    }
+    setTimeout(() => {
+      try {
+        if (win && !win.closed) win.close();
+      } catch {
+        /* ignore */
+      }
+      if (printWinRef === win) printWinRef = null;
+    }, 150);
+  };
+
   const fitWindowToTicket = () => {
     try {
       const doc = win.document;
@@ -593,16 +614,28 @@ function openCompactPrintWindow(html) {
     }
   };
 
+  let printed = false;
   const runPrint = () => {
+    if (printed || win.closed) return;
+    printed = true;
     fitWindowToTicket();
+
+    try {
+      win.addEventListener('afterprint', closePrintWindow);
+      win.onafterprint = closePrintWindow;
+    } catch {
+      /* ignore */
+    }
+
     setTimeout(() => {
+      if (win.closed) return;
       try {
         win.focus();
         win.print();
       } catch (e) {
         console.warn('[Pollón] print:', e);
+        closePrintWindow();
       }
-      URL.revokeObjectURL(url);
     }, 450);
   };
 
