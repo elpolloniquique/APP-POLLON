@@ -382,9 +382,10 @@ export function buildThermalReceiptHtml(order, branch) {
     font-weight: 400;
     text-rendering: geometricPrecision;
   }
-  .ticket { width: 100%; padding: 6px 8px 12px; }
+  .ticket { width: 100%; padding: 6px 8px 2px; }
   .feed-top { height: 8mm; }
-  .feed-bot { height: 18mm; }
+  /* Margen mínimo antes del corte térmico (evita papel en blanco excesivo) */
+  .feed-bot { height: 4mm; min-height: 4mm; }
 
   .title {
     font-family: Arial, Helvetica, sans-serif;
@@ -516,12 +517,13 @@ export function buildThermalReceiptHtml(order, branch) {
   .money--total {
     font-weight: 700;
     font-size: 15px;
-    margin: 8px 0 9px;
+    margin: 8px 0 4px;
   }
   .pago {
     font-family: Arial, Helvetica, sans-serif;
     font-size: 12.5px;
     color: #000;
+    margin-bottom: 0;
   }
   .pago-lbl {
     font-weight: 700;
@@ -565,7 +567,7 @@ export function buildThermalReceiptHtml(order, branch) {
       border-top: 2px dashed #000 !important;
     }
     .feed-top { height: 10mm !important; }
-    .feed-bot { height: 22mm !important; }
+    .feed-bot { height: 5mm !important; min-height: 5mm !important; }
   }
 </style>
 </head>
