@@ -377,7 +377,7 @@ export function buildThermalReceiptHtml(order, branch) {
     background: #fff;
     color: #000;
     font-family: Arial, Helvetica, sans-serif;
-    font-size: 12px;
+    font-size: 13px;
     line-height: 1.48;
     font-weight: 400;
     text-rendering: geometricPrecision;
@@ -389,7 +389,7 @@ export function buildThermalReceiptHtml(order, branch) {
   .title {
     font-family: Arial, Helvetica, sans-serif;
     font-weight: 700;
-    font-size: 13px;
+    font-size: 14px;
     text-align: center;
     text-transform: uppercase;
     letter-spacing: 0.02em;
@@ -401,7 +401,7 @@ export function buildThermalReceiptHtml(order, branch) {
   .track {
     font-family: Arial, Helvetica, sans-serif;
     font-weight: 700;
-    font-size: 11.5px;
+    font-size: 12.5px;
     text-align: left;
     text-transform: uppercase;
     line-height: 1.3;
@@ -414,7 +414,7 @@ export function buildThermalReceiptHtml(order, branch) {
     justify-content: space-between;
     gap: 4px;
     font-family: Arial, Helvetica, sans-serif;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 400;
     color: #000;
     margin: 0 0 2px;
@@ -433,7 +433,7 @@ export function buildThermalReceiptHtml(order, branch) {
   .section {
     font-family: Arial, Helvetica, sans-serif;
     font-weight: 700;
-    font-size: 12px;
+    font-size: 13px;
     text-align: left;
     text-transform: uppercase;
     letter-spacing: 0.03em;
@@ -450,7 +450,7 @@ export function buildThermalReceiptHtml(order, branch) {
   .b {
     flex: 0 0 auto;
     font-weight: 700;
-    font-size: 11px;
+    font-size: 12px;
     color: #000;
     line-height: 1.48;
   }
@@ -464,14 +464,14 @@ export function buildThermalReceiptHtml(order, branch) {
   .lbl {
     font-family: Arial, Helvetica, sans-serif;
     font-weight: 700;
-    font-size: 11.5px;
+    font-size: 12.5px;
     text-transform: uppercase;
     color: #000;
   }
   .val {
     font-family: Arial, Helvetica, sans-serif;
     font-weight: 400;
-    font-size: 11.5px;
+    font-size: 12.5px;
     text-transform: uppercase;
     color: #000;
     letter-spacing: 0.03em;
@@ -481,7 +481,7 @@ export function buildThermalReceiptHtml(order, branch) {
   .item-name {
     font-family: Arial, Helvetica, sans-serif;
     font-weight: 700;
-    font-size: 12px;
+    font-size: 13px;
     color: #000;
   }
   .extra {
@@ -489,7 +489,7 @@ export function buildThermalReceiptHtml(order, branch) {
     padding-left: 4px;
     font-family: Arial, Helvetica, sans-serif;
     font-weight: 400;
-    font-size: 11px;
+    font-size: 12px;
     color: #000;
   }
   .price {
@@ -497,7 +497,7 @@ export function buildThermalReceiptHtml(order, branch) {
     padding-left: 4px;
     font-family: Arial, Helvetica, sans-serif;
     font-weight: 700;
-    font-size: 12.5px;
+    font-size: 13.5px;
     color: #000;
   }
 
@@ -508,19 +508,19 @@ export function buildThermalReceiptHtml(order, branch) {
     gap: 8px;
     margin: 4px 0;
     font-family: Arial, Helvetica, sans-serif;
-    font-size: 12px;
+    font-size: 13px;
     color: #000;
   }
   .money-lbl { font-weight: 400; }
   .money-amt { font-weight: 700; }
   .money--total {
     font-weight: 700;
-    font-size: 14px;
+    font-size: 15px;
     margin: 8px 0 9px;
   }
   .pago {
     font-family: Arial, Helvetica, sans-serif;
-    font-size: 11.5px;
+    font-size: 12.5px;
     color: #000;
   }
   .pago-lbl {
@@ -530,7 +530,7 @@ export function buildThermalReceiptHtml(order, branch) {
   .pago-val { font-weight: 400; }
   .note {
     margin-top: 6px;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 400;
     color: #000;
   }
