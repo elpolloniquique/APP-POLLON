@@ -382,10 +382,11 @@ export function buildThermalReceiptHtml(order, branch) {
     font-weight: 400;
     text-rendering: geometricPrecision;
   }
-  .ticket { width: 100%; padding: 6px 8px 2px; }
+  .ticket {
+    width: 100%;
+    padding: 6px 8px 15mm;
+  }
   .feed-top { height: 8mm; }
-  /* Margen mínimo antes del corte térmico (evita papel en blanco excesivo) */
-  .feed-bot { height: 4mm; min-height: 4mm; }
 
   .title {
     font-family: Arial, Helvetica, sans-serif;
@@ -547,11 +548,15 @@ export function buildThermalReceiptHtml(order, branch) {
       width: ${THERMAL_MM} !important;
       max-width: ${THERMAL_MM} !important;
       min-width: ${THERMAL_MM} !important;
+      height: auto !important;
+      min-height: 0 !important;
+      max-height: none !important;
       margin: 0 !important;
       padding: 0 !important;
       background: #fff !important;
       color: #000 !important;
       box-shadow: none !important;
+      overflow: hidden !important;
       -webkit-font-smoothing: none !important;
       font-smooth: never !important;
     }
@@ -560,14 +565,17 @@ export function buildThermalReceiptHtml(order, branch) {
       font-smooth: never !important;
       color: #000 !important;
     }
-    .ticket { padding: 8mm 6px 0 !important; }
+    .ticket {
+      padding: 8mm 6px 15mm !important;
+      margin: 0 !important;
+    }
     .hr {
       width: 100% !important;
       margin: 10px 0 !important;
       border-top: 2px dashed #000 !important;
     }
     .feed-top { height: 10mm !important; }
-    .feed-bot { height: 5mm !important; min-height: 5mm !important; }
+    .feed-bot { display: none !important; height: 0 !important; min-height: 0 !important; }
   }
 </style>
 </head>
@@ -597,6 +605,16 @@ export function buildThermalReceiptHtml(order, branch) {
   <div class="feed-bot" aria-hidden="true"></div>
 </div>
 <script>
+  function clampTicketPrintHeight() {
+    var ticket = document.querySelector('.ticket');
+    if (!ticket) return;
+    var h = Math.ceil(ticket.getBoundingClientRect().height);
+    document.documentElement.style.height = h + 'px';
+    document.body.style.height = h + 'px';
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+  }
+  window.addEventListener('beforeprint', clampTicketPrintHeight);
   window.addEventListener('afterprint', function () {
     setTimeout(function () { try { window.close(); } catch (e) {} }, 150);
   });
