@@ -193,6 +193,12 @@ export function AddressAutocomplete({
     setGpsLoading(true);
     setGpsPhase('permission');
     setGpsAccuracy(null);
+
+    const branchFallback =
+      Number.isFinite(Number(biasLat)) && Number.isFinite(Number(biasLng))
+        ? { lat: Number(biasLat), lng: Number(biasLng) }
+        : null;
+
     try {
       const pos = await locateWithPrecisePermission({
         onProgress: (p) => {
@@ -209,8 +215,19 @@ export function AddressAutocomplete({
       setGpsAccuracy(pos.coords.accuracy ?? null);
       setMapPickerCenter({ lat, lng });
       setMapPickerOpen(true);
+      setGpsError('');
     } catch (err) {
-      setGpsError(gpsErrorMessage(err));
+      // iPhone/Safari: si el GPS está bloqueado, igual abrimos el mapa
+      // centrado en la sucursal para que el cliente marque su puerta a mano.
+      if (branchFallback) {
+        setMapPickerCenter(branchFallback);
+        setMapPickerOpen(true);
+        setGpsError(
+          `${gpsErrorMessage(err)} Puedes mover el mapa y confirmar con Listo.`,
+        );
+      } else {
+        setGpsError(gpsErrorMessage(err));
+      }
     } finally {
       setGpsLoading(false);
       setGpsPhase('');
@@ -220,6 +237,7 @@ export function AddressAutocomplete({
 
   const handleMapConfirm = (item) => {
     if (!item) return;
+    setGpsError('');
     handleSelect({
       ...item,
       source: 'gps',
@@ -308,10 +326,10 @@ export function AddressAutocomplete({
           Ubicación precisa
         </h3>
         <p className="mt-2 text-center text-[13px] leading-snug text-gray-600">
-          Para abrir el mapa en tu zona exacta y guardar tu dirección completa necesitamos el GPS preciso de tu teléfono, no una ubicación aproximada.
+          Para abrir el mapa cerca de ti necesitamos el GPS del teléfono. En iPhone elige <span className="font-semibold text-gray-700">Permitir</span> (ubicación precisa si aparece).
         </p>
         <p className="mt-2 text-center text-[12px] leading-snug text-gray-500">
-          En el aviso del celular elige <span className="font-semibold text-gray-700">Permitir</span> y, si aparece, <span className="font-semibold text-gray-700">Ubicación precisa</span>.
+          Si Safari bloqueó la ubicación antes, puedes abrir el mapa igual y marcar tu puerta a mano.
         </p>
         <div className="mt-4 grid grid-cols-2 gap-2">
           <button
