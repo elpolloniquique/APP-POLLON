@@ -37,6 +37,7 @@ function rowToOrder(row) {
       address: row.cliente_direccion,
       addressLat: row.cliente_lat ?? datos.customer?.addressLat ?? null,
       addressLng: row.cliente_lng ?? datos.customer?.addressLng ?? null,
+      reference: datos.customer?.reference || '',
       comments: row.observaciones,
     },
     items: datos.items || [],
@@ -72,12 +73,17 @@ function orderToRow(order) {
   const cust = order.customer || {};
   const phoneE164 = normalizeChilePhone(cust.phone) || String(cust.phone || '').trim();
   const codigo = order.codigo_pedido || order.ticketNumber || String(order.id).slice(-6);
+  const ref = String(cust.reference || '').trim();
+  const address = String(cust.address || '').trim();
+  const addressWithRef = ref
+    ? (address ? `${address} | Ref: ${ref}` : `Ref: ${ref}`)
+    : address;
   return sanitize({
     id: order.id,
     codigo_pedido: String(codigo).padStart(6, '0'),
     cliente_nombre: cust.name || '',
     cliente_telefono: phoneE164,
-    cliente_direccion: cust.address || '',
+    cliente_direccion: addressWithRef,
     cliente_lat: cust.addressLat ?? null,
     cliente_lng: cust.addressLng ?? null,
     tipo_entrega: order.orderType || 'delivery',

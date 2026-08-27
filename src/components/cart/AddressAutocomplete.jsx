@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { MapPin, Loader2, X, Crosshair, LocateFixed } from 'lucide-react';
+import { MapPin, Loader2, X, Crosshair, LocateFixed, ChevronRight } from 'lucide-react';
 import {
   searchAddressesProgressive,
   parseAddressQuery,
@@ -16,8 +16,9 @@ import {
 import { GpsMapPickerModal } from './GpsMapPickerModal';
 
 /**
- * Autocompletado de dirección preciso (calle + número + CP + coords).
- * GPS: rellena la dirección exacta del cliente para cotizar delivery.
+ * Dirección de entrega.
+ * - mode="map": botón que abre mapa GPS (checkout cliente).
+ * - mode="search": autocompletado por texto (admin / ubicación sucursal).
  */
 export function AddressAutocomplete({
   value,
@@ -30,6 +31,7 @@ export function AddressAutocomplete({
   biasLng,
   branchHouseNumber = null,
   branchAddress = '',
+  mode = 'map',
 }) {
   const [query, setQuery] = useState(value || '');
   const [suggestions, setSuggestions] = useState([]);
@@ -60,7 +62,10 @@ export function AddressAutocomplete({
       setFromGps(false);
       setSuggestions([]);
       setOpen(false);
+      return;
     }
+    setQuery(value);
+    setSelected(true);
   }, [value]);
 
   const search = useCallback((q) => {
@@ -137,25 +142,30 @@ export function AddressAutocomplete({
   };
 
   const handleSelect = (item) => {
-    if (parsed.houseNumber && !item?.houseNumber) return;
+    if (!item) return;
+    const parsed = parseAddressQuery(query);
+    if (mode === 'search' && parsed.houseNumber && !item?.houseNumber) return;
     const finalItem = snapAddressCoordsForBranch(item, {
       lat: biasLat,
       lng: biasLng,
       address: branchAddress || (branchHouseNumber ? `${item.road || ''} ${branchHouseNumber}` : ''),
       city: cityBias,
     });
-    setQuery(finalItem.shortLabel);
+    const label = finalItem.shortLabel || finalItem.label || '';
+    setQuery(label);
     setSelected(true);
     setSelectedPrecision(finalItem.precision);
-    setFromGps(finalItem.source === 'gps');
+    setFromGps(finalItem.source === 'gps' || mode === 'map');
     setOpen(false);
     setSuggestions([]);
     setGpsError('');
-    onChange?.(finalItem.shortLabel, finalItem);
+    onChange?.(label, finalItem);
     onSelect?.(finalItem);
   };
 
-  const handleClear = () => {
+  const handleClear = (e) => {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
     setQuery('');
     setSelected(false);
     setSelectedPrecision(null);
@@ -165,7 +175,7 @@ export function AddressAutocomplete({
     setGpsError('');
     onChange?.('', null);
     onSelect?.(null);
-    inputRef.current?.focus();
+    if (mode === 'search') inputRef.current?.focus();
   };
 
   const handleUseGps = () => {
@@ -235,12 +245,13 @@ export function AddressAutocomplete({
   };
 
   useEffect(() => {
+    if (mode !== 'search') return undefined;
     const handler = (e) => {
       if (!containerRef.current?.contains(e.target)) setOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, []);
+  }, [mode]);
 
   useEffect(() => {
     if (activeIdx < 0 || !listRef.current) return;
@@ -278,6 +289,153 @@ export function AddressAutocomplete({
     );
   };
 
+  const permissionDialog = askGps && typeof document !== 'undefined' && createPortal(
+    <div
+      className="fixed inset-0 z-[120] flex items-end justify-center bg-black/55 p-3 sm:items-center"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="gps-perm-title"
+      onClick={() => setAskGps(false)}
+    >
+      <div
+        className="w-full max-w-sm rounded-[0.4rem] bg-white p-5 shadow-2xl"
+        onClick={(ev) => ev.stopPropagation()}
+      >
+        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-pollon-red">
+          <LocateFixed className="h-6 w-6" strokeWidth={2.3} />
+        </div>
+        <h3 id="gps-perm-title" className="text-center text-base font-extrabold text-pollon-black">
+          Ubicación precisa
+        </h3>
+        <p className="mt-2 text-center text-[13px] leading-snug text-gray-600">
+          Para abrir el mapa en tu zona exacta y guardar tu dirección completa necesitamos el GPS preciso de tu teléfono, no una ubicación aproximada.
+        </p>
+        <p className="mt-2 text-center text-[12px] leading-snug text-gray-500">
+          En el aviso del celular elige <span className="font-semibold text-gray-700">Permitir</span> y, si aparece, <span className="font-semibold text-gray-700">Ubicación precisa</span>.
+        </p>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => setAskGps(false)}
+            className="rounded-[0.32rem] border border-gray-200 px-3 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={handleAllowPreciseGps}
+            className="rounded-[0.32rem] bg-pollon-red px-3 py-2.5 text-sm font-extrabold text-white hover:bg-red-700"
+          >
+            Permitir GPS
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+
+  if (mode === 'map') {
+    return (
+      <div ref={containerRef} className="relative">
+        {/* Campo oculto para validación HTML required */}
+        <input
+          type="text"
+          required={required}
+          value={query}
+          readOnly
+          tabIndex={-1}
+          aria-hidden
+          className="pointer-events-none absolute h-0 w-0 opacity-0"
+        />
+
+        <button
+          type="button"
+          onClick={handleUseGps}
+          disabled={disabled || gpsLoading}
+          className={`flex w-full min-h-[2.55rem] items-center gap-2.5 rounded-[0.32rem] border bg-white px-2.5 py-[0.45rem] text-left transition disabled:opacity-50 ${borderColor} ${
+            selected ? 'hover:border-emerald-700' : 'hover:border-pollon-red/50'
+          }`}
+          aria-label={selected ? 'Cambiar dirección en el mapa' : 'Seleccionar dirección en el mapa'}
+        >
+          <span
+            className={`flex h-8 w-8 flex-none items-center justify-center rounded-[0.28rem] ${
+              selected ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-pollon-red'
+            }`}
+          >
+            {gpsLoading
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : <MapPin className="h-4 w-4" strokeWidth={2.3} />}
+          </span>
+          <span className="min-w-0 flex-1">
+            {selected && query ? (
+              <>
+                <span className="block truncate text-sm font-semibold text-[#3b82f6]">{query}</span>
+                <span className="mt-0.5 block text-[11px] text-emerald-700">Toca para ajustar en el mapa</span>
+              </>
+            ) : (
+              <>
+                <span className="block text-sm font-semibold text-gray-700">Seleccionar en el mapa</span>
+                <span className="mt-0.5 block text-[11px] text-gray-500">GPS preciso · calle y número exactos</span>
+              </>
+            )}
+          </span>
+          {selected && query && !gpsLoading && (
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={handleClear}
+              onKeyDown={(ev) => {
+                if (ev.key === 'Enter' || ev.key === ' ') handleClear(ev);
+              }}
+              className="flex-none rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+              aria-label="Limpiar dirección"
+            >
+              <X className="h-4 w-4" />
+            </span>
+          )}
+          {!gpsLoading && (
+            <ChevronRight className={`h-4 w-4 flex-none ${selected ? 'text-emerald-600' : 'text-pollon-red'}`} />
+          )}
+        </button>
+
+        {gpsLoading && (
+          <p className="mt-1 px-0.5 text-[11px] leading-snug text-gray-600">
+            {gpsPhase === 'permission' && 'Permite la ubicación precisa en el aviso del teléfono…'}
+            {gpsPhase === 'reading' && (
+              gpsAccuracy != null
+                ? `Afinando GPS… precisión ${Math.round(gpsAccuracy)} m${gpsAccuracy <= 20 ? ' ✓' : ' (espera)'}`
+                : 'GPS activado — afinando ubicación…'
+            )}
+            {!gpsPhase && 'Abriendo mapa…'}
+          </p>
+        )}
+        {!gpsLoading && (
+          <p
+            className={`mt-1 flex items-start gap-1.5 px-0.5 text-[11px] leading-snug ${
+              gpsError ? 'text-red-600' : selected ? 'text-emerald-700' : 'text-gray-500'
+            }`}
+          >
+            {selected && <Crosshair className="mt-0.5 h-3 w-3 shrink-0" />}
+            <span>
+              {gpsError
+                || (selected
+                  ? 'Ubicación confirmada en el mapa'
+                  : 'Toca el campo para abrir el mapa y marcar tu punto exacto.')}
+            </span>
+          </p>
+        )}
+
+        <GpsMapPickerModal
+          open={mapPickerOpen}
+          initialCenter={mapPickerCenter}
+          onClose={() => setMapPickerOpen(false)}
+          onConfirm={handleMapConfirm}
+        />
+        {permissionDialog}
+      </div>
+    );
+  }
+
   return (
     <div ref={containerRef} className="relative">
       <div className={`flex min-h-[2.4rem] items-center gap-1.5 rounded-[0.32rem] border px-2.5 py-[0.38rem] transition ${borderColor} bg-white`}>
@@ -299,7 +457,7 @@ export function AddressAutocomplete({
           aria-expanded={open}
           aria-haspopup="listbox"
           role="combobox"
-          aria-label="Dirección de entrega"
+          aria-label="Dirección"
         />
         {(loading || gpsLoading) && <Loader2 className="h-4 w-4 animate-spin text-gray-400 flex-none" />}
         {query && !loading && !gpsLoading && (
@@ -331,7 +489,6 @@ export function AddressAutocomplete({
               ? `Afinando GPS… precisión ${Math.round(gpsAccuracy)} m${gpsAccuracy <= 20 ? ' ✓' : ' (espera)'}`
               : 'GPS activado — afinando ubicación…'
           )}
-          {gpsPhase === 'geocoding' && 'Abriendo mapa para confirmar tu punto exacto…'}
           {!gpsPhase && 'Obteniendo tu dirección exacta…'}
         </p>
       )}
@@ -352,51 +509,7 @@ export function AddressAutocomplete({
         onClose={() => setMapPickerOpen(false)}
         onConfirm={handleMapConfirm}
       />
-
-      {askGps && typeof document !== 'undefined' && createPortal(
-        <div
-          className="fixed inset-0 z-[120] flex items-end justify-center bg-black/55 p-3 sm:items-center"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="gps-perm-title"
-          onClick={() => setAskGps(false)}
-        >
-          <div
-            className="w-full max-w-sm rounded-[0.4rem] bg-white p-5 shadow-2xl"
-            onClick={(ev) => ev.stopPropagation()}
-          >
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-pollon-red">
-              <LocateFixed className="h-6 w-6" strokeWidth={2.3} />
-            </div>
-            <h3 id="gps-perm-title" className="text-center text-base font-extrabold text-pollon-black">
-              Ubicación precisa
-            </h3>
-            <p className="mt-2 text-center text-[13px] leading-snug text-gray-600">
-              Para abrir el mapa en tu zona exacta y guardar tu dirección completa necesitamos el GPS preciso de tu teléfono, no una ubicación aproximada.
-            </p>
-            <p className="mt-2 text-center text-[12px] leading-snug text-gray-500">
-              En el aviso del celular elige <span className="font-semibold text-gray-700">Permitir</span> y, si aparece, <span className="font-semibold text-gray-700">Ubicación precisa</span>.
-            </p>
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setAskGps(false)}
-                className="rounded-[0.32rem] border border-gray-200 px-3 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={handleAllowPreciseGps}
-                className="rounded-[0.32rem] bg-pollon-red px-3 py-2.5 text-sm font-extrabold text-white hover:bg-red-700"
-              >
-                Permitir GPS
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body,
-      )}
+      {permissionDialog}
 
       {open && suggestions.length > 0 && (
         <ul

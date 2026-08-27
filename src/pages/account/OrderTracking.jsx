@@ -304,7 +304,14 @@ export function OrderTracking() {
           {live?.customer?.address && (
             <p className="flex items-start gap-2 border-t border-gray-100 px-4 py-3 text-xs text-gray-600">
               <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              {live.customer.address}
+              <span>
+                {live.customer.address}
+                {live.customer.reference?.trim() ? (
+                  <span className="mt-1 block text-[11px] text-gray-500">
+                    Ref: {live.customer.reference}
+                  </span>
+                ) : null}
+              </span>
             </p>
           )}
         </div>

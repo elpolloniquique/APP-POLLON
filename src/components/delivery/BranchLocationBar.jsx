@@ -132,6 +132,7 @@ export function BranchLocationBar({
           {editing ? (
             <div className="space-y-1.5">
               <AddressAutocomplete
+                mode="search"
                 value={draft?.address || ''}
                 onChange={(v) => onDraftChange?.({ ...draft, address: v, lat: null, lng: null })}
                 onSelect={(hit) => {

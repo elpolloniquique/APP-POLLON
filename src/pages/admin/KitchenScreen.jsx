@@ -61,6 +61,11 @@ function KitchenOrderCard({ order, onView, onAdvance }) {
         )}
       </ul>
 
+      {order.customer?.reference?.trim() && (
+        <p className="kitchen-card__obs">
+          <strong>Ref:</strong> {order.customer.reference}
+        </p>
+      )}
       {order.customer?.comments?.trim() && (
         <p className="kitchen-card__obs">
           <strong>Obs:</strong> {order.customer.comments}

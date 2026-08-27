@@ -59,6 +59,7 @@ export function CheckoutModal() {
     address: '',
     addressLat: null,
     addressLng: null,
+    referencia: '',
     orderType: 'delivery',
     payment: 'efectivo',
     comments: '',
@@ -187,8 +188,9 @@ export function CheckoutModal() {
     if (!form.name.trim()) return 'Ingresa tu nombre';
     if (!normalizeChilePhone(form.phone)) return 'Ingresa un teléfono válido (ej. 9 2558 6256)';
     if (form.orderType === 'delivery') {
-      if (!form.address.trim()) return 'Ingresa tu dirección de entrega';
-      if (!form.addressLat || !form.addressLng) return 'Selecciona una dirección de la lista para calcular el delivery';
+      if (!form.address.trim()) return 'Selecciona tu dirección en el mapa';
+      if (!form.addressLat || !form.addressLng) return 'Confirma tu punto exacto en el mapa (botón Listo) para calcular el delivery';
+      if (!form.referencia.trim()) return 'Ingresa una referencia para ubicar tu dirección';
       if (branch?.lat == null || branch?.lng == null) return 'La sucursal no tiene ubicación GPS configurada';
       if (deliveryQuote?.loading) return 'Calculando costo de delivery…';
       if (deliveryQuote?.outOfRange) {
@@ -227,6 +229,7 @@ export function CheckoutModal() {
           address: form.orderType === 'delivery' ? form.address.trim() : branch.address,
           addressLat: form.orderType === 'delivery' ? form.addressLat : (branch?.lat ?? null),
           addressLng: form.orderType === 'delivery' ? form.addressLng : (branch?.lng ?? null),
+          reference: form.orderType === 'delivery' ? form.referencia.trim() : '',
           comments: form.comments.trim(),
         },
         items: [...items],
@@ -449,6 +452,7 @@ export function CheckoutModal() {
                   <AddressAutocomplete
                     value={form.address}
                     required
+                    mode="map"
                     cityBias={branch?.city || 'Iquique'}
                     biasLat={branch?.lat}
                     biasLng={branch?.lng}
@@ -477,6 +481,28 @@ export function CheckoutModal() {
                       }
                     }}
                   />
+                </div>
+              )}
+
+              {form.orderType === 'delivery' && (
+                <div className="checkout-field">
+                  <label htmlFor="checkout-referencia" className="checkout-label">
+                    Referencia
+                  </label>
+                  <input
+                    id="checkout-referencia"
+                    type="text"
+                    required
+                    placeholder="Vivar 1086, al frente de cruz verde en la esquina con O'Higgins"
+                    value={form.referencia}
+                    onChange={(e) => update('referencia', e.target.value)}
+                    onFocus={scrollToField}
+                    className="checkout-input"
+                    autoComplete="off"
+                  />
+                  <p className="checkout-label__hint">
+                    Indica un punto de referencia cercano (tienda, esquina, color de la casa) para que el repartidor te ubique rápido.
+                  </p>
                 </div>
               )}
 
@@ -557,7 +583,7 @@ export function CheckoutModal() {
                     </div>
                     {!form.addressLat && (
                       <p className="checkout-delivery-notice__body">
-                        Selecciona tu dirección exacta para calcular el delivery.
+                        Marca tu punto en el mapa (Listo) para calcular el delivery.
                       </p>
                     )}
                     {form.addressLat && deliveryQuote?.loading && (
@@ -594,7 +620,13 @@ export function CheckoutModal() {
                 disabled={
                   submitting
                   || !availableOrderTypes.length
-                  || (isDelivery && (!!deliveryQuote?.loading || !!deliveryQuote?.outOfRange || !(deliveryFee > 0) || !form.addressLat))
+                  || (isDelivery && (
+                    !!deliveryQuote?.loading
+                    || !!deliveryQuote?.outOfRange
+                    || !(deliveryFee > 0)
+                    || !form.addressLat
+                    || !form.referencia.trim()
+                  ))
                 }
                 className="checkout-submit"
               >

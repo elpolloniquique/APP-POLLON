@@ -165,22 +165,22 @@ export function GpsMapPickerModal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md overflow-hidden rounded-[1.1rem] bg-white shadow-[0_28px_80px_rgba(0,0,0,0.35)]"
+        className="w-full max-w-md overflow-hidden rounded-[0.4rem] bg-white shadow-[0_28px_80px_rgba(0,0,0,0.35)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-3 bg-[#0b0b0b] px-4 py-3.5 text-white">
+        <div className="flex items-start justify-between gap-3 bg-gradient-to-br from-[#ff8a1a] via-[#ff7a00] to-[#f97316] px-4 py-3.5 text-white shadow-[inset_0_-1px_0_rgba(0,0,0,0.08)]">
           <div className="min-w-0">
-            <h3 id="gps-map-picker-title" className="text-base font-extrabold tracking-[0.01em]">
+            <h3 id="gps-map-picker-title" className="text-base font-extrabold tracking-[0.01em] drop-shadow-sm">
               Selecciona tu ubicación exacta
             </h3>
-            <p className="mt-1 text-[12px] leading-snug text-white/75">
+            <p className="mt-1 text-[12px] leading-snug text-white/90">
               Mueve el mapa hasta dejar la aguja sobre tu puerta o entrada.
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full p-1 text-white/80 transition hover:bg-white/10 hover:text-white"
+            className="rounded-[0.28rem] p-1 text-white/90 transition hover:bg-white/15 hover:text-white"
             aria-label="Cerrar selector de mapa"
           >
             <X className="h-5 w-5" />
@@ -223,14 +223,14 @@ export function GpsMapPickerModal({
           </button>
         </div>
 
-        <div className="border-t border-slate-200 px-4 py-3">
-          <div className="rounded-[0.8rem] border border-emerald-200 bg-emerald-50 px-3 py-2.5">
+        <div className="border-t border-orange-100 px-4 py-3">
+          <div className="rounded-[0.32rem] border border-orange-200 bg-gradient-to-br from-[#fff7ed] to-[#ffedd5] px-3 py-2.5">
             <div className="flex items-start gap-2">
-              <div className="mt-0.5 rounded-full bg-emerald-100 p-1 text-emerald-700">
+              <div className="mt-0.5 rounded-[0.28rem] bg-orange-100 p-1 text-[#ea580c]">
                 <LocateFixed className="h-3.5 w-3.5" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-emerald-800">
+                <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#c2410c]">
                   Punto seleccionado
                 </p>
                 <p className="mt-0.5 text-sm font-semibold leading-snug text-slate-900">
@@ -248,7 +248,7 @@ export function GpsMapPickerModal({
           </div>
 
           {!canConfirm && !loadingAddress && (
-            <p className="mt-2 text-[11px] leading-snug text-amber-700">
+            <p className="mt-2 text-[11px] leading-snug text-amber-800">
               Aún no hay número de casa confirmado. Acerca más el mapa o mueve la aguja al punto exacto.
             </p>
           )}
@@ -257,7 +257,7 @@ export function GpsMapPickerModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-[0.8rem] border border-slate-200 px-3 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="rounded-[0.32rem] border border-slate-200 px-3 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
             >
               Cancelar
             </button>
@@ -265,7 +265,7 @@ export function GpsMapPickerModal({
               type="button"
               disabled={!canConfirm || loadingAddress}
               onClick={() => canConfirm && onConfirm?.({ ...draft, lat: center.lat, lng: center.lng, source: 'gps' })}
-              className="rounded-[0.8rem] bg-[#c6ff11] px-3 py-3 text-sm font-extrabold text-slate-900 shadow-sm transition hover:bg-[#b5ec10] disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-[0.32rem] bg-gradient-to-b from-[#ff9f3c] to-[#ff7a00] px-3 py-3 text-sm font-extrabold text-white shadow-[0_2px_8px_rgba(249,115,22,0.35)] transition hover:from-[#ffb04d] hover:to-[#ff8a1a] disabled:cursor-not-allowed disabled:opacity-50"
             >
               Listo
             </button>

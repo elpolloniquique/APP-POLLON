@@ -119,6 +119,12 @@ export function OrderDetailModal({ order, branch, onClose, onChangeEstado, onCan
                 <dt>Dirección</dt>
                 <dd>{m.customer.address || '—'}</dd>
               </div>
+              {m.customer.reference?.trim() && (
+                <div className="order-detail-modal__row order-detail-modal__row--stack">
+                  <dt>Referencia</dt>
+                  <dd>{m.customer.reference}</dd>
+                </div>
+              )}
               {m.customer.comments?.trim() && (
                 <div className="order-detail-modal__row order-detail-modal__row--stack">
                   <dt>Observaciones</dt>

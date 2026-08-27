@@ -139,6 +139,10 @@ function buildCustomerPlain(customer, bullet = RECEIPT_BULLET) {
   } else {
     lines.push('  -');
   }
+  if (customer.reference?.trim()) {
+    lines.push(`${bullet} Referencia:`);
+    wrapText(customer.reference, 30).split('\n').forEach((l) => lines.push(`  ${l}`));
+  }
   if (customer.comments?.trim()) {
     lines.push(`${bullet} Observaciones:`);
     wrapText(customer.comments, 30).split('\n').forEach((l) => lines.push(`  ${l}`));
@@ -255,7 +259,18 @@ function buildCustomerHtml(customer) {
   const name = esc(up(customer.name || '-'));
   const phone = esc(customer.phone || '-');
   const addr = esc(up(customer.address || '-'));
+  const ref = (customer.reference || '').trim();
   const obs = (customer.comments || '').trim();
+
+  const refBlock = ref
+    ? `<div class="row">
+    <span class="b">${bullet}</span>
+    <span class="row-body">
+      <span class="lbl">REFERENCIA:</span>
+      <span class="val"> ${esc(up(ref))}</span>
+    </span>
+  </div>`
+    : '';
 
   const obsBlock = obs
     ? `<div class="row">
@@ -280,6 +295,7 @@ function buildCustomerHtml(customer) {
     <span class="b">${bullet}</span>
     <span class="row-body"><span class="lbl">DIRECCIÓN:</span> <span class="val"> ${addr}</span></span>
   </div>
+  ${refBlock}
   ${obsBlock}`;
 }
 

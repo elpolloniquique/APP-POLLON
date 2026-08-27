@@ -203,6 +203,8 @@ export async function confirmDelivery(assignmentId) {
 
 export async function createJobFromLocalOrder(order) {
   if (!isSupabaseConfigured()) {
+    const ref = String(order.customer?.reference || '').trim();
+    const address = String(order.customer?.address || '').trim();
     return {
       id: `demo-${order.id}`,
       source_order_id: order.id,
@@ -210,7 +212,9 @@ export async function createJobFromLocalOrder(order) {
       status: 'ready_for_dispatch',
       customer_name: order.customer?.name || '',
       customer_phone: order.customer?.phone || '',
-      customer_address: order.customer?.address || '',
+      customer_address: ref
+        ? (address ? `${address} | Ref: ${ref}` : `Ref: ${ref}`)
+        : address,
       order_total: order.total || 0,
       delivery_fee: order.deliveryFee || 0,
       payment_method: order.metodo_pago || '',

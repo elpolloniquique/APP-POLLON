@@ -2360,11 +2360,11 @@
     display: block;
     margin-bottom: 0.26rem;
     font-family: var(--font-body, Inter, sans-serif);
-    font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
+    font-size: 0.7rem;
+    font-weight: 900;
+    letter-spacing: 0.07em;
     text-transform: uppercase;
-    color: #525252;
+    color: #171717;
     line-height: 1.2;
   }
   .checkout-label__opt {
@@ -2388,10 +2388,12 @@
     padding: 0.48rem 0.75rem;
     font-family: var(--font-body, Inter, sans-serif);
     font-size: 0.875rem;
-    color: #171717;
+    font-weight: 600;
+    color: #3b82f6;
   }
   .checkout-input::placeholder {
     color: #a3a3a3;
+    font-weight: 400;
   }
   .checkout-input:focus {
     outline: none;
