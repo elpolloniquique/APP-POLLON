@@ -161,7 +161,7 @@ export function InstallAppPrompt() {
 
         <div className="install-prompt__brand">
           <span className="install-prompt__logo" aria-hidden>
-            <img src="/icons/icon-192.png" alt="" width={36} height={36} />
+            <img src="/icons/icon-192.png" alt="" width={32} height={32} />
           </span>
           <div>
             <p className="install-prompt__eyebrow">App gratuita · {platformHint}</p>
