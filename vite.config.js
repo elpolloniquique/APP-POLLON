@@ -5,6 +5,14 @@ import { VitePWA } from 'vite-plugin-pwa';
 import { rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
+// Si el sistema tiene NODE_ENV=production, `vite` (dev) se comporta como prod
+// y la app puede quedar en blanco. El build/preview sí deben ser production.
+const isViteBuild = process.argv.includes('build');
+const isVitePreview = process.argv.includes('preview');
+if (!isViteBuild && !isVitePreview && process.env.NODE_ENV === 'production') {
+  process.env.NODE_ENV = 'development';
+}
+
 /** Evita meter el APK (~200MB) dentro del dist → Capacitor → APK (bucle de tamaño). */
 function stripApkFromDist() {
   return {

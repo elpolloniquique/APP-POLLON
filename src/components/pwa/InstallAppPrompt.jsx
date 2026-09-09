@@ -203,8 +203,8 @@ export function InstallAppPrompt() {
               onClick={handleInstall}
               disabled={installing}
             >
-              <Download className="h-4 w-4" aria-hidden />
-              {installing ? 'Instalando…' : 'Instalar aplicación'}
+              <Download className="h-3 w-3" aria-hidden />
+              {installing ? 'Instalando…' : 'Instalar'}
             </button>
           )}
           {mode === 'ios' && (

@@ -16,8 +16,24 @@ const isNativeCapacitor = (() => {
   }
 })();
 
+const isLocalHost = ['localhost', '127.0.0.1', '::1'].includes(window.location.hostname);
+const isViteDev = Boolean(import.meta.hot) || import.meta.env.MODE === 'development';
+
+function unregisterServiceWorkers() {
+  if (!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.getRegistrations?.()
+    .then((regs) => Promise.all(regs.map((r) => r.unregister())))
+    .catch(() => {});
+}
+
+// En localhost un SW viejo (de un preview/build) intercepta /src/*.jsx y deja la página en blanco.
+if (isLocalHost || isViteDev) {
+  unregisterServiceWorkers();
+}
+
 // El SW de la PWA rompe/cuelga el WebView Capacitor (permisos, caché vieja, ready infinito).
-if (import.meta.env.PROD && !isNativeCapacitor) {
+// Solo en build real publicado; nunca en `npm run dev`.
+if (import.meta.env.PROD && !isViteDev && !isNativeCapacitor && !isLocalHost) {
   registerSW({
     immediate: true,
     onRegisteredSW(_swUrl, registration) {
@@ -36,16 +52,21 @@ if (isNativeCapacitor) {
   import('@capacitor/splash-screen')
     .then(({ SplashScreen }) => SplashScreen.hide().catch(() => {}))
     .catch(() => {});
-  // Limpiar SW viejos si alguna build anterior los dejó registrados en el WebView
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistrations?.()
-      .then((regs) => Promise.all(regs.map((r) => r.unregister())))
-      .catch(() => {});
-  }
+  unregisterServiceWorkers();
 }
 
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+const rootEl = document.getElementById('root');
+if (!rootEl) {
+  throw new Error('No se encontró #root');
+}
+
+try {
+  createRoot(rootEl).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  );
+} catch (err) {
+  console.error('[El Pollón] Error al iniciar la app:', err);
+  rootEl.innerHTML = '<p style="padding:1.25rem;font-family:Inter,sans-serif;color:#111">No se pudo iniciar la app en local. Abre la consola del navegador (F12) y recarga con Ctrl+Shift+R.</p>';
+}
