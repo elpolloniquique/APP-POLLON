@@ -156,17 +156,17 @@ export function InstallAppPrompt() {
           onClick={handleDismiss}
           aria-label="Cerrar aviso de instalación"
         >
-          <X className="h-4 w-4" />
+          <X className="h-3.5 w-3.5" />
         </button>
 
         <div className="install-prompt__brand">
           <span className="install-prompt__logo" aria-hidden>
-            <img src="/icons/icon-192.png" alt="" width={48} height={48} />
+            <img src="/icons/icon-192.png" alt="" width={36} height={36} />
           </span>
           <div>
             <p className="install-prompt__eyebrow">App gratuita · {platformHint}</p>
             <h2 id="install-prompt-title" className="install-prompt__title">
-              Instalar App El Pollón
+              Instalar El Pollón
             </h2>
           </div>
         </div>
@@ -191,7 +191,7 @@ export function InstallAppPrompt() {
           </div>
         ) : (
           <p className="install-prompt__text">
-            Instala El Pollón en tu celular (ícono del pollito) para pedir más rápido y recibir avisos.
+            En tu celular, con el ícono del pollito, pides más rápido y recibes avisos.
           </p>
         )}
 
