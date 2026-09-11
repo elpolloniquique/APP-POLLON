@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
+import { Image, MapPin, Megaphone, Printer, Share2, Store, Truck, Wallet } from 'lucide-react';
 import { getSupabase, isSupabaseConfigured } from '../../services/supabaseClient';
 import { adminSaveBranch, adminListAllBranches } from '../../services/branchService';
+import { uploadProductImage } from '../../services/menuService';
 import { Button } from '../../components/ui/Button';
 import { useStaffBranch } from '../../hooks/useStaffBranch';
 import { useAuth } from '../../context/AuthContext';
@@ -13,16 +15,21 @@ import { ReservationScheduleEditor } from '../../components/admin/ReservationSch
 import { normalizeReservationSchedule, DEFAULT_RESERVATION_SLOT } from '../../utils/orderTypeConfig';
 import { DEFAULT_BRANCH_PAYMENT_METHODS, normalizePaymentMethods } from '../../utils/paymentMethods';
 import { PaymentMethodsEditor } from '../../components/admin/PaymentMethodsEditor';
+import { HeroBannerImageEditor } from '../../components/admin/HeroBannerImageEditor';
 import { emptySiteAlert, fetchSiteAlert, saveSiteAlert } from '../../services/siteAlertService';
 
 const INPUT = 'admin-config-input';
 const INPUT_MONO = 'admin-config-input admin-config-input--mono';
 
-function ConfigSection({ title, description, children }) {
+function ConfigSection({ index, icon: Icon, title, description, children }) {
   return (
     <section className="admin-config-section">
       <div className="admin-config-section__head">
-        <h3 className="admin-config-section__title">{title}</h3>
+        <div className="admin-config-section__kicker">
+          {index ? <span className="admin-config-section__num">{String(index).padStart(2, '0')}</span> : null}
+          {Icon ? <Icon className="admin-config-section__icon" strokeWidth={2.2} aria-hidden /> : null}
+          <h3 className="admin-config-section__title">{title}</h3>
+        </div>
         {description && <p className="admin-config-section__desc">{description}</p>}
       </div>
       {children}
@@ -79,7 +86,11 @@ export function AdminConfig() {
     thermal_printer_port: 9100,
     thermal_print_bridge_url: '',
     payment_methods: [...DEFAULT_BRANCH_PAYMENT_METHODS],
+    ciudad: '',
+    hero_image_url: '',
+    cover_branch_id: '',
   });
+  const [uploadingHero, setUploadingHero] = useState(false);
   const [siteAlert, setSiteAlert] = useState(emptySiteAlert);
   const [alertBranchId, setAlertBranchId] = useState('');
   const [alertBranches, setAlertBranches] = useState([]);
@@ -112,6 +123,9 @@ export function AdminConfig() {
         thermal_printer_port: branch.thermalPrinterPort || 9100,
         thermal_print_bridge_url: branch.thermalPrintBridgeUrl || '',
         payment_methods: normalizePaymentMethods(branch.paymentMethods),
+        ciudad: branch.city || '',
+        hero_image_url: branch.heroImageUrl || '',
+        cover_branch_id: branch.id || '',
       });
       return;
     }
@@ -135,6 +149,19 @@ export function AdminConfig() {
       })
       .catch(() => setAlertBranches([]));
   }, [isBranchScoped, branchId]);
+
+  useEffect(() => {
+    if (isBranchScoped) return;
+    if (!cfg.cover_branch_id && alertBranches[0]?.id) {
+      const first = alertBranches[0];
+      setCfg((c) => ({
+        ...c,
+        cover_branch_id: first.id,
+        ciudad: first.city || '',
+        hero_image_url: first.heroImageUrl || '',
+      }));
+    }
+  }, [isBranchScoped, alertBranches, cfg.cover_branch_id]);
 
   const alertTargetId = isBranchScoped ? branchId : alertBranchId;
 
@@ -177,6 +204,8 @@ export function AdminConfig() {
           thermalPrinterPort: Number(cfg.thermal_printer_port) || 9100,
           thermalPrintBridgeUrl: cfg.thermal_print_bridge_url,
           paymentMethods: normalizePaymentMethods(cfg.payment_methods),
+          city: cfg.ciudad,
+          heroImageUrl: cfg.hero_image_url,
         }, { id: profile?.id, email: profile?.email });
         saveBranchPrinterConfigLocal(branchId, {
           enabled: cfg.thermal_network_print_enabled,
@@ -195,16 +224,33 @@ export function AdminConfig() {
         aviso_activo: _avisoActivo,
         aviso_titulo: _avisoTitulo,
         aviso_mensaje: _avisoMensaje,
+        ciudad: _ciudad,
+        hero_image_url: _heroImageUrl,
+        cover_branch_id: _coverBranchId,
         ...storeCfg
       } = cfg;
       await sb.from('configuracion_tienda').upsert({ id: 1, ...storeCfg });
+
+      if (cfg.cover_branch_id) {
+        const cover = alertBranches.find((b) => b.id === cfg.cover_branch_id);
+        if (cover) {
+          await adminSaveBranch({
+            ...cover,
+            city: cfg.ciudad,
+            heroImageUrl: cfg.hero_image_url,
+          }, { id: profile?.id, email: profile?.email });
+          await refreshBranches();
+        }
+      }
       alert('Configuración global guardada');
     } catch (e) {
       const msg = e.message || 'Error al guardar';
       alert(
-        /payment_methods/i.test(msg)
-          ? 'Para guardar métodos de pago, ejecuta en Supabase el archivo supabase/add-branch-payment-methods.sql y vuelve a guardar.'
-          : msg,
+        /hero_image_url/i.test(msg)
+          ? 'Para guardar la foto del banner, ejecuta en Supabase el archivo supabase/add-branch-hero-image.sql y vuelve a guardar.'
+          : /payment_methods/i.test(msg)
+            ? 'Para guardar métodos de pago, ejecuta en Supabase el archivo supabase/add-branch-payment-methods.sql y vuelve a guardar.'
+            : msg,
       );
     } finally {
       setSaving(false);
@@ -246,6 +292,30 @@ export function AdminConfig() {
     );
   }
 
+  const isSuper = canManageAllBranches(role);
+  const showCover = isBranchScoped || isSuper;
+
+  const applyCoverBranch = (id) => {
+    const selected = alertBranches.find((b) => b.id === id);
+    setCfg((c) => ({
+      ...c,
+      cover_branch_id: id,
+      ciudad: selected?.city || '',
+      hero_image_url: selected?.heroImageUrl || '',
+    }));
+  };
+
+  const uploadHero = async (file) => {
+    const targetId = isBranchScoped ? branchId : cfg.cover_branch_id;
+    if (!targetId) throw new Error('Selecciona una sucursal antes de subir la foto');
+    setUploadingHero(true);
+    try {
+      return await uploadProductImage(file, targetId);
+    } finally {
+      setUploadingHero(false);
+    }
+  };
+
   const branchFields = [
     { key: 'nombre_tienda', label: 'Nombre del local', span: 2 },
     { key: 'telefono', label: 'Teléfono' },
@@ -272,7 +342,69 @@ export function AdminConfig() {
 
       <div className="admin-config-shell ring-1 ring-black/5">
         <div className="admin-config-scroll admin-scroll-panel">
+          {showCover && (
+            <ConfigSection
+              index={1}
+              icon={Image}
+              title="Portada del inicio"
+              description="Foto de fondo del banner y ciudad que se muestra junto al GPS. Al cambiar de sucursal, el cliente ve esta portada y el nombre de la ciudad."
+            >
+              <div className="admin-config-stack">
+                {!isBranchScoped && (
+                  <ConfigField
+                    label="Sucursal de esta portada"
+                    hint="Cada local tiene su propia foto y ciudad."
+                    span={2}
+                  >
+                    <select
+                      value={cfg.cover_branch_id}
+                      onChange={(e) => applyCoverBranch(e.target.value)}
+                      className={INPUT}
+                    >
+                      {alertBranches.length === 0 && <option value="">Cargando sucursales…</option>}
+                      {alertBranches.map((b) => (
+                        <option key={b.id} value={b.id}>{b.name}{b.city ? ` · ${b.city}` : ''}</option>
+                      ))}
+                    </select>
+                  </ConfigField>
+                )}
+                <div className="admin-config-grid">
+                  <ConfigField
+                    label="Ciudad en el banner"
+                    hint="Se muestra en grande junto al ícono GPS. Ej: Iquique, Arica, Alto Hospicio."
+                    span={2}
+                  >
+                    <div className="relative">
+                      <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
+                      <input
+                        value={cfg.ciudad}
+                        onChange={(e) => setCfg((c) => ({ ...c, ciudad: e.target.value }))}
+                        placeholder="Iquique"
+                        className={`${INPUT} pl-9`}
+                      />
+                    </div>
+                  </ConfigField>
+                </div>
+                <ConfigField
+                  label="Foto de fondo"
+                  hint="Pega un enlace o sube una imagen desde tu PC. Recomendado: 1600×700 o más, horizontal."
+                  span={2}
+                >
+                  <HeroBannerImageEditor
+                    imageUrl={cfg.hero_image_url}
+                    onChange={(url) => setCfg((c) => ({ ...c, hero_image_url: url }))}
+                    onUpload={uploadHero}
+                    onError={(msg) => alert(msg)}
+                    uploading={uploadingHero}
+                  />
+                </ConfigField>
+              </div>
+            </ConfigSection>
+          )}
+
           <ConfigSection
+            index={showCover ? 2 : 1}
+            icon={Megaphone}
             title="Aviso en pantalla"
             description="El aviso es por sucursal. Si lo activas en Iquique, solo aparece cuando el cliente elige esa sucursal. Si cambia a otra, desaparece."
           >
@@ -341,6 +473,8 @@ export function AdminConfig() {
           </ConfigSection>
 
           <ConfigSection
+            index={showCover ? 3 : 2}
+            icon={Store}
             title="Datos del local"
             description="Información que ven tus clientes en la tienda y en el checkout."
           >
@@ -373,6 +507,8 @@ export function AdminConfig() {
           </ConfigSection>
 
           <ConfigSection
+            index={showCover ? 4 : 3}
+            icon={Truck}
             title="Tipos de pedido"
             description="Activa o desactiva las opciones que aparecen al confirmar un pedido."
           >
@@ -461,6 +597,8 @@ export function AdminConfig() {
 
           {isBranchScoped && (
             <ConfigSection
+              index={5}
+              icon={Wallet}
               title="Métodos de pago"
               description="Define qué formas de pago ve el cliente en el checkout de este local. El cobro es siempre al recibir el pedido."
             >
@@ -473,6 +611,8 @@ export function AdminConfig() {
 
           {isBranchScoped && (
             <ConfigSection
+              index={6}
+              icon={Printer}
               title="Impresora WiFi"
               description="Impresión térmica por red. Ejecuta el puente en un PC del local: node scripts/local-print-bridge.mjs"
             >
@@ -529,6 +669,8 @@ export function AdminConfig() {
 
           {isBranchScoped && (
             <ConfigSection
+              index={7}
+              icon={Share2}
               title="Redes sociales"
               description="Enlaces visibles en el footer cuando el cliente elige tu sucursal."
             >

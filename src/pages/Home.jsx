@@ -53,8 +53,20 @@ const TESTIMONIALS = [
   { name: 'Ana Torres', text: 'Excelente atención por WhatsApp. El combo chaufa es mi favorito, 100% recomendado.', stars: 5 },
 ];
 
+const DEFAULT_HERO_IMAGE = '/img/oferton%20familiar.png';
+
 function imgSrc(path) {
   return resolveMediaUrl(path);
+}
+
+function heroCityLabel(branch) {
+  const city = (branch?.city || '').trim();
+  if (city) return city.toUpperCase();
+  const fromName = (branch?.name || '')
+    .replace(/^El Pollón\s*/i, '')
+    .split(/[—–-]/)[0]
+    .trim();
+  return (fromName || 'Elige sucursal').toUpperCase();
 }
 
 /** Imagen para círculos 「Explora nuestro menú」: foto de categoría (admin) o primer plato como respaldo. */
@@ -148,8 +160,9 @@ export function Home() {
       <main id="contenido-principal">
       <section className="relative min-h-[520px] overflow-hidden md:min-h-[580px]">
         <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: "url('/img/oferton%20familiar.png')" }}
+          key={branch?.id || 'hero'}
+          className="home-hero-bg"
+          style={{ backgroundImage: `url(${JSON.stringify(resolveMediaUrl(branch?.heroImageUrl, DEFAULT_HERO_IMAGE))})` }}
         />
         <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/70 to-black/30" />
         <div className="relative mx-auto flex max-w-[1400px] flex-col justify-center px-4 py-16 md:py-24">
@@ -160,9 +173,12 @@ export function Home() {
           <h1 className="max-w-3xl font-display text-5xl leading-[0.95] text-white md:text-7xl lg:text-8xl">
             EL SABOR QUE<br /><span className="text-pollon-gold">TE ENCANTA</span>
           </h1>
-          <p className="mt-4 max-w-xl text-base text-white/85 md:text-lg">
-            Pollo a la brasa peruano en Arica, Iquique y Alto Hospicio. Delivery rápido, menú online y pedidos por web en Pollería El Pollón.
-          </p>
+          <div key={`city-${branch?.id || 'none'}`} className="home-hero-city">
+            <span className="home-hero-city__icon" aria-hidden>
+              <MapPin className="home-hero-city__pin" strokeWidth={1.75} />
+            </span>
+            <p className="home-hero-city__name">{heroCityLabel(branch)}</p>
+          </div>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link
               to="/tienda"

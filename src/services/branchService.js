@@ -40,6 +40,7 @@ function mapBranch(row) {
     alertEnabled: row.alert_enabled === true,
     alertTitle: row.alert_title || 'Aviso importante',
     alertMessage: row.alert_message || '',
+    heroImageUrl: row.hero_image_url || '',
   };
 }
 
@@ -243,6 +244,7 @@ export async function adminSaveBranch(branch, user) {
     thermal_print_bridge_url: branch.thermalPrintBridgeUrl?.trim() || '',
     thermal_network_print_enabled: branch.thermalNetworkPrintEnabled === true,
     payment_methods: normalizePaymentMethods(branch.paymentMethods),
+    hero_image_url: (branch.heroImageUrl || '').trim(),
     ...(branch.lat != null && Number.isFinite(Number(branch.lat)) ? { lat: Number(branch.lat) } : {}),
     ...(branch.lng != null && Number.isFinite(Number(branch.lng)) ? { lng: Number(branch.lng) } : {}),
   };

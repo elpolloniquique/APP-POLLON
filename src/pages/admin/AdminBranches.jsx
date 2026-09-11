@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useBranch } from '../../context/BranchContext';
 import { adminListAllBranches, adminSaveBranch, adminDeleteBranch, adminSetBranchActive } from '../../services/branchService';
-import { isSupabaseConfigured } from '../../services/menuService';
+import { isSupabaseConfigured, uploadProductImage } from '../../services/menuService';
 import { useToast } from '../../hooks/useToast';
 import { Plus, Pencil, Trash2, Power, PowerOff } from 'lucide-react';
+import { HeroBannerImageEditor } from '../../components/admin/HeroBannerImageEditor';
 import { canManageAllBranches } from '../../services/authService';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
 import { AdminScrollPanel } from '../../components/admin/AdminScrollPanel';
@@ -31,16 +33,19 @@ const emptyBranch = () => ({
   instagramUrl: '',
   tiktokUrl: '',
   paymentMethods: [...DEFAULT_BRANCH_PAYMENT_METHODS],
+  heroImageUrl: '',
 });
 
 export function AdminBranches() {
   const { profile, can, role } = useAuth();
+  const { refreshBranches } = useBranch();
   const { show, Toast } = useToast();
   const [list, setList] = useState([]);
   const [modal, setModal] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [togglingId, setTogglingId] = useState(null);
   const [loadError, setLoadError] = useState('');
+  const [uploadingHero, setUploadingHero] = useState(false);
   const user = { id: profile?.id, email: profile?.email };
   const canView = can('branches');
   const canManage = canManageAllBranches(role);
@@ -66,13 +71,16 @@ export function AdminBranches() {
       }, user);
       show(modal.id ? 'Sucursal actualizada' : 'Sucursal creada al final de la lista');
       setModal(null);
+      await refreshBranches();
       load();
     } catch (err) {
       const msg = err.message || 'Error al guardar';
       show(
-        /payment_methods/i.test(msg)
-          ? 'Para guardar métodos de pago, ejecuta supabase/add-branch-payment-methods.sql en Supabase y vuelve a guardar.'
-          : msg.includes('branches') ? `${msg} — ¿Ejecutaste schema-multi-sucursal.sql?` : msg,
+        /hero_image_url/i.test(msg)
+          ? 'Para guardar la foto del banner, ejecuta supabase/add-branch-hero-image.sql en Supabase y vuelve a guardar.'
+          : /payment_methods/i.test(msg)
+            ? 'Para guardar métodos de pago, ejecuta supabase/add-branch-payment-methods.sql en Supabase y vuelve a guardar.'
+            : msg.includes('branches') ? `${msg} — ¿Ejecutaste schema-multi-sucursal.sql?` : msg,
       );
     }
   };
@@ -242,7 +250,7 @@ export function AdminBranches() {
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <input required value={modal.name} onChange={(e) => setModal({ ...modal, name: e.target.value })} placeholder="Nombre" className="col-span-2 rounded-lg border px-3 py-2" />
               <input value={modal.slug} onChange={(e) => setModal({ ...modal, slug: e.target.value })} placeholder="Slug (iquique-vivar)" className="rounded-lg border px-3 py-2" />
-              <input value={modal.city} onChange={(e) => setModal({ ...modal, city: e.target.value })} placeholder="Ciudad" className="rounded-lg border px-3 py-2" />
+              <input value={modal.city} onChange={(e) => setModal({ ...modal, city: e.target.value })} placeholder="Ciudad (Iquique, Arica…)" className="rounded-lg border px-3 py-2" />
               <input value={modal.address} onChange={(e) => setModal({ ...modal, address: e.target.value })} placeholder="Dirección" className="col-span-2 rounded-lg border px-3 py-2" />
               <input value={modal.phone} onChange={(e) => setModal({ ...modal, phone: e.target.value })} placeholder="Teléfono" className="rounded-lg border px-3 py-2" />
               <input value={modal.whatsapp} onChange={(e) => setModal({ ...modal, whatsapp: e.target.value })} placeholder="WhatsApp" className="rounded-lg border px-3 py-2" />
@@ -257,6 +265,24 @@ export function AdminBranches() {
                 </span>
               </label>
               <label className="flex items-center gap-2"><input type="checkbox" checked={modal.deliveryEnabled} onChange={(e) => setModal({ ...modal, deliveryEnabled: e.target.checked })} /> Delivery</label>
+            </div>
+            <div className="mt-4 space-y-2 border-t border-gray-100 pt-4">
+              <p className="text-sm font-bold text-gray-800">Portada del inicio</p>
+              <p className="text-xs text-gray-500">Foto de fondo del banner y ciudad junto al GPS. Cambia al elegir esta sucursal.</p>
+              <HeroBannerImageEditor
+                imageUrl={modal.heroImageUrl || ''}
+                onChange={(heroImageUrl) => setModal({ ...modal, heroImageUrl })}
+                onUpload={async (file) => {
+                  setUploadingHero(true);
+                  try {
+                    return await uploadProductImage(file, modal.id || 'general');
+                  } finally {
+                    setUploadingHero(false);
+                  }
+                }}
+                onError={(msg) => show(msg)}
+                uploading={uploadingHero}
+              />
             </div>
             <div className="mt-4 space-y-2 border-t border-gray-100 pt-4">
               <p className="text-sm font-bold text-gray-800">Métodos de pago de esta sucursal</p>
