@@ -351,19 +351,18 @@ export function SiteHeader({ onOpenCart, variant = 'full' }) {
         {/* ═══════════════ MÓVIL: barra principal (logo | sucursal | carrito+menú) ═══════════════ */}
         <div className="border-b border-gray-100 bg-white lg:hidden">
           <div className="flex items-stretch gap-1.5 px-2 py-2.5">
-            <Link to="/" className="flex shrink-0 items-center gap-2">
+            <Link to="/" className="header-brand header-brand--mobile flex shrink-0 items-center gap-1.5">
               <img
                 src={branch?.logoUrl || '/img/logo pollon.png'}
                 alt={branch?.name || 'El Pollón'}
-                className="h-12 w-12 object-contain sm:h-14 sm:w-14"
+                className="header-brand__logo"
+                width={72}
+                height={72}
+                decoding="async"
               />
-              <div className="min-w-0">
-                <p className="text-[0.95rem] font-extrabold uppercase leading-none tracking-[0.04em] text-pollon-red sm:text-base">
-                  El Pollón
-                </p>
-                <p className="mt-0.5 text-[0.58rem] font-bold uppercase leading-tight tracking-[0.06em] text-pollon-gold sm:text-[0.65rem]">
-                  Restaurante Pollería
-                </p>
+              <div className="header-brand__text min-w-0">
+                <p className="header-brand__title">El Pollón</p>
+                <p className="header-brand__subtitle">Restaurante Pollería</p>
               </div>
             </Link>
 
@@ -394,19 +393,18 @@ export function SiteHeader({ onOpenCart, variant = 'full' }) {
         {/* ═══════════════ PC: barra principal blanca ═══════════════ */}
         <div className="hidden border-b border-gray-100 bg-white lg:block">
           <div className="header-main-bar mx-auto flex max-w-[1400px] items-center px-4">
-            <Link to="/" className="header-main-bar__brand flex shrink-0 items-center gap-3">
+            <Link to="/" className="header-main-bar__brand header-brand flex shrink-0 items-center gap-3">
               <img
                 src={branch?.logoUrl || '/img/logo pollon.png'}
                 alt={branch?.name || 'El Pollón'}
-                className="header-main-bar__logo header-main-bar__logo--icon object-contain"
+                className="header-brand__logo header-brand__logo--lg"
+                width={88}
+                height={88}
+                decoding="async"
               />
-              <div>
-                <p className="header-main-bar__brand-title font-extrabold uppercase tracking-[0.04em] text-pollon-red">
-                  El Pollón
-                </p>
-                <p className="header-main-bar__brand-tagline font-bold uppercase tracking-[0.08em] text-pollon-gold">
-                  Restaurante Pollería
-                </p>
+              <div className="header-brand__text">
+                <p className="header-brand__title">El Pollón</p>
+                <p className="header-brand__subtitle">Restaurante Pollería</p>
               </div>
             </Link>
 
