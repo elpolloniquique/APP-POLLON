@@ -47,22 +47,30 @@ function formatSchedule(branch) {
   return 'Lun – Dom: 11:30 a.m. – 11:00 p.m.';
 }
 
-function branchShortName(branch) {
+/** Solo el local/ciudad: "Iquique", "Alto Hospicio" */
+function branchPlaceName(branch) {
   if (!branch?.name) return 'Seleccionar';
-  return branch.name
-    .replace(/^El Pollón\s*[—–-]?\s*/i, '')
-    .replace(/^Pollón\s*[—–-]?\s*/i, '')
-    .trim() || branch.city || 'Sucursal';
-}
-
-/** Etiqueta móvil: "Arica — Santa María" */
-function branchMobileLabel(branch) {
-  if (!branch?.name) return 'Seleccionar';
-  return branch.name
+  const place = branch.name
     .replace(/^El Pollón\s*/i, '')
     .replace(/^Pollón\s*/i, '')
     .trim()
-    .replace(/\s*[-–]\s*/g, ' — ');
+    .replace(/^[—–\-_]\s*/, '')
+    .trim()
+    .replace(/\s*[—–\-]\s*/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return place || branch.city || 'Sucursal';
+}
+
+/** PC: siempre "El Pollón _ Iquique" / "El Pollón _ Alto Hospicio" */
+function branchDesktopLabel(branch) {
+  if (!branch?.name) return 'Seleccionar';
+  return `El Pollón _ ${branchPlaceName(branch)}`;
+}
+
+/** Móvil (campo cerrado): solo el lugar por espacio */
+function branchMobileLabel(branch) {
+  return branchPlaceName(branch);
 }
 
 function isNavActive(item, location) {
@@ -81,7 +89,7 @@ function BranchDropdown({
   const isMobile = variant === 'mobile';
 
   return (
-    <div className={`relative ${isMobile ? 'w-full min-w-0' : 'max-w-[280px] xl:max-w-xs'}`}>
+    <div className={`relative ${isMobile ? 'w-full min-w-0' : 'max-w-[320px] xl:max-w-sm'}`}>
       {isMobile ? (
         <p className="mb-1 text-center text-[11px] font-bold uppercase tracking-wider text-pollon-red">
           Elige tu sucursal
@@ -133,7 +141,7 @@ function BranchDropdown({
                   branch?.id === b.id ? 'bg-red-50 font-bold text-pollon-red' : 'text-gray-800'
                 }`}
               >
-                {b.name}
+                {branchDesktopLabel(b)}
               </button>
             ))}
           </div>
@@ -258,7 +266,7 @@ export function SiteHeader({ onOpenCart, variant = 'full' }) {
     hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
   });
   const isOpen = branch ? isBranchOpenNow(branch) : false;
-  const branchLabelDesktop = branchShortName(branch);
+  const branchLabelDesktop = branchDesktopLabel(branch);
   const branchLabelMobile = branchMobileLabel(branch);
   const scheduleText = formatSchedule(branch);
   const phoneDisplay = branch?.phone || '+56 9 8692 5310';
