@@ -1,5 +1,8 @@
 import { getSupabase, isSupabaseConfigured } from './supabaseClient';
 
+/** Mínimo entre publicaciones GPS. El mapa ya refresca cada 8–10 s. */
+export const GPS_PUBLISH_INTERVAL_MS = 8000;
+
 const DEMO_LOCATIONS = [
   {
     driver_id: 'demo-drv-1',
@@ -353,7 +356,7 @@ export async function applyDispatchDefaultsToDrivers(branchId, {
 }
 
 /** Watch GPS. Si publishRef.current === false, solo actualiza UI local (no visible en admin). */
-export function startGpsWatch(onUpdate, { intervalMs = 8000, publishRef = null } = {}) {
+export function startGpsWatch(onUpdate, { intervalMs = GPS_PUBLISH_INTERVAL_MS, publishRef = null } = {}) {
   if (!navigator.geolocation) {
     onUpdate?.(null, new Error('Este dispositivo no tiene GPS / geolocalización'));
     return () => {};

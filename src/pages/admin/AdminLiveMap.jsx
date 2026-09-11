@@ -163,7 +163,7 @@ export function AdminLiveMap() {
     };
     safeLoad();
     const unsub = subscribeDispatch(() => debouncedLoad());
-    const t = setInterval(safeLoad, 10000);
+    const t = setInterval(safeLoad, 8000);
     return () => {
       cancelled = true;
       unsub();

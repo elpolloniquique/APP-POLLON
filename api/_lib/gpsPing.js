@@ -71,6 +71,10 @@ export async function handleGpsPing(req, res) {
     return res.status(400).json({ error: error.message });
   }
 
+  if (data?.skipped) {
+    return res.status(200).json({ ok: true, skipped: true });
+  }
+
   // Con al menos 1 moto con GPS vivo: reaviso ~cada 1 min (Hobby no permite cron minutales)
   try {
     await retryAndNotifyOffers(admin);

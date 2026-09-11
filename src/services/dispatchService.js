@@ -262,7 +262,6 @@ function ensureDispatchChannel() {
     .channel('ep-dispatch-live')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'ep_delivery_jobs' }, fanOut)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'ep_delivery_offers' }, fanOut)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'ep_driver_location_latest' }, fanOut)
     .subscribe((status) => {
       if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
         console.warn('[Pollón] dispatch realtime:', status);

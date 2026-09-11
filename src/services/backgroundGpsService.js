@@ -6,7 +6,7 @@
 import { Capacitor } from '@capacitor/core';
 import { Geolocation } from '@capacitor/geolocation';
 import { BackgroundGeolocation } from '@capgo/background-geolocation';
-import { upsertMyLocation, startGpsWatch } from './trackingService';
+import { GPS_PUBLISH_INTERVAL_MS, upsertMyLocation, startGpsWatch } from './trackingService';
 import { getSupabase, isSupabaseConfigured } from './supabaseClient';
 import { getDriverGpsPingUrl } from '../utils/driverNativeConstants';
 
@@ -89,13 +89,12 @@ function stopHeartbeat() {
 
 function startHeartbeat() {
   stopHeartbeat();
-  // ≤2s: si el FGS cae o el WebView despierta, el fix vuelve al servidor al instante
   heartbeatTimer = setInterval(() => {
     if (!nativeRunning) return;
-    getAndPublishCurrentFix({ timeoutMs: 3500 }).then((fix) => {
+    getAndPublishCurrentFix({ timeoutMs: 3500, force: false }).then((fix) => {
       if (fix) notifyGps(fix, null);
     }).catch(() => {});
-  }, 1000);
+  }, GPS_PUBLISH_INTERVAL_MS);
 }
 
 export function isNativeDriverApp() {
@@ -288,7 +287,7 @@ async function publishNativeFix(location, { force = false } = {}) {
   const lng = Number(location.longitude ?? location.lng);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
   const now = Date.now();
-  if (!force && lastPublishAt && now - lastPublishAt < 1000) return null;
+  if (!force && lastPublishAt && now - lastPublishAt < GPS_PUBLISH_INTERVAL_MS) return null;
   lastPublishAt = now;
   try {
     await upsertMyLocation({
@@ -306,7 +305,7 @@ async function publishNativeFix(location, { force = false } = {}) {
 }
 
 /** Primer punto GPS inmediato (sin esperar a moverse 18 m). Obligatorio para ofertas. */
-export async function getAndPublishCurrentFix({ timeoutMs = 12000 } = {}) {
+export async function getAndPublishCurrentFix({ timeoutMs = 12000, force = true } = {}) {
   try {
     const pos = await withTimeout(
       Geolocation.getCurrentPosition({
@@ -327,7 +326,7 @@ export async function getAndPublishCurrentFix({ timeoutMs = 12000 } = {}) {
       speed: pos.coords.speed,
       accuracy: pos.coords.accuracy,
     };
-    const published = await publishNativeFix(payload, { force: true });
+    const published = await publishNativeFix(payload, { force });
     return published ? { lat: payload.lat, lng: payload.lng, accuracy: payload.accuracy } : null;
   } catch (err) {
     console.warn('[Pollón] getCurrentPosition:', err?.message || err);
@@ -352,7 +351,7 @@ export async function startDriverBackgroundGps({ forceRestart = false } = {}) {
       (pos, err) => {
         notifyGps(pos, err);
       },
-      { intervalMs: 2000, publishRef }
+      { intervalMs: GPS_PUBLISH_INTERVAL_MS, publishRef }
     );
     return { ok: true, mode: 'web' };
   }
