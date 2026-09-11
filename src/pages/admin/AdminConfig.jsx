@@ -365,6 +365,7 @@ export function AdminConfig() {
         <div className="admin-config-scroll admin-scroll-panel">
           <div className="admin-config-layout">
           {showCover && (
+            <>
             <ConfigSection
               wide
               index={1}
@@ -437,6 +438,7 @@ export function AdminConfig() {
                 />
               </div>
             </ConfigSection>
+            </>
           )}
 
           <ConfigSection
