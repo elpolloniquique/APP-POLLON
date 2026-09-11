@@ -34,6 +34,7 @@ const emptyBranch = () => ({
   tiktokUrl: '',
   paymentMethods: [...DEFAULT_BRANCH_PAYMENT_METHODS],
   heroImageUrl: '',
+  logoUrl: '',
 });
 
 export function AdminBranches() {
@@ -46,6 +47,7 @@ export function AdminBranches() {
   const [togglingId, setTogglingId] = useState(null);
   const [loadError, setLoadError] = useState('');
   const [uploadingHero, setUploadingHero] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const user = { id: profile?.id, email: profile?.email };
   const canView = can('branches');
   const canManage = canManageAllBranches(role);
@@ -265,6 +267,25 @@ export function AdminBranches() {
                 </span>
               </label>
               <label className="flex items-center gap-2"><input type="checkbox" checked={modal.deliveryEnabled} onChange={(e) => setModal({ ...modal, deliveryEnabled: e.target.checked })} /> Delivery</label>
+            </div>
+            <div className="mt-4 space-y-2 border-t border-gray-100 pt-4">
+              <p className="text-sm font-bold text-gray-800">Logotipo del header</p>
+              <p className="text-xs text-gray-500">PNG/WebP sin fondo. Se muestra sin círculo en el header de la web.</p>
+              <HeroBannerImageEditor
+                variant="logo"
+                imageUrl={modal.logoUrl || ''}
+                onChange={(logoUrl) => setModal({ ...modal, logoUrl })}
+                onUpload={async (file) => {
+                  setUploadingLogo(true);
+                  try {
+                    return await uploadProductImage(file, modal.id || 'general');
+                  } finally {
+                    setUploadingLogo(false);
+                  }
+                }}
+                onError={(msg) => show(msg)}
+                uploading={uploadingLogo}
+              />
             </div>
             <div className="mt-4 space-y-2 border-t border-gray-100 pt-4">
               <p className="text-sm font-bold text-gray-800">Portada del inicio</p>

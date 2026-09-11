@@ -85,7 +85,7 @@ export function HeaderCategoryNav({ items }) {
                 key={item.categoryId || 'inicio'}
                 to={item.path}
                 data-nav-active={active ? 'true' : 'false'}
-                className={`header-category-nav__link font-brand shrink-0 whitespace-nowrap font-bold antialiased transition ${
+                className={`header-category-nav__link shrink-0 whitespace-nowrap uppercase antialiased transition ${
                   active
                     ? 'header-category-nav__link--active'
                     : 'text-white hover:bg-white/10 hover:text-white'

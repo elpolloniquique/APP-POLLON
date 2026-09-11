@@ -7,6 +7,10 @@ function isValidImageUrl(url) {
   return /^https?:\/\/.+/i.test((url || '').trim());
 }
 
+/**
+ * Editor de imagen (banner o logotipo).
+ * variant="logo": vista previa tipo header, PNG transparente recomendado.
+ */
 export function HeroBannerImageEditor({
   imageUrl = '',
   onChange,
@@ -14,9 +18,11 @@ export function HeroBannerImageEditor({
   onError,
   uploading = false,
   children,
+  variant = 'banner',
 }) {
   const [urlInput, setUrlInput] = useState('');
   const fileInputRef = useRef(null);
+  const isLogo = variant === 'logo';
 
   const applyUrl = () => {
     const url = urlInput.trim();
@@ -43,7 +49,7 @@ export function HeroBannerImageEditor({
   };
 
   return (
-    <div className="admin-hero-editor">
+    <div className={`admin-hero-editor${isLogo ? ' admin-hero-editor--logo' : ''}`}>
       <input
         ref={fileInputRef}
         type="file"
@@ -54,11 +60,14 @@ export function HeroBannerImageEditor({
 
       <div className="admin-hero-editor__preview">
         {imageUrl ? (
-          <img src={imageUrl} alt="Vista previa del banner" />
+          <img
+            src={imageUrl}
+            alt={isLogo ? 'Vista previa del logotipo' : 'Vista previa del banner'}
+          />
         ) : (
           <div className="admin-hero-editor__empty">
             <ImagePlus className="h-8 w-8" strokeWidth={1.4} />
-            <span>Sin foto de portada</span>
+            <span>{isLogo ? 'Sin logotipo (se usa el de El Pollón)' : 'Sin foto de portada'}</span>
           </div>
         )}
       </div>
@@ -72,7 +81,7 @@ export function HeroBannerImageEditor({
               type="url"
               value={urlInput}
               onChange={(e) => setUrlInput(e.target.value)}
-              placeholder="https://… o pega el enlace de la foto"
+              placeholder={isLogo ? 'https://… PNG/WebP sin fondo' : 'https://… o pega el enlace de la foto'}
               className="admin-config-input admin-hero-editor__input"
               disabled={uploading}
             />
@@ -96,12 +105,12 @@ export function HeroBannerImageEditor({
           {uploading ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              Subiendo foto…
+              Subiendo…
             </>
           ) : (
             <>
               <Upload className="h-4 w-4" />
-              Subir foto desde el PC
+              {isLogo ? 'Subir logotipo (PNG sin fondo)' : 'Subir foto desde el PC'}
             </>
           )}
         </button>
@@ -114,7 +123,7 @@ export function HeroBannerImageEditor({
             className="admin-hero-editor__remove"
           >
             <Trash2 className="h-3.5 w-3.5" />
-            Quitar foto (se usará la portada por defecto)
+            {isLogo ? 'Quitar logotipo (volver al de El Pollón)' : 'Quitar foto (se usará la portada por defecto)'}
           </button>
         ) : null}
       </div>

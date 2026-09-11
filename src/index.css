@@ -415,8 +415,15 @@
     gap: 0.625rem;
   }
   .header-main-bar__logo {
-    height: 3rem;
-    width: 3rem;
+    height: 3.25rem;
+    width: auto;
+    max-width: 12.5rem;
+    object-fit: contain;
+    display: block;
+  }
+  .header-main-bar__logo--icon {
+    width: 3.25rem;
+    max-width: 3.25rem;
   }
   .header-main-bar__brand-title {
     font-size: 1.625rem;
@@ -857,6 +864,36 @@
     font-weight: 700;
     color: #b91c1c;
     cursor: pointer;
+  }
+
+  /* Vista previa logotipo (PNG transparente, sin recorte redondo) */
+  .admin-hero-editor--logo .admin-hero-editor__preview {
+    aspect-ratio: 16 / 7;
+    min-height: 6.5rem;
+    background:
+      linear-gradient(45deg, #f5f5f4 25%, transparent 25%),
+      linear-gradient(-45deg, #f5f5f4 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #f5f5f4 75%),
+      linear-gradient(-45deg, transparent 75%, #f5f5f4 75%);
+    background-color: #fff;
+    background-size: 16px 16px;
+    background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.85rem 1rem;
+  }
+
+  .admin-hero-editor--logo .admin-hero-editor__preview img {
+    width: auto;
+    max-width: 100%;
+    height: auto;
+    max-height: 5.5rem;
+    object-fit: contain;
+  }
+
+  .admin-hero-editor--logo .admin-hero-editor__empty {
+    color: #78716c;
   }
 
   .admin-config-grid {
@@ -3434,20 +3471,24 @@
   }
   .header-category-nav__link {
     padding: 0.3125rem 0.6875rem;
-    font-size: 0.8125rem;
+    font-family: var(--font-body, Inter, system-ui, sans-serif);
+    font-size: 0.75rem;
+    font-weight: 800;
     line-height: 1.25;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
     border-radius: 0.375rem;
   }
   @media (min-width: 640px) {
     .header-category-nav__link {
       padding: 0.375rem 0.8125rem;
-      font-size: 0.875rem;
+      font-size: 0.8125rem;
     }
   }
   @media (min-width: 1280px) {
     .header-category-nav__link {
       padding: 0.375rem 0.9375rem;
-      font-size: 0.9375rem;
+      font-size: 0.875rem;
     }
   }
   .header-category-nav__link--active {

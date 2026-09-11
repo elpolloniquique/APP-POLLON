@@ -88,9 +88,11 @@ export function AdminConfig() {
     payment_methods: [...DEFAULT_BRANCH_PAYMENT_METHODS],
     ciudad: '',
     hero_image_url: '',
+    logo_url: '',
     cover_branch_id: '',
   });
   const [uploadingHero, setUploadingHero] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [siteAlert, setSiteAlert] = useState(emptySiteAlert);
   const [alertBranchId, setAlertBranchId] = useState('');
   const [alertBranches, setAlertBranches] = useState([]);
@@ -125,6 +127,7 @@ export function AdminConfig() {
         payment_methods: normalizePaymentMethods(branch.paymentMethods),
         ciudad: branch.city || '',
         hero_image_url: branch.heroImageUrl || '',
+        logo_url: branch.logoUrl || '',
         cover_branch_id: branch.id || '',
       });
       return;
@@ -159,6 +162,7 @@ export function AdminConfig() {
         cover_branch_id: first.id,
         ciudad: first.city || '',
         hero_image_url: first.heroImageUrl || '',
+        logo_url: first.logoUrl || '',
       }));
     }
   }, [isBranchScoped, alertBranches, cfg.cover_branch_id]);
@@ -206,6 +210,7 @@ export function AdminConfig() {
           paymentMethods: normalizePaymentMethods(cfg.payment_methods),
           city: cfg.ciudad,
           heroImageUrl: cfg.hero_image_url,
+          logoUrl: cfg.logo_url,
         }, { id: profile?.id, email: profile?.email });
         saveBranchPrinterConfigLocal(branchId, {
           enabled: cfg.thermal_network_print_enabled,
@@ -226,6 +231,7 @@ export function AdminConfig() {
         aviso_mensaje: _avisoMensaje,
         ciudad: _ciudad,
         hero_image_url: _heroImageUrl,
+        logo_url: _logoUrl,
         cover_branch_id: _coverBranchId,
         ...storeCfg
       } = cfg;
@@ -238,6 +244,7 @@ export function AdminConfig() {
             ...cover,
             city: cfg.ciudad,
             heroImageUrl: cfg.hero_image_url,
+            logoUrl: cfg.logo_url,
           }, { id: profile?.id, email: profile?.email });
           await refreshBranches();
         }
@@ -246,7 +253,9 @@ export function AdminConfig() {
     } catch (e) {
       const msg = e.message || 'Error al guardar';
       alert(
-        /hero_image_url/i.test(msg)
+        /logo_url/i.test(msg)
+          ? 'Para guardar el logotipo, ejecuta en Supabase el archivo supabase/add-branch-logo-url.sql y vuelve a guardar.'
+          : /hero_image_url/i.test(msg)
           ? 'Para guardar la foto del banner, ejecuta en Supabase el archivo supabase/add-branch-hero-image.sql y vuelve a guardar.'
           : /payment_methods/i.test(msg)
             ? 'Para guardar métodos de pago, ejecuta en Supabase el archivo supabase/add-branch-payment-methods.sql y vuelve a guardar.'
@@ -302,6 +311,7 @@ export function AdminConfig() {
       cover_branch_id: id,
       ciudad: selected?.city || '',
       hero_image_url: selected?.heroImageUrl || '',
+      logo_url: selected?.logoUrl || '',
     }));
   };
 
@@ -313,6 +323,17 @@ export function AdminConfig() {
       return await uploadProductImage(file, targetId);
     } finally {
       setUploadingHero(false);
+    }
+  };
+
+  const uploadLogo = async (file) => {
+    const targetId = isBranchScoped ? branchId : cfg.cover_branch_id;
+    if (!targetId) throw new Error('Selecciona una sucursal antes de subir el logotipo');
+    setUploadingLogo(true);
+    try {
+      return await uploadProductImage(file, targetId);
+    } finally {
+      setUploadingLogo(false);
     }
   };
 
@@ -393,10 +414,33 @@ export function AdminConfig() {
                 </HeroBannerImageEditor>
               </div>
             </ConfigSection>
+
+            <ConfigSection
+              index={2}
+              icon={Image}
+              title="Logotipo del header"
+              description="Imagen del header sin fondo (PNG/WebP transparente). Se ve sin círculo, como el pollito de la marca."
+            >
+              <div className="admin-config-stack">
+                {!isBranchScoped && (
+                  <p className="admin-config-field__hint">
+                    Usa la misma sucursal elegida en «Portada del inicio» arriba.
+                  </p>
+                )}
+                <HeroBannerImageEditor
+                  variant="logo"
+                  imageUrl={cfg.logo_url}
+                  onChange={(url) => setCfg((c) => ({ ...c, logo_url: url }))}
+                  onUpload={uploadLogo}
+                  onError={(msg) => alert(msg)}
+                  uploading={uploadingLogo}
+                />
+              </div>
+            </ConfigSection>
           )}
 
           <ConfigSection
-            index={showCover ? 2 : 1}
+            index={showCover ? 3 : 1}
             icon={Megaphone}
             title="Aviso en pantalla"
             description="Solo lo ven los clientes de esta sucursal."
@@ -466,7 +510,7 @@ export function AdminConfig() {
           </ConfigSection>
 
           <ConfigSection
-            index={showCover ? 3 : 2}
+            index={showCover ? 4 : 2}
             icon={Store}
             title="Datos del local"
             description="Datos visibles en la tienda y el checkout."
@@ -500,7 +544,7 @@ export function AdminConfig() {
           </ConfigSection>
 
           <ConfigSection
-            index={showCover ? 4 : 3}
+            index={showCover ? 5 : 3}
             icon={Truck}
             title="Tipos de pedido"
             description="Opciones que aparecen al confirmar el pedido."
@@ -590,7 +634,7 @@ export function AdminConfig() {
 
           {isBranchScoped && (
             <ConfigSection
-              index={5}
+              index={showCover ? 6 : 5}
               icon={Wallet}
               title="Métodos de pago"
               description="Formas de pago del checkout. El cobro es al recibir."
@@ -604,7 +648,7 @@ export function AdminConfig() {
 
           {isBranchScoped && (
             <ConfigSection
-              index={6}
+              index={showCover ? 7 : 6}
               icon={Printer}
               title="Impresora WiFi"
               description="Impresión térmica por red. Puente: node scripts/local-print-bridge.mjs"
@@ -662,7 +706,7 @@ export function AdminConfig() {
 
           {isBranchScoped && (
             <ConfigSection
-              index={7}
+              index={showCover ? 8 : 7}
               icon={Share2}
               title="Redes sociales"
               description="Enlaces del footer de esta sucursal."

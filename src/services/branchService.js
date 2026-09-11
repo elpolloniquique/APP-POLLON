@@ -41,6 +41,7 @@ function mapBranch(row) {
     alertTitle: row.alert_title || 'Aviso importante',
     alertMessage: row.alert_message || '',
     heroImageUrl: row.hero_image_url || '',
+    logoUrl: row.logo_url || '',
   };
 }
 
@@ -245,6 +246,7 @@ export async function adminSaveBranch(branch, user) {
     thermal_network_print_enabled: branch.thermalNetworkPrintEnabled === true,
     payment_methods: normalizePaymentMethods(branch.paymentMethods),
     hero_image_url: (branch.heroImageUrl || '').trim(),
+    logo_url: (branch.logoUrl || '').trim(),
     ...(branch.lat != null && Number.isFinite(Number(branch.lat)) ? { lat: Number(branch.lat) } : {}),
     ...(branch.lng != null && Number.isFinite(Number(branch.lng)) ? { lng: Number(branch.lng) } : {}),
   };

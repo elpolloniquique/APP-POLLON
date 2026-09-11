@@ -353,14 +353,18 @@ export function SiteHeader({ onOpenCart, variant = 'full' }) {
           <div className="flex items-stretch gap-1.5 px-2 py-2.5">
             <Link to="/" className="flex shrink-0 items-center gap-1.5">
               <img
-                src="/img/logo pollon.png"
-                alt="El Pollón"
-                className="h-10 w-10 rounded-full border border-pollon-red/30 object-contain p-0.5"
+                src={branch?.logoUrl || '/img/logo pollon.png'}
+                alt={branch?.name || 'El Pollón'}
+                className={`h-10 object-contain ${
+                  branch?.logoUrl ? 'w-auto max-w-[9.5rem]' : 'w-10'
+                }`}
               />
-              <div className="min-w-0">
-                <p className="font-brand text-base leading-none font-bold text-pollon-red">El Pollón</p>
-                <p className="font-brand text-[10px] font-semibold leading-tight text-pollon-gold sm:text-xs">Sabor Peruano</p>
-              </div>
+              {!branch?.logoUrl && (
+                <div className="min-w-0">
+                  <p className="font-brand text-base leading-none font-bold text-pollon-red">El Pollón</p>
+                  <p className="font-brand text-[10px] font-semibold leading-tight text-pollon-gold sm:text-xs">Sabor Peruano</p>
+                </div>
+              )}
             </Link>
 
             <div className="flex min-w-0 flex-1 items-center justify-center px-0.5">
@@ -392,14 +396,18 @@ export function SiteHeader({ onOpenCart, variant = 'full' }) {
           <div className="header-main-bar mx-auto flex max-w-[1400px] items-center px-4">
             <Link to="/" className="header-main-bar__brand flex shrink-0 items-center gap-2.5">
               <img
-                src="/img/logo pollon.png"
-                alt="El Pollón"
-                className="header-main-bar__logo rounded-full border-2 border-pollon-red/30 object-contain p-0.5"
+                src={branch?.logoUrl || '/img/logo pollon.png'}
+                alt={branch?.name || 'El Pollón'}
+                className={`header-main-bar__logo object-contain ${
+                  branch?.logoUrl ? '' : 'header-main-bar__logo--icon'
+                }`}
               />
-              <div>
-                <p className="header-main-bar__brand-title font-brand font-bold text-pollon-red">El Pollón</p>
-                <p className="header-main-bar__brand-tagline font-brand font-semibold text-pollon-gold">Sabor Peruano</p>
-              </div>
+              {!branch?.logoUrl && (
+                <div>
+                  <p className="header-main-bar__brand-title font-brand font-bold text-pollon-red">El Pollón</p>
+                  <p className="header-main-bar__brand-tagline font-brand font-semibold text-pollon-gold">Sabor Peruano</p>
+                </div>
+              )}
             </Link>
 
             <div className="hidden min-w-0 flex-1 justify-center px-3 lg:flex">
