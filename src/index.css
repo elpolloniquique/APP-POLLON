@@ -451,8 +451,8 @@
 
   /* Móvil: logo más grande + letras fluidas (autoajustables) */
   .header-brand--mobile {
-    max-width: min(46vw, 11.5rem);
-    gap: 0.4rem;
+    max-width: min(42vw, 10.75rem);
+    gap: 0.2rem;
   }
   .header-brand--mobile .header-brand__logo {
     height: clamp(3.35rem, 12.5vw, 4.35rem);
@@ -478,13 +478,13 @@
   }
   @media (min-width: 390px) {
     .header-brand--mobile {
-      max-width: min(48vw, 13rem);
-      gap: 0.5rem;
+      max-width: min(44vw, 12rem);
+      gap: 0.28rem;
     }
   }
   @media (min-width: 430px) {
     .header-brand--mobile {
-      max-width: 14rem;
+      max-width: 12.75rem;
     }
   }
 

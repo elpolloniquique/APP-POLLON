@@ -47,29 +47,34 @@ function formatSchedule(branch) {
   return 'Lun – Dom: 11:30 a.m. – 11:00 p.m.';
 }
 
-/** Solo el local/ciudad: "Iquique", "Alto Hospicio" */
+/** Solo el local/ciudad: "Iquique", "Alto Hospicio" (sin guiones al inicio) */
 function branchPlaceName(branch) {
-  if (!branch?.name) return 'Seleccionar';
-  const place = branch.name
-    .replace(/^El Pollón\s*/i, '')
-    .replace(/^Pollón\s*/i, '')
-    .trim()
-    .replace(/^[—–\-_]\s*/, '')
-    .trim()
-    .replace(/\s*[—–\-]\s*/g, ' ')
-    .replace(/\s+/g, ' ')
+  const city = String(branch?.city || '').trim();
+  let place = String(branch?.name || '')
+    .replace(/^El\s*Poll[oó]n\s*/i, '')
+    .replace(/^Poll[oó]n\s*/i, '')
     .trim();
-  return place || branch.city || 'Sucursal';
+
+  // Quitar rayas/underscores/guiones al comienzo (_, -, –, —)
+  place = place.replace(/^[\s_|·•./\\-–—−‐‑]+/u, '').trim();
+  place = place.replace(/\s+/g, ' ').trim();
+
+  if (!place || /^[\s_\-–—]+$/u.test(place)) {
+    place = city;
+  }
+  return place || city || 'Sucursal';
 }
 
 /** PC: siempre "El Pollón _ Iquique" / "El Pollón _ Alto Hospicio" */
 function branchDesktopLabel(branch) {
-  if (!branch?.name) return 'Seleccionar';
+  if (!branch?.name && !branch?.city) return 'Seleccionar';
   return `El Pollón _ ${branchPlaceName(branch)}`;
 }
 
-/** Móvil (campo cerrado): solo el lugar por espacio */
+/** Móvil (campo cerrado): solo el lugar, sin raya — prioriza ciudad */
 function branchMobileLabel(branch) {
+  const city = String(branch?.city || '').trim();
+  if (city) return city;
   return branchPlaceName(branch);
 }
 
@@ -359,7 +364,7 @@ export function SiteHeader({ onOpenCart, variant = 'full' }) {
         {/* ═══════════════ MÓVIL: barra principal (logo | sucursal | carrito+menú) ═══════════════ */}
         <div className="border-b border-gray-100 bg-white lg:hidden">
           <div className="flex items-stretch gap-1.5 px-2 py-2.5">
-            <Link to="/" className="header-brand header-brand--mobile flex shrink-0 items-center gap-1.5">
+            <Link to="/" className="header-brand header-brand--mobile flex shrink-0 items-center">
               <img
                 src={branch?.logoUrl || '/img/logo pollon.png'}
                 alt={branch?.name || 'El Pollón'}
