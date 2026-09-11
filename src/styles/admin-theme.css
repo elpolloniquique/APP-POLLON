@@ -295,14 +295,15 @@
 
 /* —— Configuración —— */
 .admin-shell .admin-config-page.admin-page {
-  max-width: 46rem;
+  max-width: none;
+  height: 100%;
 }
 
 .admin-shell .admin-config-shell {
-  border: 1px solid var(--ap-head);
+  border: 1px solid var(--ap-line);
   border-radius: var(--ap-radius);
-  box-shadow: var(--ap-shadow-table);
-  background: var(--ap-card);
+  box-shadow: none;
+  background: #f5f4f2;
 }
 
 .admin-shell .admin-config-section__title {

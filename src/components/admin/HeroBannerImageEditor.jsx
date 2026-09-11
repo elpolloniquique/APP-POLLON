@@ -13,6 +13,7 @@ export function HeroBannerImageEditor({
   onUpload,
   onError,
   uploading = false,
+  children,
 }) {
   const [urlInput, setUrlInput] = useState('');
   const fileInputRef = useRef(null);
@@ -63,6 +64,7 @@ export function HeroBannerImageEditor({
       </div>
 
       <div className="admin-hero-editor__tools">
+        {children}
         <div className="admin-hero-editor__url">
           <div className="relative min-w-0 flex-1">
             <Link2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />

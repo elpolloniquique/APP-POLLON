@@ -21,9 +21,9 @@ import { emptySiteAlert, fetchSiteAlert, saveSiteAlert } from '../../services/si
 const INPUT = 'admin-config-input';
 const INPUT_MONO = 'admin-config-input admin-config-input--mono';
 
-function ConfigSection({ index, icon: Icon, title, description, children }) {
+function ConfigSection({ index, icon: Icon, title, description, children, wide = false }) {
   return (
-    <section className="admin-config-section">
+    <section className={wide ? 'admin-config-section admin-config-section--wide' : 'admin-config-section'}>
       <div className="admin-config-section__head">
         <div className="admin-config-section__kicker">
           {index ? <span className="admin-config-section__num">{String(index).padStart(2, '0')}</span> : null}
@@ -39,7 +39,7 @@ function ConfigSection({ index, icon: Icon, title, description, children }) {
 
 function ConfigField({ label, hint, children, span = 1 }) {
   return (
-    <div className={span === 2 ? 'sm:col-span-2' : undefined}>
+    <div className={span === 2 ? 'admin-config-field admin-config-field--span-2' : 'admin-config-field'}>
       <label className="admin-config-field__label">{label}</label>
       {hint && <p className="admin-config-field__hint">{hint}</p>}
       <div className="admin-config-field__control">{children}</div>
@@ -327,7 +327,7 @@ export function AdminConfig() {
   ];
 
   return (
-    <div className="admin-config-page admin-page">
+    <div className="admin-config-page admin-page admin-page--fill">
       <AdminPageHeader
         title={isBranchScoped ? 'Configuración del local' : 'Configuración general'}
         subtitle={
@@ -342,19 +342,20 @@ export function AdminConfig() {
 
       <div className="admin-config-shell ring-1 ring-black/5">
         <div className="admin-config-scroll admin-scroll-panel">
+          <div className="admin-config-layout">
           {showCover && (
             <ConfigSection
+              wide
               index={1}
               icon={Image}
               title="Portada del inicio"
-              description="Foto de fondo del banner y ciudad que se muestra junto al GPS. Al cambiar de sucursal, el cliente ve esta portada y el nombre de la ciudad."
+              description="Foto de fondo del banner y ciudad junto al GPS. Cambia al elegir esta sucursal."
             >
               <div className="admin-config-stack">
                 {!isBranchScoped && (
                   <ConfigField
                     label="Sucursal de esta portada"
                     hint="Cada local tiene su propia foto y ciudad."
-                    span={2}
                   >
                     <select
                       value={cfg.cover_branch_id}
@@ -368,11 +369,16 @@ export function AdminConfig() {
                     </select>
                   </ConfigField>
                 )}
-                <div className="admin-config-grid">
+                <HeroBannerImageEditor
+                  imageUrl={cfg.hero_image_url}
+                  onChange={(url) => setCfg((c) => ({ ...c, hero_image_url: url }))}
+                  onUpload={uploadHero}
+                  onError={(msg) => alert(msg)}
+                  uploading={uploadingHero}
+                >
                   <ConfigField
                     label="Ciudad en el banner"
-                    hint="Se muestra en grande junto al ícono GPS. Ej: Iquique, Arica, Alto Hospicio."
-                    span={2}
+                    hint="Texto grande junto al GPS. Ej: Iquique, Arica, Alto Hospicio."
                   >
                     <div className="relative">
                       <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
@@ -384,20 +390,7 @@ export function AdminConfig() {
                       />
                     </div>
                   </ConfigField>
-                </div>
-                <ConfigField
-                  label="Foto de fondo"
-                  hint="Pega un enlace o sube una imagen desde tu PC. Recomendado: 1600×700 o más, horizontal."
-                  span={2}
-                >
-                  <HeroBannerImageEditor
-                    imageUrl={cfg.hero_image_url}
-                    onChange={(url) => setCfg((c) => ({ ...c, hero_image_url: url }))}
-                    onUpload={uploadHero}
-                    onError={(msg) => alert(msg)}
-                    uploading={uploadingHero}
-                  />
-                </ConfigField>
+                </HeroBannerImageEditor>
               </div>
             </ConfigSection>
           )}
@@ -406,7 +399,7 @@ export function AdminConfig() {
             index={showCover ? 2 : 1}
             icon={Megaphone}
             title="Aviso en pantalla"
-            description="El aviso es por sucursal. Si lo activas en Iquique, solo aparece cuando el cliente elige esa sucursal. Si cambia a otra, desaparece."
+            description="Solo lo ven los clientes de esta sucursal."
           >
             <div className="admin-config-stack">
               {!isBranchScoped && (
@@ -460,7 +453,7 @@ export function AdminConfig() {
                     onChange={(e) => setSiteAlert((a) => ({ ...a, message: e.target.value }))}
                     placeholder="Solo estamos haciendo el delivery zona centro por el motivo que por esta lluvia no hay salida a otras zonas."
                     className={`${INPUT} admin-config-input--area`}
-                    rows={5}
+                    rows={4}
                   />
                 </ConfigField>
               </div>
@@ -476,7 +469,7 @@ export function AdminConfig() {
             index={showCover ? 3 : 2}
             icon={Store}
             title="Datos del local"
-            description="Información que ven tus clientes en la tienda y en el checkout."
+            description="Datos visibles en la tienda y el checkout."
           >
             <div className="admin-config-grid">
               {branchFields.map(({ key, label, span }) => (
@@ -510,7 +503,7 @@ export function AdminConfig() {
             index={showCover ? 4 : 3}
             icon={Truck}
             title="Tipos de pedido"
-            description="Activa o desactiva las opciones que aparecen al confirmar un pedido."
+            description="Opciones que aparecen al confirmar el pedido."
           >
             <div className="admin-config-stack">
               <ConfigToggle
@@ -600,7 +593,7 @@ export function AdminConfig() {
               index={5}
               icon={Wallet}
               title="Métodos de pago"
-              description="Define qué formas de pago ve el cliente en el checkout de este local. El cobro es siempre al recibir el pedido."
+              description="Formas de pago del checkout. El cobro es al recibir."
             >
               <PaymentMethodsEditor
                 value={cfg.payment_methods}
@@ -614,7 +607,7 @@ export function AdminConfig() {
               index={6}
               icon={Printer}
               title="Impresora WiFi"
-              description="Impresión térmica por red. Ejecuta el puente en un PC del local: node scripts/local-print-bridge.mjs"
+              description="Impresión térmica por red. Puente: node scripts/local-print-bridge.mjs"
             >
               <div className="admin-config-stack">
                 <ConfigToggle
@@ -672,15 +665,15 @@ export function AdminConfig() {
               index={7}
               icon={Share2}
               title="Redes sociales"
-              description="Enlaces visibles en el footer cuando el cliente elige tu sucursal."
+              description="Enlaces del footer de esta sucursal."
             >
-              <div className="admin-config-grid">
+              <div className="admin-config-grid admin-config-grid--social">
                 {[
                   { key: 'facebook_url', label: 'Facebook', placeholder: 'https://facebook.com/elpollon' },
                   { key: 'instagram_url', label: 'Instagram', placeholder: 'https://instagram.com/elpollon' },
                   { key: 'tiktok_url', label: 'TikTok', placeholder: 'https://tiktok.com/@elpollon' },
                 ].map(({ key, label, placeholder }) => (
-                  <ConfigField key={key} label={label} span={2}>
+                  <ConfigField key={key} label={label}>
                     <input
                       type="url"
                       value={cfg[key] || ''}
@@ -693,6 +686,7 @@ export function AdminConfig() {
               </div>
             </ConfigSection>
           )}
+          </div>
         </div>
 
         <footer className="admin-config-footer">
