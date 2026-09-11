@@ -4640,6 +4640,25 @@
 .kitchen-page .admin-page-header + .kitchen-empty {
   margin-top: 0.5rem;
 }
+.kitchen-page__header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+.kitchen-page__btn-deliver-all {
+  white-space: normal;
+  text-align: center;
+  line-height: 1.2;
+  max-width: 12.5rem;
+}
+@media (min-width: 640px) {
+  .kitchen-page__btn-deliver-all {
+    max-width: none;
+    white-space: nowrap;
+  }
+}
 .kitchen-board {
   border-radius: 1rem;
   border: 1px solid #e5e7eb;
@@ -4761,21 +4780,22 @@
 .kitchen-card__footer {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.45rem;
   margin-top: auto;
   padding-top: 0.75rem;
 }
 .kitchen-card__view {
   display: inline-flex;
-  flex: 1;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  gap: 0.35rem;
+  gap: 0.3rem;
+  min-height: 2.5rem;
   border-radius: 0.5rem;
   border: 1px solid #e5e7eb;
   background: #fff;
-  padding: 0.45rem 0.65rem;
-  font-size: 0.8125rem;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.75rem;
   font-weight: 700;
   color: #374151;
   transition: background 0.15s, border-color 0.15s;
@@ -4786,18 +4806,50 @@
 }
 .kitchen-card__advance {
   display: inline-flex;
+  flex: 1 1 auto;
   align-items: center;
   justify-content: center;
-  border-radius: 0.5rem;
-  padding: 0.45rem;
-  color: var(--color-pollon-red, #c00000);
-  transition: background 0.15s, transform 0.15s;
+  gap: 0.35rem;
+  min-width: 3.75rem;
+  min-height: 3.25rem;
+  border-radius: 0.65rem;
+  border: 2px solid #c00000;
+  background: #fff5f5;
+  padding: 0.55rem 0.75rem;
+  color: #c00000;
+  box-shadow: 0 2px 8px rgb(192 0 0 / 0.18);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s, transform 0.12s, box-shadow 0.15s;
 }
-.kitchen-card__advance:hover {
-  background: rgb(192 0 0 / 0.08);
+.kitchen-card__advance:hover:not(:disabled) {
+  background: #fee2e2;
+  box-shadow: 0 3px 12px rgb(192 0 0 / 0.25);
 }
-.kitchen-card__advance:active {
-  transform: scale(0.95);
+.kitchen-card__advance:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.kitchen-card__advance-icon {
+  width: 1.65rem;
+  height: 1.65rem;
+  flex-shrink: 0;
+}
+.kitchen-card__advance-label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+@media (max-width: 420px) {
+  .kitchen-card__advance-label {
+    display: none;
+  }
+  .kitchen-card__advance {
+    min-width: 3.5rem;
+    flex: 0 0 auto;
+    padding: 0.65rem;
+  }
 }
 .kitchen-empty {
   border-radius: 1rem;

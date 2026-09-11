@@ -86,7 +86,10 @@ function KitchenOrderCard({ order, onView, onAdvance }) {
           title={canAdvance ? `Avanzar a: ${nextLabel}` : 'Pedido finalizado'}
           aria-label={canAdvance ? `Avanzar estado a ${nextLabel}` : 'Pedido finalizado'}
         >
-          <RefreshCw className="h-5 w-5" aria-hidden />
+          <RefreshCw className="kitchen-card__advance-icon" aria-hidden />
+          {canAdvance ? (
+            <span className="kitchen-card__advance-label">{nextLabel}</span>
+          ) : null}
         </button>
       </footer>
     </article>
@@ -99,6 +102,7 @@ export function KitchenScreen() {
   const [viewOrder, setViewOrder] = useState(null);
   const [branches, setBranches] = useState([]);
   const [advancingId, setAdvancingId] = useState(null);
+  const [markingAll, setMarkingAll] = useState(false);
 
   const ordersScoped = useMemo(() => applyBranchFilter(orders), [orders, applyBranchFilter]);
 
@@ -147,6 +151,30 @@ export function KitchenScreen() {
     if (viewOrder?.id === order.id) setViewOrder(updated);
   };
 
+  const markAllAsDelivered = async () => {
+    if (markingAll || active.length === 0) return;
+    const ok = window.confirm(
+      `¿Marcar los ${active.length} pedido${active.length !== 1 ? 's' : ''} de cocina como ENTREGADO?\n\nDesaparecerán de esta pantalla.`,
+    );
+    if (!ok) return;
+
+    setMarkingAll(true);
+    const deliveredAt = new Date().toISOString();
+    try {
+      for (const order of active) {
+        await updateOrder({
+          ...order,
+          estado: 'entregado',
+          deliveredAt,
+        });
+      }
+      setViewOrder(null);
+      await refresh();
+    } finally {
+      setMarkingAll(false);
+    }
+  };
+
   const statusLine = ready && isBackendReady && realtimeStatus === 'live' ? (
     <span className="inline-flex items-center gap-1.5 text-green-700">
       <span className="h-2 w-2 animate-pulse rounded-full bg-green-500" />
@@ -168,7 +196,21 @@ export function KitchenScreen() {
           </>
         )}
         branchLabel={headerBranchLabel}
-        actions={<Button variant="ghost" onClick={refresh}>Actualizar</Button>}
+        actions={(
+          <div className="kitchen-page__header-actions">
+            <Button
+              variant="primary"
+              className="kitchen-page__btn-deliver-all !px-3 !py-2 text-xs sm:!px-4 sm:text-sm"
+              onClick={markAllAsDelivered}
+              disabled={markingAll || active.length === 0}
+            >
+              {markingAll ? 'Marcando…' : 'Marcar todos como entregado'}
+            </Button>
+            <Button variant="ghost" onClick={refresh} disabled={markingAll}>
+              Actualizar
+            </Button>
+          </div>
+        )}
       />
 
       {active.length > 0 ? (

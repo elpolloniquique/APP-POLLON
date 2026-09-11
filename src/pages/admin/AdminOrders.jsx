@@ -33,6 +33,18 @@ import '../../styles/orders-panel.css';
 
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, h) => h);
 
+/** Nombre largo → 2 líneas (ej. "Ari Alexandra" / "Esquivel Contreras") */
+function formatClientNameLines(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return { line1: '—', line2: '' };
+  if (parts.length <= 2) return { line1: parts.join(' '), line2: '' };
+  const mid = Math.ceil(parts.length / 2);
+  return {
+    line1: parts.slice(0, mid).join(' '),
+    line2: parts.slice(mid).join(' '),
+  };
+}
+
 function orderMoneyParts(order) {
   const total = Number(order.total) || 0;
   const deliveryRaw = Number(order.deliveryFee) || 0;
@@ -803,9 +815,18 @@ export function AdminOrders() {
                       <td className="is-code col-code">{o.codigo_pedido || o.ticketNumber}</td>
                       <td className="col-branch orders-panel__clip">{branchFor(o).name}</td>
                       <td className="col-client">
-                        <span className="orders-panel__client-name" title={o.customer?.name || ''}>
-                          {o.customer?.name || '—'}
-                        </span>
+                        {(() => {
+                          const full = o.customer?.name || '';
+                          const { line1, line2 } = formatClientNameLines(full);
+                          return (
+                            <span className="orders-panel__client-name" title={full}>
+                              <span className="orders-panel__client-line">{line1}</span>
+                              {line2 ? (
+                                <span className="orders-panel__client-line">{line2}</span>
+                              ) : null}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td className="col-phone">
                         {phone ? (
