@@ -351,20 +351,20 @@ export function SiteHeader({ onOpenCart, variant = 'full' }) {
         {/* ═══════════════ MÓVIL: barra principal (logo | sucursal | carrito+menú) ═══════════════ */}
         <div className="border-b border-gray-100 bg-white lg:hidden">
           <div className="flex items-stretch gap-1.5 px-2 py-2.5">
-            <Link to="/" className="flex shrink-0 items-center gap-1.5">
+            <Link to="/" className="flex shrink-0 items-center gap-2">
               <img
                 src={branch?.logoUrl || '/img/logo pollon.png'}
                 alt={branch?.name || 'El Pollón'}
-                className={`h-10 object-contain ${
-                  branch?.logoUrl ? 'w-auto max-w-[9.5rem]' : 'w-10'
-                }`}
+                className="h-12 w-12 object-contain sm:h-14 sm:w-14"
               />
-              {!branch?.logoUrl && (
-                <div className="min-w-0">
-                  <p className="font-brand text-base leading-none font-bold text-pollon-red">El Pollón</p>
-                  <p className="font-brand text-[10px] font-semibold leading-tight text-pollon-gold sm:text-xs">Sabor Peruano</p>
-                </div>
-              )}
+              <div className="min-w-0">
+                <p className="text-[0.95rem] font-extrabold uppercase leading-none tracking-[0.04em] text-pollon-red sm:text-base">
+                  El Pollón
+                </p>
+                <p className="mt-0.5 text-[0.58rem] font-bold uppercase leading-tight tracking-[0.06em] text-pollon-gold sm:text-[0.65rem]">
+                  Restaurante Pollería
+                </p>
+              </div>
             </Link>
 
             <div className="flex min-w-0 flex-1 items-center justify-center px-0.5">
@@ -394,20 +394,20 @@ export function SiteHeader({ onOpenCart, variant = 'full' }) {
         {/* ═══════════════ PC: barra principal blanca ═══════════════ */}
         <div className="hidden border-b border-gray-100 bg-white lg:block">
           <div className="header-main-bar mx-auto flex max-w-[1400px] items-center px-4">
-            <Link to="/" className="header-main-bar__brand flex shrink-0 items-center gap-2.5">
+            <Link to="/" className="header-main-bar__brand flex shrink-0 items-center gap-3">
               <img
                 src={branch?.logoUrl || '/img/logo pollon.png'}
                 alt={branch?.name || 'El Pollón'}
-                className={`header-main-bar__logo object-contain ${
-                  branch?.logoUrl ? '' : 'header-main-bar__logo--icon'
-                }`}
+                className="header-main-bar__logo header-main-bar__logo--icon object-contain"
               />
-              {!branch?.logoUrl && (
-                <div>
-                  <p className="header-main-bar__brand-title font-brand font-bold text-pollon-red">El Pollón</p>
-                  <p className="header-main-bar__brand-tagline font-brand font-semibold text-pollon-gold">Sabor Peruano</p>
-                </div>
-              )}
+              <div>
+                <p className="header-main-bar__brand-title font-extrabold uppercase tracking-[0.04em] text-pollon-red">
+                  El Pollón
+                </p>
+                <p className="header-main-bar__brand-tagline font-bold uppercase tracking-[0.08em] text-pollon-gold">
+                  Restaurante Pollería
+                </p>
+              </div>
             </Link>
 
             <div className="hidden min-w-0 flex-1 justify-center px-3 lg:flex">

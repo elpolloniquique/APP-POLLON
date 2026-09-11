@@ -411,27 +411,27 @@
 
   /* Header: barra principal blanca — solo desktop (lg+) */
   .header-main-bar {
-    padding-block: 0.625rem;
+    padding-block: 0.7rem;
     gap: 0.625rem;
   }
   .header-main-bar__logo {
-    height: 3.25rem;
+    height: 4.25rem;
     width: auto;
-    max-width: 12.5rem;
+    max-width: 4.25rem;
     object-fit: contain;
     display: block;
   }
   .header-main-bar__logo--icon {
-    width: 3.25rem;
-    max-width: 3.25rem;
+    width: 4.25rem;
+    max-width: 4.25rem;
   }
   .header-main-bar__brand-title {
-    font-size: 1.625rem;
+    font-size: 1.85rem;
     line-height: 1;
   }
   .header-main-bar__brand-tagline {
-    margin-top: 0.125rem;
-    font-size: 0.8125rem;
+    margin-top: 0.2rem;
+    font-size: 0.7rem;
     line-height: 1.2;
   }
   .header-main-bar__phone-ring {
