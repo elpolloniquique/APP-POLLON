@@ -17,10 +17,26 @@ export async function setSetting(key, value, branchId = null) {
     await upsertGlobalSetting(key, value);
     return;
   }
-  const { error } = await sb.from('settings').upsert(
-    { key, value, branch_id: branchId },
-    { onConflict: 'key,branch_id' }
-  );
+
+  // Evitar onConflict (falla si el UNIQUE no coincide en PostgREST)
+  const { data, error: readError } = await sb
+    .from('settings')
+    .select('id')
+    .eq('key', key)
+    .eq('branch_id', branchId)
+    .maybeSingle();
+  if (readError) throw readError;
+
+  if (data?.id) {
+    const { error } = await sb
+      .from('settings')
+      .update({ value, updated_at: new Date().toISOString() })
+      .eq('id', data.id);
+    if (error) throw error;
+    return;
+  }
+
+  const { error } = await sb.from('settings').insert({ key, value, branch_id: branchId });
   if (error) throw error;
 }
 

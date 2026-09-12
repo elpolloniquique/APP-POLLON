@@ -110,6 +110,7 @@ export const TRANSFER_BANK_INFO = {
   email: 'contacto@elpollon.cl',
 };
 
+/** Legacy: preferir Configuración → Sabores de bebida (settings drink_flavors). */
 export const DRINK_OPTIONS = [
   'Coca Cola', 'Coca Cola Cero', 'Inca Kola', 'Fanta', 'Sprite', 'Sprite Cero', 'Agua Sin Gas', 'Agua Con Gas',
 ];

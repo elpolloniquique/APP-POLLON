@@ -25,6 +25,7 @@ import {
 } from '../../services/menuService';
 import { ProductImagesEditor } from '../../components/admin/ProductImagesEditor';
 import { CategoryImageEditor } from '../../components/admin/CategoryImageEditor';
+import { DrinkFlavorsEditor } from '../../components/admin/DrinkFlavorsEditor';
 import { AdminScrollPanel } from '../../components/admin/AdminScrollPanel';
 import { AdminTable } from '../../components/admin/AdminTable';
 import { AdminPageHeader } from '../../components/admin/AdminPageHeader';
@@ -32,11 +33,21 @@ import { getAuditLogs } from '../../services/auditService';
 import { money } from '../../utils/format';
 import { BAG_PRICE } from '../../utils/constants';
 import { defaultProductOptionsForCategory } from '../../utils/productOptions';
+import { defaultDrinkFlavors } from '../../utils/drinkFlavors';
+import { fetchDrinkFlavors, saveDrinkFlavors } from '../../services/drinkFlavorsService';
 import { useToast } from '../../hooks/useToast';
 import {
   Plus, Pencil, Trash2, Copy, ArrowUp, ArrowDown, Eye, Search,
-  Percent, Ban, Download,
+  Percent, Ban, Download, CupSoda,
 } from 'lucide-react';
+
+const MENU_TABS = [
+  { id: 'categorias', label: 'Categorías' },
+  { id: 'productos', label: 'Productos' },
+  { id: 'sabores', label: 'Sabores de bebida' },
+  { id: 'herramientas', label: 'Herramientas' },
+  { id: 'historial', label: 'Historial' },
+];
 
 const emptyCat = (branchId) => ({
   branchId, name: '', description: '', imageUrl: '', displayOrder: 0, isActive: true,
@@ -79,6 +90,8 @@ export function AdminMenu() {
   const [uploadingCatImage, setUploadingCatImage] = useState(false);
   const [orderDraft, setOrderDraft] = useState({});
   const [savingOrderId, setSavingOrderId] = useState(null);
+  const [drinkFlavors, setDrinkFlavors] = useState(defaultDrinkFlavors());
+  const [savingDrinks, setSavingDrinks] = useState(false);
 
   const user = { id: profile?.id, email: profile?.email };
   const role = normalizeRole(profile?.rol || profile?.role);
@@ -131,6 +144,22 @@ export function AdminMenu() {
   }, [activeBranchId, selectedCatId, search, filterAvail, show]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!activeBranchId) {
+      setDrinkFlavors(defaultDrinkFlavors());
+      return;
+    }
+    let cancelled = false;
+    fetchDrinkFlavors(activeBranchId)
+      .then((list) => {
+        if (!cancelled) setDrinkFlavors(list);
+      })
+      .catch(() => {
+        if (!cancelled) setDrinkFlavors(defaultDrinkFlavors());
+      });
+    return () => { cancelled = true; };
+  }, [activeBranchId]);
 
   useEffect(() => {
     if (!dupProduct) return;
@@ -259,6 +288,24 @@ export function AdminMenu() {
     setProdModal({ ...product, imageUrls, imageUrl: imageUrls[0] || product.imageUrl || '' });
   };
 
+  const handleSaveDrinkFlavors = async () => {
+    if (!activeBranchId) {
+      show('Selecciona una sucursal antes de guardar sabores');
+      return;
+    }
+    if (!canManageMenu) return;
+    setSavingDrinks(true);
+    try {
+      const saved = await saveDrinkFlavors(drinkFlavors, activeBranchId);
+      setDrinkFlavors(saved);
+      show(`Sabores guardados (${saved.filter((f) => String(f.name || '').trim()).length})`);
+    } catch (err) {
+      show(err.message || 'No se pudieron guardar los sabores');
+    } finally {
+      setSavingDrinks(false);
+    }
+  };
+
   const moveCategory = async (cat, dir) => {
     const idx = categories.findIndex((c) => c.id === cat.id);
     const swap = categories[idx + dir];
@@ -328,14 +375,14 @@ export function AdminMenu() {
       />
 
       <div className="-mx-1 flex gap-1 overflow-x-auto border-b pb-px scrollbar-hide sm:mx-0 sm:gap-2">
-        {['categorias', 'productos', 'herramientas', 'historial'].map((t) => (
+        {MENU_TABS.map(({ id, label }) => (
           <button
-            key={t}
+            key={id}
             type="button"
-            onClick={() => setTab(t)}
-            className={`shrink-0 border-b-2 px-3 py-2 text-xs font-bold capitalize sm:px-4 sm:text-sm ${tab === t ? 'border-pollon-red text-pollon-red' : 'border-transparent text-gray-500'}`}
+            onClick={() => setTab(id)}
+            className={`shrink-0 border-b-2 px-3 py-2 text-xs font-bold sm:px-4 sm:text-sm ${tab === id ? 'border-pollon-red text-pollon-red' : 'border-transparent text-gray-500'}`}
           >
-            {t}
+            {label}
           </button>
         ))}
       </div>
@@ -469,6 +516,37 @@ export function AdminMenu() {
               ))}
             </AdminTable>
           )}
+        </div>
+      )}
+
+      {tab === 'sabores' && (
+        <div className="admin-list-shell rounded-2xl bg-white p-4 shadow-sm sm:p-6">
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="flex items-center gap-2 font-bold">
+                <CupSoda className="h-5 w-5 text-pollon-red" />
+                Sabores de bebida
+              </h3>
+              <p className="mt-1 text-sm text-gray-500">
+                Opciones del selector “Sabor de bebida” en combos y ofertas familiares.
+              </p>
+            </div>
+            {canManageMenu && (
+              <button
+                type="button"
+                disabled={savingDrinks || !activeBranchId}
+                onClick={handleSaveDrinkFlavors}
+                className="rounded-lg bg-pollon-red px-4 py-2 text-sm font-bold text-white disabled:opacity-60"
+              >
+                {savingDrinks ? 'Guardando…' : 'Guardar sabores'}
+              </button>
+            )}
+          </div>
+          <DrinkFlavorsEditor
+            value={drinkFlavors}
+            disabled={!canManageMenu}
+            onChange={setDrinkFlavors}
+          />
         </div>
       )}
 

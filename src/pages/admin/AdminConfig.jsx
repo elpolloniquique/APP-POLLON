@@ -233,6 +233,7 @@ export function AdminConfig() {
         hero_image_url: _heroImageUrl,
         logo_url: _logoUrl,
         cover_branch_id: _coverBranchId,
+        payment_methods: _paymentMethods,
         ...storeCfg
       } = cfg;
       await sb.from('configuracion_tienda').upsert({ id: 1, ...storeCfg });

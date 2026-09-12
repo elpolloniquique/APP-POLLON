@@ -9,7 +9,9 @@ import {
   MODAL_DRINK_OPTIONS,
   resolveProductOptions,
 } from '../../utils/productOptions';
+import { fetchActiveDrinkFlavorNames } from '../../services/drinkFlavorsService';
 import { useCart } from '../../context/CartContext';
+import { useBranch } from '../../context/BranchContext';
 
 function resizeDrinks(list, qty) {
   const next = [...(list || [])];
@@ -39,6 +41,7 @@ function alertHeading(message) {
 
 export function ProductModal({ product, category, categoryName = '', onClose, onAddOverride }) {
   const { addItem } = useCart();
+  const { branch } = useBranch();
   const opts = useMemo(
     () => resolveProductOptions(product, categoryName),
     [product, categoryName],
@@ -49,12 +52,25 @@ export function ProductModal({ product, category, categoryName = '', onClose, on
   const [bagSelected, setBagSelected] = useState(false);
   const [sideAlert, setSideAlert] = useState('');
   const [highlightDrinkIdx, setHighlightDrinkIdx] = useState(-1);
+  const [drinkOptions, setDrinkOptions] = useState(MODAL_DRINK_OPTIONS);
   const drinkSectionRef = useRef(null);
 
   useEffect(() => {
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = ''; };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchActiveDrinkFlavorNames(branch?.id)
+      .then((names) => {
+        if (!cancelled && names?.length) setDrinkOptions(names);
+      })
+      .catch(() => {
+        if (!cancelled) setDrinkOptions(MODAL_DRINK_OPTIONS);
+      });
+    return () => { cancelled = true; };
+  }, [branch?.id]);
 
   useEffect(() => {
     setQty(1);
@@ -237,14 +253,14 @@ export function ProductModal({ product, category, categoryName = '', onClose, on
                       >
                         <p className="product-modal__unit-label">Plato {i + 1}</p>
                         <div className="product-modal__option-grid">
-                          {MODAL_DRINK_OPTIONS.map((option, idx) => (
+                          {drinkOptions.map((option, idx) => (
                             <DrinkOptionCard
                               key={`${i}-${option}`}
                               label={option}
                               selected={d === option}
                               onSelect={() => setDrinkAt(i, option)}
                               compact
-                              fullWidth={idx === MODAL_DRINK_OPTIONS.length - 1 && MODAL_DRINK_OPTIONS.length % 2 !== 0}
+                              fullWidth={idx === drinkOptions.length - 1 && drinkOptions.length % 2 !== 0}
                             />
                           ))}
                         </div>
@@ -253,14 +269,14 @@ export function ProductModal({ product, category, categoryName = '', onClose, on
                   </div>
                 ) : (
                   <div className="product-modal__option-grid">
-                    {MODAL_DRINK_OPTIONS.map((option, idx) => (
+                    {drinkOptions.map((option, idx) => (
                       <DrinkOptionCard
                         key={option}
                         label={option}
                         selected={drinks[0] === option}
                         onSelect={() => setDrinkAt(0, option)}
                         compact
-                        fullWidth={idx === MODAL_DRINK_OPTIONS.length - 1 && MODAL_DRINK_OPTIONS.length % 2 !== 0}
+                        fullWidth={idx === drinkOptions.length - 1 && drinkOptions.length % 2 !== 0}
                       />
                     ))}
                   </div>
@@ -276,16 +292,23 @@ export function ProductModal({ product, category, categoryName = '', onClose, on
                     if (!opts.bagRequired) setBagSelected(!bagSelected);
                     setSideAlert('');
                   }}
-                  className={`product-modal-option product-modal-option--compact w-full text-left ${bagSelected ? 'product-modal-option--active' : ''} ${opts.bagRequired ? 'cursor-default' : ''}`}
+                  aria-pressed={bagSelected}
+                  className={[
+                    'product-modal-option',
+                    'product-modal-option--bag',
+                    bagSelected ? 'product-modal-option--active' : '',
+                    opts.bagRequired ? 'product-modal-option--locked' : '',
+                  ].filter(Boolean).join(' ')}
                 >
-                  <span className={`product-modal-radio ${bagSelected ? 'product-modal-radio--active' : ''}`}>
-                    {bagSelected && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
+                  <span className={`product-modal-radio ${bagSelected ? 'product-modal-radio--active' : ''}`} aria-hidden>
+                    {bagSelected && <Check className="product-modal-radio__check" strokeWidth={3} />}
                   </span>
-                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <span className="text-xs font-bold text-pollon-black sm:text-sm">
-                      Bolsa ecológica (+ {money(opts.bagPrice)})
+                  <span className="product-modal-option__copy">
+                    <span className="product-modal-option__label product-modal-option__label--bag">
+                      Bolsa ecológica
+                      <span className="product-modal-option__price">(+ {money(opts.bagPrice)})</span>
                     </span>
-                    <span className="text-[10px] font-normal normal-case tracking-normal text-gray-500">
+                    <span className="product-modal-option__meta">
                       {formatBagRatioLabel(opts.bagUnitsPerBag)}
                       {bagSelected && bagQty > 0 && ` · ${bagQty} bolsa${bagQty !== 1 ? 's' : ''}`}
                     </span>
@@ -300,46 +323,48 @@ export function ProductModal({ product, category, categoryName = '', onClose, on
           </div>
 
           <footer className="product-modal__footer product-modal__footer--compact">
-            <div className="product-modal__summary-row">
-              <div className="product-modal__summary-qty">
-                <span className="product-modal__summary-label">Cant.</span>
-                <div className="product-modal__qty product-modal__qty--compact">
-                  <button
-                    type="button"
-                    onClick={() => setQtySafe(qty - 1)}
-                    className="product-modal__qty-btn product-modal__qty-btn--minus"
-                    aria-label="Menos"
-                  >
-                    <Minus className="h-4 w-4" strokeWidth={2.5} />
-                  </button>
-                  <span className="product-modal__qty-value">{qty}</span>
-                  <button
-                    type="button"
-                    onClick={() => setQtySafe(qty + 1)}
-                    className="product-modal__qty-btn product-modal__qty-btn--plus"
-                    aria-label="Más"
-                  >
-                    <Plus className="h-4 w-4" strokeWidth={2.5} />
-                  </button>
+            <div className="product-modal__checkout">
+              <div className="product-modal__summary-row">
+                <div className="product-modal__summary-qty">
+                  <span className="product-modal__summary-label">Cantidad</span>
+                  <div className="product-modal__qty product-modal__qty--compact">
+                    <button
+                      type="button"
+                      onClick={() => setQtySafe(qty - 1)}
+                      className="product-modal__qty-btn product-modal__qty-btn--minus"
+                      aria-label="Menos"
+                    >
+                      <Minus className="h-3.5 w-3.5" strokeWidth={2.75} />
+                    </button>
+                    <span className="product-modal__qty-value">{qty}</span>
+                    <button
+                      type="button"
+                      onClick={() => setQtySafe(qty + 1)}
+                      className="product-modal__qty-btn product-modal__qty-btn--plus"
+                      aria-label="Más"
+                    >
+                      <Plus className="h-3.5 w-3.5" strokeWidth={2.75} />
+                    </button>
+                  </div>
+                </div>
+                <div className="product-modal__summary-total">
+                  <span className="product-modal__summary-total-label">Total</span>
+                  <span className="product-modal__summary-total-value">{money(lineTotal)}</span>
                 </div>
               </div>
-              <div className="product-modal__summary-total">
-                <span className="product-modal__summary-total-label">Total</span>
-                <span className="product-modal__summary-total-value">{money(lineTotal)}</span>
-              </div>
-            </div>
 
-            <div className="product-modal__actions">
-              <button type="button" onClick={onClose} className="product-modal__btn product-modal__btn--ghost">
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={handleAdd}
-                className="product-modal__btn product-modal__btn--primary"
-              >
-                Agregar al carrito
-              </button>
+              <div className="product-modal__actions">
+                <button type="button" onClick={onClose} className="product-modal__btn product-modal__btn--ghost">
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAdd}
+                  className="product-modal__btn product-modal__btn--primary"
+                >
+                  Agregar al carrito
+                </button>
+              </div>
             </div>
           </footer>
         </div>
@@ -353,14 +378,19 @@ function DrinkOptionCard({ label, selected, onSelect, fullWidth = false, compact
     <button
       type="button"
       onClick={onSelect}
-      className={`product-modal-option ${compact ? 'product-modal-option--compact' : ''} ${selected ? 'product-modal-option--active' : ''} ${fullWidth ? 'col-span-2' : ''}`}
+      aria-pressed={selected}
+      className={[
+        'product-modal-option',
+        'product-modal-option--drink',
+        compact ? 'product-modal-option--compact' : '',
+        selected ? 'product-modal-option--active' : '',
+        fullWidth ? 'product-modal-option--span' : '',
+      ].filter(Boolean).join(' ')}
     >
-      <span className={`product-modal-radio ${selected ? 'product-modal-radio--active' : ''}`}>
-        {selected && <Check className="h-2.5 w-2.5 text-white sm:h-3 sm:w-3" strokeWidth={3} />}
+      <span className={`product-modal-radio ${selected ? 'product-modal-radio--active' : ''}`} aria-hidden>
+        {selected && <Check className="product-modal-radio__check" strokeWidth={3} />}
       </span>
-      <span className="min-w-0 text-left text-[10px] font-bold uppercase leading-tight tracking-wide text-pollon-black sm:text-xs">
-        {label}
-      </span>
+      <span className="product-modal-option__label">{label}</span>
     </button>
   );
 }
