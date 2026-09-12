@@ -83,6 +83,7 @@ export function AddressAutocomplete({
       lat: biasLat,
       lng: biasLng,
       branchHouseNumber,
+      branchAddress,
       limit: 8,
     };
 
@@ -448,6 +449,11 @@ export function AddressAutocomplete({
           initialCenter={mapPickerCenter}
           onClose={() => setMapPickerOpen(false)}
           onConfirm={handleMapConfirm}
+          cityBias={cityBias}
+          biasLat={biasLat}
+          biasLng={biasLng}
+          branchAddress={branchAddress}
+          branchHouseNumber={branchHouseNumber}
         />
         {permissionDialog}
       </div>
@@ -526,6 +532,11 @@ export function AddressAutocomplete({
         initialCenter={mapPickerCenter}
         onClose={() => setMapPickerOpen(false)}
         onConfirm={handleMapConfirm}
+        cityBias={cityBias}
+        biasLat={biasLat}
+        biasLng={biasLng}
+        branchAddress={branchAddress}
+        branchHouseNumber={branchHouseNumber}
       />
       {permissionDialog}
 

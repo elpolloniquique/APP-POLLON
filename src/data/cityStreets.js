@@ -9,6 +9,7 @@ export const CITY_STREETS = {
     { name: 'Tarapacá', lat: -20.2135, lng: -70.1488 },
     { name: 'Baquedano', lat: -20.2148, lng: -70.1505 },
     { name: 'Orella', lat: -20.2164, lng: -70.1455 },
+    { name: 'Vicente Zegers', lat: -20.2172, lng: -70.1448 },
     { name: 'Zegers', lat: -20.2172, lng: -70.1448 },
     { name: 'Bolívar', lat: -20.2151, lng: -70.1492 },
     { name: 'San Martín', lat: -20.2178, lng: -70.1484 },
@@ -40,7 +41,8 @@ export const CITY_STREETS = {
     { name: 'Sargento Aldea', lat: -20.2202, lng: -70.1496 },
     { name: 'Videla', lat: -20.2181, lng: -70.1466 },
     { name: 'Wilson', lat: -20.2256, lng: -70.1444 },
-    { name: 'Juan Martínez', lat: -20.2272, lng: -70.1468 },
+    // Centro aproximado cerca del tramo con números (~1181); ArcGIS afina la fachada
+    { name: 'Juan Martínez', lat: -20.21927, lng: -70.14555 },
     { name: 'Centenario', lat: -20.2318, lng: -70.1294 },
     { name: 'Aeropuerto', lat: -20.538, lng: -70.181 },
     { name: 'Manuel Bulnes', lat: -20.2228, lng: -70.1476 },
@@ -125,6 +127,45 @@ function fold(s) {
     .trim();
 }
 
+/** Distancia de edición (Levenshtein) para typos: vecente→vicente, tomson→thompson */
+function editDistance(a, b) {
+  const s = String(a || '');
+  const t = String(b || '');
+  if (s === t) return 0;
+  if (!s.length) return t.length;
+  if (!t.length) return s.length;
+  const rows = s.length + 1;
+  const cols = t.length + 1;
+  const d = Array.from({ length: rows }, () => new Array(cols).fill(0));
+  for (let i = 0; i < rows; i += 1) d[i][0] = i;
+  for (let j = 0; j < cols; j += 1) d[0][j] = j;
+  for (let i = 1; i < rows; i += 1) {
+    for (let j = 1; j < cols; j += 1) {
+      const cost = s[i - 1] === t[j - 1] ? 0 : 1;
+      d[i][j] = Math.min(
+        d[i - 1][j] + 1,
+        d[i][j - 1] + 1,
+        d[i - 1][j - 1] + cost,
+      );
+    }
+  }
+  return d[s.length][t.length];
+}
+
+function tokenScore(queryToken, streetToken) {
+  if (!queryToken || !streetToken) return 0;
+  if (streetToken === queryToken) return 100;
+  if (streetToken.startsWith(queryToken)) return 92;
+  if (queryToken.startsWith(streetToken) && streetToken.length >= 3) return 78;
+  if (queryToken.length >= 3 && streetToken.includes(queryToken)) return 70;
+  if (queryToken.length >= 4 && streetToken.length >= 4) {
+    const dist = editDistance(queryToken, streetToken);
+    if (dist === 1) return 82;
+    if (dist === 2 && queryToken.length >= 6) return 64;
+  }
+  return 0;
+}
+
 function streetsForCity(city) {
   const key = Object.keys(CITY_STREETS).find((k) => fold(k) === fold(city));
   if (key) return CITY_STREETS[key];
@@ -153,11 +194,13 @@ export function preferredLocalRoadName(road, city = 'Iquique') {
 }
 
 /**
- * Sugerencias instantáneas al escribir iniciales: "soto" → Sotomayor.
+ * Sugerencias instantáneas al escribir iniciales / typos:
+ * "zege" | "zegers" | "vicente" | "vecente zegers" → Vicente Zegers / Zegers
  */
 export function matchLocalStreets(query, { city = 'Iquique', houseNumber = null, limit = 6 } = {}) {
   const q = fold(query);
   if (q.length < 2) return [];
+  const qWords = q.split(' ').filter((w) => w.length >= 2);
   const list = streetsForCity(city);
   const scored = [];
 
@@ -167,13 +210,34 @@ export function matchLocalStreets(query, { city = 'Iquique', houseNumber = null,
     const words = n.split(' ').filter(Boolean);
     const lastWord = words[words.length - 1] || '';
     let score = 0;
-    if (lastWord === q && words.length > 1) score = 100;
-    else if (n === q) score = 94;
-    else if (lastWord === q) score = 92;
-    else if (n.startsWith(q)) score = 90;
-    else if (words.some((w) => w.startsWith(q))) score = 80;
-    else if (n.includes(q)) score = 55;
-    else continue;
+
+    if (n === q) score = 100;
+    else if (n.startsWith(q)) score = 96;
+    else if (q.length >= 3 && n.includes(q)) score = 72;
+
+    // Cada token del usuario vs cada palabra de la calle (zegers dentro de "vecente zegers")
+    for (const qw of qWords) {
+      for (const sw of words) {
+        score = Math.max(score, tokenScore(qw, sw));
+      }
+      score = Math.max(score, tokenScore(qw, n));
+      if (lastWord) {
+        const lastHit = tokenScore(qw, lastWord);
+        if (lastHit >= 70) score = Math.max(score, lastHit + 8);
+      }
+    }
+
+    // Bonus si varios tokens encajan (vicente + zegers)
+    if (qWords.length > 1) {
+      let hits = 0;
+      for (const qw of qWords) {
+        if (words.some((sw) => tokenScore(qw, sw) >= 70) || tokenScore(qw, n) >= 70) hits += 1;
+      }
+      if (hits >= 2) score = Math.max(score, 98);
+      else if (hits === 1 && score >= 70) score += 6;
+    }
+
+    if (score < 48) continue;
     scored.push({ ...s, score });
   }
 
@@ -184,15 +248,28 @@ export function matchLocalStreets(query, { city = 'Iquique', houseNumber = null,
   for (const s of scored) {
     const k = fold(s.name);
     if (seen.has(k)) continue;
+    // Preferir nombre largo si hay duplicado de coords (Vicente Zegers > Zegers)
+    const longerKey = [...seen].find((prev) => {
+      const prevStreet = list.find((x) => fold(x.name) === prev);
+      return prevStreet && prevStreet.lat === s.lat && prevStreet.lng === s.lng;
+    });
+    if (longerKey && fold(s.name).length <= longerKey.length) continue;
+    if (longerKey && fold(s.name).length > longerKey.length) {
+      const idx = out.findIndex((o) => fold(o.road) === longerKey);
+      if (idx >= 0) out.splice(idx, 1);
+      seen.delete(longerKey);
+    }
     seen.add(k);
     out.push({
       id: `local-${k}`,
       road: s.name,
+      name: s.name,
       lat: s.lat,
       lng: s.lng,
       city,
       houseNumber: houseNumber || null,
       precision: houseNumber ? 'interpolated' : 'street',
+      matchScore: s.score,
     });
     if (out.length >= limit) break;
   }

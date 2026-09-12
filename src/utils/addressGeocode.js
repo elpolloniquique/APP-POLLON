@@ -15,6 +15,7 @@ const OVERPASS_ENDPOINTS = [
   'https://overpass.kumi.systems/api/interpreter',
 ];
 const ARCGIS_REVERSE = 'https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/reverseGeocode';
+const ARCGIS_FIND = 'https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates';
 const searchCache = new Map();
 
 const FETCH_HEADERS = {
@@ -205,6 +206,25 @@ function streetsMatch(a, b) {
   const nb = normText(b);
   if (!na || !nb) return false;
   return na.includes(nb) || nb.includes(na) || na.split(/\s+/).some((w) => w.length > 3 && nb.includes(w));
+}
+
+/** Matching estricto para pin exacto (evita Juan Martínez ≈ Luis Cruz Martínez). */
+function streetsMatchStrict(a, b) {
+  const na = normText(a);
+  const nb = normText(b);
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+  const wa = na.split(/\s+/).filter((w) => w.length > 2);
+  const wb = nb.split(/\s+/).filter((w) => w.length > 2);
+  if (!wa.length || !wb.length) return false;
+  const hits = wa.filter((w) => wb.includes(w)).length;
+  if (wa.length >= 2 && wb.length >= 2) {
+    return hits >= 2 || (hits >= 1 && wa[0] === wb[0] && wa[wa.length - 1] === wb[wb.length - 1]);
+  }
+  // Un solo token (ej. "Zegers"): debe coincidir con el apellido de la otra
+  const short = wa.length <= wb.length ? wa : wb;
+  const long = wa.length <= wb.length ? wb : wa;
+  return short.every((w) => long.includes(w));
 }
 
 /**
@@ -453,17 +473,12 @@ async function fetchStreetHouseNumbers(streetName, near) {
   node["addr:housenumber"]["addr:street"~"${token}",i](around:2500,${near.lat},${near.lng});
   way["addr:housenumber"]["addr:street"~"${token}",i](around:2500,${near.lat},${near.lng});
 );
-out center 80;
+out center 120;
 `.trim();
 
   try {
-    const res = await fetch(OVERPASS, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8', ...FETCH_HEADERS },
-      body: new URLSearchParams({ data: q }),
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
+    const data = await fetchOverpass(q, 9000);
+    if (!data?.elements) return [];
     return (data.elements || [])
       .map((el) => {
         const n = parseInt(String(el.tags?.['addr:housenumber'] || '').replace(/\D.*/, ''), 10);
@@ -498,7 +513,17 @@ function houseNumbersMatch(a, b) {
   return Number.isFinite(na) && Number.isFinite(nb) && na === nb;
 }
 
-/** Una sola entrada por dirección; prioriza el punto más cercano a la sucursal. */
+/** Una sola entrada por dirección; prioriza calidad (OSM) sobre cercanía a la sucursal. */
+function hitSourceScore(h) {
+  if (h?.source === 'arcgis') return 70;
+  if (h?.source === 'nominatim') return 50;
+  if (h?.source === 'overpass') return 45;
+  if (h?.source === 'photon') return 40;
+  if (h?.source === 'gps') return 35;
+  if (h?.source === 'local') return 12;
+  return 5;
+}
+
 function dedupeByLabelPreferClosest(hits, bias) {
   const byLabel = new Map();
   for (const h of hits) {
@@ -508,14 +533,21 @@ function dedupeByLabelPreferClosest(hits, bias) {
       byLabel.set(key, h);
       continue;
     }
+    const qNew = hitSourceScore(h) + (h.precision === 'exact' ? 20 : h.precision === 'interpolated' ? 8 : 0);
+    const qPrev = hitSourceScore(prev) + (prev.precision === 'exact' ? 20 : prev.precision === 'interpolated' ? 8 : 0);
+    if (qNew !== qPrev) {
+      if (qNew > qPrev) byLabel.set(key, h);
+      continue;
+    }
     if (!Number.isFinite(bias?.lat) || !Number.isFinite(bias?.lng)) {
-      const rank = (x) => (x.precision === 'exact' ? 3 : x.precision === 'street' ? 2 : 1);
-      if (rank(h) > rank(prev)) byLabel.set(key, h);
       continue;
     }
     const dPrev = haversineM(prev, bias);
     const dNew = haversineM(h, bias);
-    if (dNew < dPrev) byLabel.set(key, h);
+    // Si ambos son "local", preferir el más cercano; si no, no arrastrar a la sucursal
+    if (prev.source === 'local' && h.source === 'local' && dNew < dPrev) {
+      byLabel.set(key, h);
+    }
   }
   return [...byLabel.values()];
 }
@@ -557,7 +589,16 @@ function rankHits(hits, parsed, bias) {
       const nStreet = normText(parsed.street);
       if (nStreet && nRoad.startsWith(nStreet)) s += 45;
       if (nStreet && nRoad.split(/\s+/).some((w) => w.startsWith(nStreet))) s += 20;
-      if (h.source === 'local') s += 12;
+      // Tokens sueltos: "zegers" dentro de "vecente zegers"
+      if (nStreet) {
+        const qTokens = nStreet.split(/\s+/).filter((w) => w.length >= 3);
+        const rTokens = nRoad.split(/\s+/);
+        for (const qt of qTokens) {
+          if (rTokens.some((rt) => rt.startsWith(qt) || qt.startsWith(rt) || rt === qt)) s += 35;
+        }
+      }
+      if (h.source === 'local') s += 30;
+      if (h.matchScore) s += Math.min(40, h.matchScore / 3);
       if (parsed.postcode && h.postcode === parsed.postcode) s += 15;
       if (bias?.lat && bias?.lng) {
         const d = haversineM({ lat: h.lat, lng: h.lng }, { lat: bias.lat, lng: bias.lng });
@@ -623,22 +664,26 @@ async function resolveLocalHouseCoords(parsed, opts = {}) {
   if (!matches.length) return null;
 
   const hasBranch = Number.isFinite(opts.lat) && Number.isFinite(opts.lng);
+  const branchParsed = parseAddressQuery(opts.branchAddress || '');
   const branchNum = opts.branchHouseNumber
     ? parseInt(String(opts.branchHouseNumber).replace(/\D.*/, ''), 10)
-    : null;
+    : (branchParsed.houseNumber
+      ? parseInt(String(branchParsed.houseNumber).replace(/\D.*/, ''), 10)
+      : null);
   const postcode = resolvePostcode(city, parsed.postcode);
   const state = city === 'Arica' ? 'Arica y Parinacota' : 'Tarapacá';
 
   for (const s of matches) {
     const roadName = preferredLocalRoadName(s.name, city) || s.name;
+    // Solo anclar a GPS de sucursal si es la MISMA calle del local
+    const sameAsBranch = hasBranch && streetsMatch(roadName, branchParsed.street || '');
 
-    // Ancla principal = GPS real de la sucursal (no el seed del catálogo)
-    const anchor = hasBranch
+    const anchor = sameAsBranch
       ? { lat: Number(opts.lat), lng: Number(opts.lng), road: roadName, city }
       : { lat: s.lat, lng: s.lng, road: roadName, city };
 
     // Caso crítico: cliente escribe la misma dirección de la tienda
-    if (Number.isFinite(branchNum) && branchNum === targetNum && hasBranch) {
+    if (sameAsBranch && Number.isFinite(branchNum) && branchNum === targetNum) {
       const label = formatChileLabel({
         road: roadName,
         houseNumber: String(parsed.houseNumber),
@@ -663,9 +708,9 @@ async function resolveLocalHouseCoords(parsed, opts = {}) {
     }
 
     let known = await fetchStreetHouseNumbers(roadName, anchor);
-    known = known.filter((k) => haversineM(k, anchor) <= 700);
+    known = known.filter((k) => haversineM(k, anchor) <= (sameAsBranch ? 700 : 2500));
 
-    if (Number.isFinite(branchNum) && hasBranch) {
+    if (sameAsBranch && Number.isFinite(branchNum)) {
       known = known.filter((k) => k.n !== branchNum);
       known.push({
         n: branchNum,
@@ -676,7 +721,7 @@ async function resolveLocalHouseCoords(parsed, opts = {}) {
       });
     }
 
-    if (!known.length && hasBranch) {
+    if (!known.length && sameAsBranch) {
       known = [{
         n: Number.isFinite(branchNum) ? branchNum : targetNum,
         lat: anchor.lat,
@@ -691,7 +736,7 @@ async function resolveLocalHouseCoords(parsed, opts = {}) {
     }
 
     let exactKnown = known.find((k) => k.n === targetNum);
-    if (exactKnown && haversineM(exactKnown, anchor) > 700) exactKnown = null;
+    if (exactKnown && sameAsBranch && haversineM(exactKnown, anchor) > 700) exactKnown = null;
 
     const interp = exactKnown
       ? { lat: exactKnown.lat, lng: exactKnown.lng, precision: 'exact' }
@@ -701,7 +746,8 @@ async function resolveLocalHouseCoords(parsed, opts = {}) {
 
     let lat = interp.lat;
     let lng = interp.lng;
-    if (haversineM({ lat, lng }, anchor) > 800) {
+    // Nunca arrastrar otra calle al GPS de la sucursal
+    if (sameAsBranch && haversineM({ lat, lng }, anchor) > 800) {
       lat = anchor.lat;
       lng = anchor.lng;
     }
@@ -741,6 +787,7 @@ function localStreetHits(parsed, opts) {
   const state = city === 'Arica' ? 'Arica y Parinacota' : 'Tarapacá';
   const postcode = resolvePostcode(city, parsed.postcode);
   const hasBranch = Number.isFinite(opts.lat) && Number.isFinite(opts.lng);
+  const branchStreet = parseAddressQuery(opts.branchAddress || '').street;
   const branchNum = opts.branchHouseNumber
     ? parseInt(String(opts.branchHouseNumber).replace(/\D.*/, ''), 10)
     : null;
@@ -754,10 +801,11 @@ function localStreetHits(parsed, opts) {
     limit: opts.limit || 7,
   }).flatMap((s) => {
     const road = preferredLocalRoadName(s.road, city) || s.road;
-    // Preferir GPS de sucursal para cotizar delivery (evita seed desfasado del catálogo)
+    const sameAsBranch = hasBranch && streetsMatch(road, branchStreet || '');
+    // Solo usar GPS de sucursal si es la misma calle del local
     let lat = s.lat;
     let lng = s.lng;
-    if (hasBranch && parsed.houseNumber) {
+    if (sameAsBranch && parsed.houseNumber) {
       if (Number.isFinite(branchNum) && Number.isFinite(targetNum) && branchNum === targetNum) {
         lat = Number(opts.lat);
         lng = Number(opts.lng);
@@ -807,13 +855,13 @@ function localStreetHits(parsed, opts) {
 }
 
 function cacheKey(query, opts) {
-  return `${normText(query)}|${normText(opts.city || '')}|${opts.lat || ''}|${opts.lng || ''}|${opts.limit || 7}|${opts.skipSlow ? 'fast' : 'full'}`;
+  return `${normText(query)}|${normText(opts.city || '')}|${opts.lat || ''}|${opts.lng || ''}|${opts.limit || 7}|${opts.skipSlow ? 'fast' : 'full'}|${opts.skipLocalResolve ? 'nloc' : 'loc'}`;
 }
 
 /**
  * Busca direcciones precisas para autocompletado / checkout.
  * @param {string} query
- * @param {{ city?: string, lat?: number, lng?: number, limit?: number, skipSlow?: boolean }} [opts]
+ * @param {{ city?: string, lat?: number, lng?: number, limit?: number, skipSlow?: boolean, skipLocalResolve?: boolean, branchAddress?: string, branchHouseNumber?: string|number }} [opts]
  * @returns {Promise<GeocodeHit[]>}
  */
 export async function searchPreciseAddresses(query, opts = {}) {
@@ -835,7 +883,7 @@ export async function searchPreciseAddresses(query, opts = {}) {
   };
   const limit = opts.limit || 7;
 
-  if (parsed.houseNumber) {
+  if (parsed.houseNumber && !opts.skipLocalResolve) {
     const localResolved = await resolveLocalHouseCoords(parsed, { ...opts, city });
     if (localResolved) {
       const quick = finalizeCheckoutHits([localResolved], parsed, city, bias);
@@ -1058,6 +1106,22 @@ export function previewLocalAddresses(query, opts = {}) {
     { lat: opts.lat, lng: opts.lng },
   );
 }
+
+/** Reescribe la query con el nombre correcto de calle del catálogo (vecente→Vicente Zegers). */
+function correctedRemoteQuery(parsed, opts = {}) {
+  const city = opts.city || parsed.city || 'Iquique';
+  const matches = matchLocalStreets(parsed.street || parsed.rest, {
+    city,
+    houseNumber: parsed.houseNumber,
+    limit: 1,
+  });
+  const road = matches[0]?.road;
+  if (!road) return null;
+  return parsed.houseNumber
+    ? `${road} ${parsed.houseNumber}, ${city}, Chile`
+    : `${road}, ${city}, Chile`;
+}
+
 export async function searchAddressesProgressive(query, opts = {}, onUpdate) {
   const parsed = parseAddressQuery(query);
   if ((parsed.street || parsed.rest).length < 2) {
@@ -1076,7 +1140,7 @@ export async function searchAddressesProgressive(query, opts = {}, onUpdate) {
     ));
   }
 
-  if (parsed.houseNumber) {
+  if (parsed.houseNumber && !opts.skipLocalResolve) {
     const localResolved = await resolveLocalHouseCoords(parsed, opts).catch(() => null);
     if (localResolved) {
       const exactList = finalizeCheckoutHits(
@@ -1085,19 +1149,32 @@ export async function searchAddressesProgressive(query, opts = {}, onUpdate) {
         opts.city,
         bias,
       );
-      if (exactList.length) {
-        onUpdate?.(exactList);
-        return exactList;
-      }
+      if (exactList.length) onUpdate?.(exactList);
     }
   }
 
-  const fast = await searchPreciseAddresses(query, { ...opts, skipSlow: true });
-  if (fast.length) onUpdate?.(fast);
+  // Buscar en OSM con nombre de calle corregido (más preciso y rápido)
+  const remoteQ = correctedRemoteQuery(parsed, opts) || query;
+  const fast = await searchPreciseAddresses(remoteQ, { ...opts, skipSlow: true });
+  if (fast.length) {
+    onUpdate?.(finalizeCheckoutHits(
+      rankHits([...(local || []), ...fast], parsed, bias),
+      parsed,
+      opts.city,
+      bias,
+    ));
+  }
 
   if (parsed.houseNumber) {
-    const full = await searchPreciseAddresses(query, { ...opts, skipSlow: false });
-    if (full.length) onUpdate?.(full);
+    const full = await searchPreciseAddresses(remoteQ, { ...opts, skipSlow: false });
+    if (full.length) {
+      onUpdate?.(finalizeCheckoutHits(
+        rankHits([...(local || []), ...full], parsed, bias),
+        parsed,
+        opts.city,
+        bias,
+      ));
+    }
     return full.length ? full : fast.length ? fast : local;
   }
   return fast.length ? fast : local;
@@ -1403,6 +1480,90 @@ async function reverseArcGis(lat, lng, distanceM = 32) {
   return mapArcGisReverse(data, lat, lng);
 }
 
+/**
+ * Geocodificación hacia adelante (calle + número → coords de la casa).
+ * PointAddress = parcela/fachada; StreetAddress = interpolación en el tramo.
+ */
+function mapArcGisCandidate(c, parsed, city) {
+  if (!c?.location) return null;
+  const a = c.attributes || {};
+  const addrType = String(a.Addr_type || '');
+  // DisplayX/Y = punto de la fachada/parcela; X/Y a veces cae en el eje de la calle
+  const lat = Number(a.DisplayY ?? c.location.y);
+  const lng = Number(a.DisplayX ?? c.location.x);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+  let road = String(a.StName || '').trim();
+  if (!road && a.ShortLabel) {
+    road = String(a.ShortLabel)
+      .replace(/^(calle|av\.?|avenida|pasaje|psje\.?)\s+/i, '')
+      .replace(/\s+\d+[A-Za-z]?\s*$/i, '')
+      .trim();
+  }
+  road = road.replace(/^(calle|av\.?|avenida|pasaje|psje\.?)\s+/i, '').trim();
+  const houseNumber = a.AddNum ? String(a.AddNum) : (parsed.houseNumber || null);
+  const postcode = resolvePostcode(city, parsed.postcode, a.Postal);
+  const state = a.Region || (city === 'Arica' ? 'Arica y Parinacota' : 'Tarapacá');
+  const hitCity = a.City || city;
+  const shortLabel = formatChileLabel({
+    road: preferredLocalRoadName(road, city) || road,
+    houseNumber,
+    postcode,
+    city: hitCity,
+    state,
+  });
+
+  const hasExactHouse = houseNumbersMatch(houseNumber, parsed.houseNumber)
+    && (addrType === 'PointAddress' || addrType === 'StreetAddress');
+  const precision = addrType === 'PointAddress' && hasExactHouse
+    ? 'exact'
+    : hasExactHouse
+      ? 'interpolated'
+      : houseNumber
+        ? 'interpolated'
+        : 'street';
+
+  return {
+    id: `arcgis-${a.MatchID || `${lat}-${lng}`}`,
+    label: shortLabel,
+    shortLabel,
+    lat,
+    lng,
+    precision,
+    houseNumber,
+    postcode,
+    road: preferredLocalRoadName(road, city) || road,
+    city: hitCity,
+    state,
+    source: 'arcgis',
+    addrType,
+    score: Number(c.score) || Number(a.Score) || 0,
+    buildingLat: Number(a.Y ?? c.location.y),
+    buildingLng: Number(a.X ?? c.location.x),
+  };
+}
+
+async function arcgisFindAddress(query, opts = {}) {
+  const url = new URL(ARCGIS_FIND);
+  url.searchParams.set('f', 'json');
+  url.searchParams.set('singleLine', query);
+  url.searchParams.set('maxLocations', String(opts.limit || 6));
+  url.searchParams.set('outFields', '*');
+  url.searchParams.set('forStorage', 'false');
+  url.searchParams.set('langCode', 'es');
+  url.searchParams.set('countryCode', 'CHL');
+  if (Number.isFinite(opts.lat) && Number.isFinite(opts.lng)) {
+    url.searchParams.set('location', `${opts.lng},${opts.lat}`);
+    url.searchParams.set('maxDistance', '25000');
+  }
+  const data = await fetchJsonTimeout(
+    url.toString(),
+    { headers: { Accept: 'application/json', 'Accept-Language': 'es' } },
+    4500,
+  );
+  return Array.isArray(data?.candidates) ? data.candidates : [];
+}
+
 async function reverseNominatim(lat, lng) {
   const url = new URL(NOMINATIM_REVERSE);
   url.searchParams.set('lat', String(lat));
@@ -1547,6 +1708,252 @@ function applyLocalRoadName(hit, city) {
     state: hit.state || 'Tarapacá',
   });
   return { ...hit, road: corrected, label, shortLabel: label };
+}
+
+/**
+ * Resuelve coordenadas EXACTAS para el pin del mapa al elegir una sugerencia.
+ * Prioridad: ArcGIS PointAddress (fachada) → Overpass número → OSM → interpolación.
+ * No usa el GPS de la sucursal como ancla.
+ */
+export async function resolveExactMapPin(selection, opts = {}) {
+  const city = opts.city || 'Iquique';
+  const parsed = parseAddressQuery(
+    selection?.shortLabel || selection?.label || [selection?.road, selection?.houseNumber].filter(Boolean).join(' '),
+  );
+  const road = String(selection?.road || parsed.street || '').trim();
+  const houseNumber = String(selection?.houseNumber || parsed.houseNumber || '').trim() || null;
+  if (!road) return null;
+
+  const state = city === 'Arica' ? 'Arica y Parinacota' : 'Tarapacá';
+  const postcode = resolvePostcode(city, selection?.postcode || parsed.postcode);
+  const preferredRoad = preferredLocalRoadName(road, city) || road;
+  const label = formatChileLabel({
+    road: preferredRoad,
+    houseNumber,
+    postcode,
+    city,
+    state,
+  });
+  const parsedRef = { street: road, houseNumber, postcode, city };
+
+  const branchParsedEarly = parseAddressQuery(opts.branchAddress || '');
+  const branchBias = Number.isFinite(opts.lat) && Number.isFinite(opts.lng)
+    ? { lat: Number(opts.lat), lng: Number(opts.lng) }
+    : null;
+  const nearBranchButOtherStreet = (h) => {
+    if (!branchBias) return false;
+    if (streetsMatch(road, branchParsedEarly.street || '')) return false;
+    return haversineM({ lat: Number(h.lat), lng: Number(h.lng) }, branchBias) < 160;
+  };
+
+  const packHit = (h, precision, source) => ({
+    ...h,
+    road: preferredLocalRoadName(h.road || road, city) || preferredRoad,
+    houseNumber: houseNumber || h.houseNumber,
+    shortLabel: label,
+    label,
+    postcode: h.postcode || postcode,
+    city: h.city || city,
+    state: h.state || state,
+    lat: Number(h.lat),
+    lng: Number(h.lng),
+    precision,
+    source,
+  });
+
+  // 1) ArcGIS: tiene números de casa reales en Iquique (PointAddress = fachada)
+  if (houseNumber) {
+    const singleLine = `${preferredRoad} ${houseNumber}, ${city}, Tarapacá, Chile`;
+    try {
+      const candidates = await arcgisFindAddress(singleLine, {
+        lat: city === 'Iquique' ? -20.22 : opts.lat,
+        lng: city === 'Iquique' ? -70.145 : opts.lng,
+        limit: 8,
+      });
+      const mapped = (candidates || [])
+        .map((c) => mapArcGisCandidate(c, parsedRef, city))
+        .filter(Boolean)
+        .filter((h) => !nearBranchButOtherStreet(h));
+
+      const ranked = mapped
+        .map((h) => {
+          let s = Number(h.score) || 0;
+          if (h.addrType === 'PointAddress') s += 40;
+          if (h.addrType === 'StreetAddress') s += 20;
+          if (houseNumbersMatch(h.houseNumber, houseNumber)) s += 50;
+          if (streetsMatchStrict(h.road, road) || streetsMatchStrict(h.road, preferredRoad)) s += 45;
+          else s -= 80;
+          return { h, s };
+        })
+        .sort((a, b) => b.s - a.s);
+
+      const bestArc = ranked.find(({ h }) => (
+        houseNumbersMatch(h.houseNumber, houseNumber)
+        && (streetsMatchStrict(h.road, road) || streetsMatchStrict(h.road, preferredRoad))
+        && (h.addrType === 'PointAddress' || h.addrType === 'StreetAddress')
+      ));
+
+      if (bestArc) {
+        return packHit(
+          bestArc.h,
+          bestArc.h.addrType === 'PointAddress' ? 'exact' : 'interpolated',
+          'arcgis',
+        );
+      }
+    } catch {
+      // seguir con otras fuentes
+    }
+  }
+
+  // 2) Overpass: nodos addr:housenumber en esa calle
+  const localSeed = matchLocalStreets(road, { city, houseNumber, limit: 1 })[0];
+  if (localSeed && houseNumber) {
+    const known = await fetchStreetHouseNumbers(localSeed.road || road, {
+      lat: localSeed.lat,
+      lng: localSeed.lng,
+      road: localSeed.road || road,
+      city,
+    }).catch(() => []);
+    const target = parseInt(String(houseNumber).replace(/\D.*/, ''), 10);
+    const exact = known.find((k) => k.n === target);
+    if (exact && Number.isFinite(exact.lat) && Number.isFinite(exact.lng)) {
+      return packHit(
+        {
+          id: `map-pin-op-${normText(road)}-${houseNumber}`,
+          road: localSeed.road || preferredRoad,
+          lat: exact.lat,
+          lng: exact.lng,
+        },
+        'exact',
+        'overpass',
+      );
+    }
+
+    const interp = interpolateHouseCoords(
+      target,
+      known.length ? known : [],
+      null,
+    );
+    // Solo interpolar si hay al menos 2 números conocidos en la calle
+    if (known.length >= 2 && interp && Number.isFinite(interp.lat) && Number.isFinite(interp.lng)) {
+      if (!(
+        Number.isFinite(opts.lat)
+        && Number.isFinite(opts.lng)
+        && !streetsMatch(road, branchParsedEarly.street || '')
+        && haversineM(interp, { lat: Number(opts.lat), lng: Number(opts.lng) }) < 120
+      )) {
+        return packHit(
+          {
+            id: `map-pin-op-i-${normText(road)}-${houseNumber}`,
+            road: localSeed.road || preferredRoad,
+            lat: interp.lat,
+            lng: interp.lng,
+          },
+          'interpolated',
+          'overpass',
+        );
+      }
+    }
+  }
+
+  // 3) Nominatim / Photon: solo si traen número de casa REAL de OSM (no el de la query)
+  const streetParam = houseNumber ? `${houseNumber} ${road}` : road;
+  const freeQ = [road, houseNumber, city, 'Chile'].filter(Boolean).join(', ');
+
+  const [structRaw, freeRaw, photonFeats] = await Promise.all([
+    nominatimSearch({
+      street: streetParam,
+      city,
+      country: 'Chile',
+      postalcode: postcode || undefined,
+      limit: '6',
+    }).catch(() => []),
+    nominatimSearch({
+      q: freeQ,
+      limit: '6',
+    }).catch(() => []),
+    photonSearch(`${road}${houseNumber ? ` ${houseNumber}` : ''}, ${city}, Chile`, {
+      lat: city === 'Iquique' ? -20.22 : opts.lat,
+      lng: city === 'Iquique' ? -70.145 : opts.lng,
+      limit: 6,
+    }).catch(() => []),
+  ]);
+
+  const fromNom = [...(structRaw || []), ...(freeRaw || [])]
+    .map((r) => {
+      const a = r.address || {};
+      const osmHouse = a.house_number || null;
+      const h = mapNominatimHit(r, parsedRef, city);
+      if (!h) return null;
+      // Marcar si el número vino de OSM o solo se rellenó desde la query
+      return { ...h, osmHouseNumber: osmHouse };
+    })
+    .filter(Boolean);
+  const fromPho = (photonFeats || [])
+    .map((f) => {
+      const osmHouse = f?.properties?.housenumber || null;
+      const h = mapPhotonHit(f, parsedRef, city);
+      if (!h) return null;
+      return { ...h, osmHouseNumber: osmHouse };
+    })
+    .filter(Boolean);
+
+  const candidates = [...fromNom, ...fromPho].filter(
+    (h) => Number.isFinite(Number(h.lat)) && Number.isFinite(Number(h.lng)),
+  );
+
+  const scored = candidates
+    .map((h) => {
+      let s = hitSourceScore(h);
+      const realHouse = !!h.osmHouseNumber && houseNumbersMatch(h.osmHouseNumber, houseNumber);
+      if (realHouse) s += 100;
+      if (streetsMatch(h.road, road)) s += 60;
+      if (nearBranchButOtherStreet(h)) s -= 200;
+      // Penalizar calle sin número real cuando pedimos un número concreto
+      if (houseNumber && !h.osmHouseNumber) s -= 50;
+      return { h, s, realHouse };
+    })
+    .sort((a, b) => b.s - a.s);
+
+  for (const { h, realHouse } of scored) {
+    if (!streetsMatch(h.road, road) && !normText(h.shortLabel || '').includes(normText(road).split(' ').pop() || '___')) {
+      continue;
+    }
+    if (nearBranchButOtherStreet(h)) continue;
+    // Con número: no aceptar centro de calle como si fuera la casa
+    if (houseNumber && !realHouse) continue;
+    return packHit(h, realHouse ? 'exact' : (h.precision || 'street'), h.source || 'nominatim');
+  }
+
+  // 4) Último recurso: centro de calle (solo si no hay número, o seed local)
+  if (localSeed && !houseNumber) {
+    return packHit(
+      {
+        id: `map-pin-${normText(road)}-street`,
+        road: localSeed.road || preferredRoad,
+        lat: localSeed.lat,
+        lng: localSeed.lng,
+      },
+      'street',
+      'local',
+    );
+  }
+
+  // Con número pero sin punto exacto: al menos mover a la calle e indicar estimado
+  if (localSeed && houseNumber) {
+    return packHit(
+      {
+        id: `map-pin-${normText(road)}-${houseNumber}-approx`,
+        road: localSeed.road || preferredRoad,
+        lat: localSeed.lat,
+        lng: localSeed.lng,
+      },
+      'street',
+      'local',
+    );
+  }
+
+  return null;
 }
 
 export async function reverseGeocodePrecise(lat, lng, opts = {}) {
