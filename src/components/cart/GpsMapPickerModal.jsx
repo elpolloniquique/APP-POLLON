@@ -141,6 +141,8 @@ export function GpsMapPickerModal({
   const searchReqRef = useRef(0);
   const skipReverseRef = useRef(false);
   const suppressMoveRef = useRef(false);
+  const searchPinLockRef = useRef(false);
+  const lockedPinRef = useRef(null);
   const searchBoxRef = useRef(null);
   const searchInputRef = useRef(null);
 
@@ -155,6 +157,8 @@ export function GpsMapPickerModal({
     setSearchOpen(false);
     setSearchExpanded(false);
     setActiveIdx(-1);
+    searchPinLockRef.current = false;
+    lockedPinRef.current = null;
   }, [open, initialCenter?.lat, initialCenter?.lng]);
 
   useEffect(() => {
@@ -169,19 +173,35 @@ export function GpsMapPickerModal({
       skipReverseRef.current = false;
       return undefined;
     }
+    // No pisar un pin exacto elegido por búsqueda (calle + número)
+    if (searchPinLockRef.current && lockedPinRef.current) {
+      const locked = lockedPinRef.current;
+      const dist = Math.hypot(
+        (Number(center.lat) - Number(locked.lat)) * 111320,
+        (Number(center.lng) - Number(locked.lng)) * 111320 * Math.cos((Number(center.lat) * Math.PI) / 180),
+      );
+      // Solo liberar si el usuario arrastró el mapa claramente (>80 m)
+      if (dist < 80) {
+        return undefined;
+      }
+      searchPinLockRef.current = false;
+      lockedPinRef.current = null;
+    }
     let cancelled = false;
     const timer = setTimeout(async () => {
+      // Si se activó el candado mientras esperábamos, no reverse
+      if (searchPinLockRef.current) return;
       setLoadingAddress(true);
       setError('');
       try {
         const geo = await reverseGeocodePrecise(center.lat, center.lng, {
           accuracy: Number.isFinite(gpsAccuracy) ? gpsAccuracy : 18,
         });
-        if (!cancelled) {
+        if (!cancelled && !searchPinLockRef.current) {
           setDraft(geo ? { ...geo, lat: center.lat, lng: center.lng, source: 'gps' } : null);
         }
       } catch (err) {
-        if (!cancelled) {
+        if (!cancelled && !searchPinLockRef.current) {
           setDraft(null);
           setError(err?.message || 'No se pudo leer la dirección del punto seleccionado.');
         }
@@ -239,9 +259,11 @@ export function GpsMapPickerModal({
       list = [...list].sort((a, b) => {
         const score = (h) => {
           let s = 0;
+          if (h.source === 'arcgis') s += 55;
           if (h.source === 'nominatim' || h.source === 'photon' || h.source === 'overpass') s += 40;
           if (h.source === 'local') s -= 10;
           if (h.precision === 'exact' || h.precision === 'interpolated') s += 20;
+          if (h.addrType === 'PointAddress') s += 15;
           return s;
         };
         return score(b) - score(a);
@@ -289,6 +311,8 @@ export function GpsMapPickerModal({
     const lat = Number(snapped.lat);
     const lng = Number(snapped.lng);
     const labelText = snapped.shortLabel || finalHit.shortLabel || finalHit.label || '';
+    const precision = snapped.precision
+      || (snapped.houseNumber ? 'exact' : 'street');
 
     setSearchQuery(labelText);
     setSuggestions([]);
@@ -300,18 +324,28 @@ export function GpsMapPickerModal({
 
     skipReverseRef.current = true;
     suppressMoveRef.current = true;
-    setDraft({
+    const nextDraft = {
       ...snapped,
       lat,
       lng,
       source: 'search',
-      precision: snapped.houseNumber ? (snapped.precision || 'exact') : (snapped.precision || 'street'),
-    });
+      precision,
+    };
+    // Candado: no dejar que el reverse GPS pise la fachada / número buscado
+    const hasHouse = !!(snapped.houseNumber || finalHit.houseNumber);
+    if (precision === 'exact' || precision === 'interpolated' || hasHouse) {
+      searchPinLockRef.current = true;
+      lockedPinRef.current = { lat, lng };
+    } else {
+      searchPinLockRef.current = false;
+      lockedPinRef.current = null;
+    }
+    setDraft(nextDraft);
     setCenter({ lat, lng });
     setRecenterToken((v) => v + 1);
     window.setTimeout(() => {
       suppressMoveRef.current = false;
-    }, 1200);
+    }, 2200);
   };
 
   const handleSelectSuggestion = async (item) => {
@@ -319,34 +353,64 @@ export function GpsMapPickerModal({
     setSearchOpen(false);
     setSuggestions([]);
     setSearchLoading(true);
-    setLoadingAddress(true);
     setError('');
 
-    let finalHit = item;
-    try {
-      // Geocodifica la calle elegida sin anclar al GPS de la sucursal
-      // (evita dejar la aguja en Vivar cuando buscas otra dirección).
-      const exact = await resolveExactMapPin(item, {
-        city: cityBias,
-        lat: biasLat,
-        lng: biasLng,
-        branchAddress,
+    // Si la sugerencia ya trae coords de la comuna correcta, mueve el pin al toque
+    const hasItemCoords = Number.isFinite(Number(item.lat)) && Number.isFinite(Number(item.lng));
+    const itemInCity = hasItemCoords && !(
+      cityBias === 'Iquique' && Number(item.lng) > -70.12
+    ) && !(
+      /hospicio/i.test(cityBias || '') && Number(item.lng) < -70.12
+    );
+    if (hasItemCoords && itemInCity) {
+      applySelectionToMap({
+        ...item,
+        precision: item.precision || (item.houseNumber ? 'interpolated' : 'street'),
+        source: item.source || 'search',
       });
+    }
+
+    let finalHit = null;
+    try {
+      const timeoutMs = 14000;
+      const exact = await Promise.race([
+        resolveExactMapPin(item, {
+          city: cityBias,
+          lat: biasLat,
+          lng: biasLng,
+          branchAddress,
+        }),
+        new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs)),
+      ]);
       if (exact && Number.isFinite(Number(exact.lat)) && Number.isFinite(Number(exact.lng))) {
         finalHit = exact;
-      } else if (!Number.isFinite(Number(item.lat)) || !Number.isFinite(Number(item.lng))) {
-        setError('No se pudo ubicar esa dirección en el mapa. Prueba moviendo la aguja.');
+      } else if (hasItemCoords && itemInCity) {
+        finalHit = item;
+      } else if (item.houseNumber) {
+        setError('No se pudo ubicar el número exacto en esta comuna. Prueba de nuevo o mueve la aguja a tu puerta.');
         setSearchLoading(false);
         setLoadingAddress(false);
         return;
       }
     } catch {
-      finalHit = item;
+      if (hasItemCoords && itemInCity) {
+        finalHit = item;
+      } else if (item.houseNumber) {
+        setError('No se pudo ubicar el número exacto en esta comuna. Prueba de nuevo o mueve la aguja a tu puerta.');
+        setSearchLoading(false);
+        setLoadingAddress(false);
+        return;
+      } else {
+        finalHit = item;
+      }
     } finally {
       setSearchLoading(false);
+      setLoadingAddress(false);
     }
 
-    applySelectionToMap(finalHit);
+    if (finalHit && Number.isFinite(Number(finalHit.lat)) && Number.isFinite(Number(finalHit.lng))) {
+      applySelectionToMap(finalHit);
+    }
   };
 
   const label = useMemo(() => {

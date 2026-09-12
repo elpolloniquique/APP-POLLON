@@ -26,8 +26,9 @@ export const CITY_STREETS = {
     { name: 'Serrano', lat: -20.2112, lng: -70.1485 },
     { name: 'Riquelme', lat: -20.2196, lng: -70.1436 },
     { name: 'Latorre', lat: -20.2214, lng: -70.1424 },
-    { name: "Bernardo O'Higgins", lat: -20.2248, lng: -70.1412 },
-    { name: "O'Higgins", lat: -20.2248, lng: -70.1412 },
+    { name: "Bernardo O'Higgins", lat: -20.21876, lng: -70.14475 },
+    { name: "O'Higgins", lat: -20.21876, lng: -70.14475 },
+    { name: "Libertador Bernardo O'Higgins", lat: -20.21876, lng: -70.14475 },
     { name: 'Héroes de la Concepción', lat: -20.2286, lng: -70.1388 },
     { name: 'Salvador Allende', lat: -20.2364, lng: -70.1402 },
     { name: 'Circunvalación', lat: -20.2421, lng: -70.1368 },
@@ -46,7 +47,18 @@ export const CITY_STREETS = {
     { name: 'Centenario', lat: -20.2318, lng: -70.1294 },
     { name: 'Aeropuerto', lat: -20.538, lng: -70.181 },
     { name: 'Manuel Bulnes', lat: -20.2228, lng: -70.1476 },
-    { name: 'Libertad', lat: -20.2169, lng: -70.1526 },
+    { name: 'Libertad', lat: -20.22537, lng: -70.14405 },
+    { name: 'Labatut', lat: -20.2289, lng: -70.1442 },
+    { name: 'Pasaje Labatut', lat: -20.2289, lng: -70.1442 },
+    { name: 'Labattut', lat: -20.2289, lng: -70.1442 },
+    { name: 'Hernán Fuenzalida', lat: -20.2292, lng: -70.1351 },
+    { name: 'Brigadier General Hernán Fuenzalida', lat: -20.2292, lng: -70.1351 },
+    { name: 'Arturo Fernández', lat: -20.2285, lng: -70.1438 },
+    { name: 'Recabarren', lat: -20.24136, lng: -70.14384 },
+    { name: 'Luis Emilio Recabarren', lat: -20.24136, lng: -70.14384 },
+    { name: 'Av. Luis Emilio Recabarren', lat: -20.24136, lng: -70.14384 },
+    { name: 'Avenida Luis Emilio Recabarren', lat: -20.24136, lng: -70.14384 },
+    { name: 'Avenida Emilio Recabarren', lat: -20.24136, lng: -70.14384 },
     { name: 'Pisagua', lat: -20.2294, lng: -70.1418 },
     { name: 'Obispo Labbé', lat: -20.2234, lng: -70.1431 },
     { name: 'José Joaquín Pérez', lat: -20.2216, lng: -70.1398 },
@@ -127,6 +139,11 @@ function fold(s) {
     .trim();
 }
 
+/** Colapsa letras dobles: Labattut → labatut (typos frecuentes en pasajes). */
+function foldLoose(s) {
+  return fold(s).replace(/(.)\1+/g, '$1');
+}
+
 /** Distancia de edición (Levenshtein) para typos: vecente→vicente, tomson→thompson */
 function editDistance(a, b) {
   const s = String(a || '');
@@ -155,13 +172,30 @@ function editDistance(a, b) {
 function tokenScore(queryToken, streetToken) {
   if (!queryToken || !streetToken) return 0;
   if (streetToken === queryToken) return 100;
-  if (streetToken.startsWith(queryToken)) return 92;
-  if (queryToken.startsWith(streetToken) && streetToken.length >= 3) return 78;
-  if (queryToken.length >= 3 && streetToken.includes(queryToken)) return 70;
+  const qLoose = foldLoose(queryToken);
+  const sLoose = foldLoose(streetToken);
+  if (qLoose && sLoose && qLoose === sLoose) return 98;
+
+  // Prefijo de tipeo: "zege"→"zegers" OK; "libertad"→"libertador" NO (otra calle)
+  if (streetToken.startsWith(queryToken) && streetToken !== queryToken) {
+    const rest = streetToken.slice(queryToken.length);
+    if (queryToken.length >= 5 && rest.length >= 2) return 0;
+    if (queryToken.length >= 4 && rest.length >= 3) return 0;
+    if (queryToken.length <= 5) return 90;
+    return 0;
+  }
+  if (queryToken.startsWith(streetToken) && streetToken.length >= 4) {
+    const rest = queryToken.slice(streetToken.length);
+    if (rest.length >= 2) return 0;
+    return 78;
+  }
   if (queryToken.length >= 4 && streetToken.length >= 4) {
     const dist = editDistance(queryToken, streetToken);
-    if (dist === 1) return 82;
-    if (dist === 2 && queryToken.length >= 6) return 64;
+    if (dist === 1) return 88;
+    if (dist === 2 && queryToken.length >= 6) return 72;
+    const distLoose = editDistance(qLoose, sLoose);
+    if (distLoose === 0) return 96;
+    if (distLoose === 1) return 86;
   }
   return 0;
 }
@@ -175,7 +209,7 @@ function streetsForCity(city) {
 }
 
 /**
- * Nombre corto local: "Bartolomé Vivar" → "Vivar".
+ * Nombre canónico local. Nunca reescribe "Libertad" → "Libertador…".
  */
 export function preferredLocalRoadName(road, city = 'Iquique') {
   const raw = String(road || '')
@@ -183,14 +217,35 @@ export function preferredLocalRoadName(road, city = 'Iquique') {
     .trim();
   if (!raw) return '';
   const nRoad = fold(raw);
-  const last = nRoad.split(' ').filter((w) => w.length > 2).pop();
-  const matches = streetsForCity(city).filter((s) => {
+  const list = streetsForCity(city);
+
+  const exact = list.find((s) => fold(s.name) === nRoad);
+  if (exact) return exact.name;
+
+  const looseRoad = foldLoose(raw);
+  const exactLoose = list.find((s) => foldLoose(s.name) === looseRoad);
+  if (exactLoose) return exactLoose.name;
+
+  const roadWords = nRoad.split(' ').filter((w) => w.length > 2);
+  const scored = [];
+  for (const s of list) {
     const n = fold(s.name);
-    return n === nRoad || nRoad.includes(n) || n.includes(nRoad) || (last && (n === last || n.endsWith(` ${last}`)));
-  });
-  if (!matches.length) return raw;
-  matches.sort((a, b) => b.name.length - a.name.length);
-  return matches[0].name;
+    const words = n.split(' ').filter((w) => w.length > 2);
+    if (!words.length || !roadWords.length) continue;
+
+    // Todas las palabras de la query deben existir como tokens exactos en la calle (o viceversa)
+    const short = roadWords.length <= words.length ? roadWords : words;
+    const long = roadWords.length <= words.length ? words : roadWords;
+    if (!short.every((w) => long.includes(w))) continue;
+
+    // Evitar que una sola palabra corta reescriba a un nombre mucho más largo no equivalente
+    if (roadWords.length === 1 && words.length > 1 && !words.includes(roadWords[0])) continue;
+
+    scored.push({ name: s.name, len: n.length, wordHits: short.length });
+  }
+  if (!scored.length) return raw;
+  scored.sort((a, b) => b.wordHits - a.wordHits || b.len - a.len);
+  return scored[0].name;
 }
 
 /**
@@ -212,15 +267,16 @@ export function matchLocalStreets(query, { city = 'Iquique', houseNumber = null,
     let score = 0;
 
     if (n === q) score = 100;
-    else if (n.startsWith(q)) score = 96;
-    else if (q.length >= 3 && n.includes(q)) score = 72;
+    else if (n.startsWith(`${q} `) || n === q) score = 96;
+    else if (words.some((w) => w === q)) score = 94;
+    else if (q.length <= 5 && words.some((w) => w.startsWith(q))) score = 88;
+    // NO usar n.includes(q): "libertad" ⊂ "libertador…"
 
-    // Cada token del usuario vs cada palabra de la calle (zegers dentro de "vecente zegers")
+    // Cada token del usuario vs cada palabra de la calle
     for (const qw of qWords) {
       for (const sw of words) {
         score = Math.max(score, tokenScore(qw, sw));
       }
-      score = Math.max(score, tokenScore(qw, n));
       if (lastWord) {
         const lastHit = tokenScore(qw, lastWord);
         if (lastHit >= 70) score = Math.max(score, lastHit + 8);
