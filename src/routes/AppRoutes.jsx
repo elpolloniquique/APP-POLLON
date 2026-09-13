@@ -82,11 +82,11 @@ export function AppRoutes() {
       <Route
         path="/repartidor"
         element={(
-          <DriverRoute>
-            <DriverErrorBoundary>
+          <DriverErrorBoundary>
+            <DriverRoute>
               <DriverLayout />
-            </DriverErrorBoundary>
-          </DriverRoute>
+            </DriverRoute>
+          </DriverErrorBoundary>
         )}
       >
         <Route index element={<LazyPage><DriverHome /></LazyPage>} />

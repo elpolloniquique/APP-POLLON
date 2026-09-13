@@ -390,205 +390,208 @@ export function AdminDashboard() {
         </p>
       </div>
 
-      {/* KPIs — 7 como en la foto */}
-      <div className="dashboard-kpi-grid">
-        <DashboardKpiCard
-          label="Ventas Totales"
-          value={money(analytics.kpis.sales)}
-          delta={analytics.kpis.salesDelta}
-          icon={ShoppingBag}
-          compareLabel={compareLabel}
-        />
-        <DashboardKpiCard
-          label="Delivery (Ingresos)"
-          value={money(analytics.kpis.deliverySales)}
-          delta={analytics.kpis.deliverySalesDelta}
-          icon={Truck}
-          accent="amber"
-          compareLabel={compareLabel}
-        />
-        <DashboardKpiCard
-          label="Ventas Productos"
-          value={money(analytics.kpis.productSales)}
-          delta={analytics.kpis.productSalesDelta}
-          icon={Wallet}
-          compareLabel={compareLabel}
-        />
-        <DashboardKpiCard
-          label="Pedidos"
-          value={analytics.kpis.orders}
-          delta={analytics.kpis.ordersDelta}
-          icon={Package}
-          accent="blue"
-          compareLabel={compareLabel}
-        />
-        <DashboardKpiCard
-          label="Ticket Promedio"
-          value={money(analytics.kpis.ticket)}
-          delta={analytics.kpis.ticketDelta}
-          icon={TrendingUp}
-          compareLabel={compareLabel}
-        />
-        <DashboardKpiCard
-          label="Entregados"
-          value={analytics.kpis.delivered}
-          delta={analytics.kpis.deliveredDelta}
-          icon={CheckCircle2}
-          accent="green"
-          compareLabel={compareLabel}
-        />
-        <DashboardKpiCard
-          label="Pendientes"
-          value={analytics.kpis.pending}
-          delta={analytics.kpis.pendingDelta}
-          icon={Clock}
-          accent="amber"
-          compareLabel={compareLabel}
-        />
-      </div>
+      {/* Contenido con scroll en pantallas medianas/pequeñas */}
+      <div className="admin-dashboard-scroll">
+        {/* KPIs — 7 como en la foto */}
+        <div className="dashboard-kpi-grid">
+          <DashboardKpiCard
+            label="Ventas Totales"
+            value={money(analytics.kpis.sales)}
+            delta={analytics.kpis.salesDelta}
+            icon={ShoppingBag}
+            compareLabel={compareLabel}
+          />
+          <DashboardKpiCard
+            label="Delivery (Ingresos)"
+            value={money(analytics.kpis.deliverySales)}
+            delta={analytics.kpis.deliverySalesDelta}
+            icon={Truck}
+            accent="amber"
+            compareLabel={compareLabel}
+          />
+          <DashboardKpiCard
+            label="Ventas Productos"
+            value={money(analytics.kpis.productSales)}
+            delta={analytics.kpis.productSalesDelta}
+            icon={Wallet}
+            compareLabel={compareLabel}
+          />
+          <DashboardKpiCard
+            label="Pedidos"
+            value={analytics.kpis.orders}
+            delta={analytics.kpis.ordersDelta}
+            icon={Package}
+            accent="blue"
+            compareLabel={compareLabel}
+          />
+          <DashboardKpiCard
+            label="Ticket Promedio"
+            value={money(analytics.kpis.ticket)}
+            delta={analytics.kpis.ticketDelta}
+            icon={TrendingUp}
+            compareLabel={compareLabel}
+          />
+          <DashboardKpiCard
+            label="Entregados"
+            value={analytics.kpis.delivered}
+            delta={analytics.kpis.deliveredDelta}
+            icon={CheckCircle2}
+            accent="green"
+            compareLabel={compareLabel}
+          />
+          <DashboardKpiCard
+            label="Pendientes"
+            value={analytics.kpis.pending}
+            delta={analytics.kpis.pendingDelta}
+            icon={Clock}
+            accent="amber"
+            compareLabel={compareLabel}
+          />
+        </div>
 
-      <div className="dashboard-wa-strip" title="Pedidos del periodo con avisos WhatsApp activados">
-        <MessageCircle className="h-3.5 w-3.5" strokeWidth={2.4} />
-        <strong>{analytics.kpis.pctWaAvisos}%</strong>
-        <span>con avisos WhatsApp</span>
-        <span className="dashboard-wa-strip__n">{analytics.kpis.waAvisos} de {analytics.kpis.orders}</span>
-      </div>
+        <div className="dashboard-wa-strip" title="Pedidos del periodo con avisos WhatsApp activados">
+          <MessageCircle className="h-3.5 w-3.5" strokeWidth={2.4} />
+          <strong>{analytics.kpis.pctWaAvisos}%</strong>
+          <span>con avisos WhatsApp</span>
+          <span className="dashboard-wa-strip__n">{analytics.kpis.waAvisos} de {analytics.kpis.orders}</span>
+        </div>
 
-      {/* Body: mid + bottom + summary */}
-      <div className="admin-dashboard-body">
-        {/* Mid: evolución + 3 donuts */}
-        <section className="dash-mid">
-          <DashboardChartCard
-            title="Evolución de Ventas"
-            subtitle="Productos, delivery y cantidad de pedidos"
-            className="dash-mid__evolution"
-          >
-            <div className="dashboard-chart-h dashboard-chart-h--lg">
-              <Line data={evolutionData} options={evolutionOptions()} />
-            </div>
-          </DashboardChartCard>
-
-          <DashboardChartCard title="Distribución de Estados" className="dash-mid__donut">
-            <DonutWithLegend chart={analytics.status} />
-          </DashboardChartCard>
-
-          <DashboardChartCard title="Métodos de Pago" className="dash-mid__donut">
-            <DonutWithLegend chart={analytics.payment} formatValue={(v) => money(v)} />
-          </DashboardChartCard>
-
-          <DashboardChartCard title="Tipo de Pedido" className="dash-mid__donut">
-            <DonutWithLegend chart={analytics.orderType} />
-          </DashboardChartCard>
-        </section>
-
-        {/* Bottom: ranking + top productos + hora */}
-        <section className="dash-bottom">
-          <DashboardChartCard title="Ranking por Sucursal" className="dash-bottom__rank">
-            <div className="dash-table-wrap">
-              <table className="dash-table">
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>Sucursal</th>
-                    <th>Ventas productos</th>
-                    <th>Delivery</th>
-                    <th>Ventas totales</th>
-                    <th>Pedidos</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(analytics.branchStats.length ? analytics.branchStats : [{
-                    id: 'empty',
-                    name: 'Sin datos',
-                    productSales: 0,
-                    deliverySales: 0,
-                    sales: 0,
-                    orders: 0,
-                  }]).slice(0, 6).map((b, i) => (
-                    <tr
-                      key={b.id}
-                      className={b.id !== 'empty' && isSuperAdmin ? 'dash-table__row--click' : ''}
-                      onClick={() => {
-                        if (b.id !== 'empty' && isSuperAdmin) setSelectedBranchId(b.id);
-                      }}
-                    >
-                      <td>{i + 1}</td>
-                      <td className="dash-table__name">{b.name}</td>
-                      <td>{money(b.productSales)}</td>
-                      <td>{money(b.deliverySales)}</td>
-                      <td className="dash-table__strong">{money(b.sales)}</td>
-                      <td>{b.orders}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                {analytics.branchStats.length > 0 && (
-                  <tfoot>
-                    <tr>
-                      <td colSpan={2}>TOTAL GENERAL</td>
-                      <td>{money(branchTotals.productSales)}</td>
-                      <td>{money(branchTotals.deliverySales)}</td>
-                      <td className="dash-table__strong">{money(branchTotals.sales)}</td>
-                      <td>{branchTotals.orders}</td>
-                    </tr>
-                  </tfoot>
-                )}
-              </table>
-            </div>
-          </DashboardChartCard>
-
-          <DashboardChartCard
-            title="Top Productos Más Vendidos"
-            className="dash-bottom__products"
-            action={(
-              <span className="dash-link-muted">Ver todos los productos</span>
-            )}
-          >
-            <ol className="dash-top-list">
-              {(analytics.topProducts.items || []).map((item, i) => (
-                <li key={`${item.name}-${i}`}>
-                  <span className="dash-top-list__rank">{i + 1}</span>
-                  <span className="dash-top-list__name" title={item.name}>{item.name}</span>
-                  <span className="dash-top-list__meta">
-                    <strong>{item.qty}</strong> uds
-                  </span>
-                  <span className="dash-top-list__sales">{money(item.sales)}</span>
-                </li>
-              ))}
-              {!(analytics.topProducts.items || []).length && (
-                <li className="dash-top-list__empty">Sin ventas en el período</li>
-              )}
-            </ol>
-          </DashboardChartCard>
-
-          <DashboardChartCard title="Actividad por Hora" className="dash-bottom__hourly">
-            <div className="dashboard-chart-h dashboard-chart-h--sm">
-              <Bar data={hourlyData} options={barOptions()} />
-            </div>
-          </DashboardChartCard>
-        </section>
-
-        {/* Resumen rápido */}
-        <section className="dashboard-summary-grid" aria-label="Resumen rápido">
-          {[
-            ['Pedidos en periodo', analytics.kpis.orders, Package],
-            ['Ventas productos', money(analytics.kpis.productSales), Wallet],
-            ['Delivery', money(analytics.kpis.deliverySales), Truck],
-            ['Ventas totales', money(analytics.kpis.sales), ShoppingBag],
-            ['Ticket promedio', money(analytics.kpis.ticket), TrendingUp],
-            ['Tasa de entrega', `${analytics.kpis.conversion}%`, CheckCircle2],
-            ['Efectivo', money(cashTotal), Wallet],
-            ['Transferencia', money(transferTotal), Wallet],
-            ['Tarjeta', money(cardTotal), CreditCard],
-          ].map(([label, val, Icon]) => (
-            <div key={label} className="dashboard-summary-item">
-              <Icon className="dashboard-summary-item__icon" strokeWidth={2} />
-              <div className="min-w-0">
-                <span className="dashboard-summary-item__label">{label}</span>
-                <span className="dashboard-summary-item__value">{val}</span>
+        {/* Body: mid + bottom + summary */}
+        <div className="admin-dashboard-body">
+          {/* Mid: evolución + 3 donuts */}
+          <section className="dash-mid">
+            <DashboardChartCard
+              title="Evolución de Ventas"
+              subtitle="Productos, delivery y cantidad de pedidos"
+              className="dash-mid__evolution"
+            >
+              <div className="dashboard-chart-h dashboard-chart-h--lg">
+                <Line data={evolutionData} options={evolutionOptions()} />
               </div>
-            </div>
-          ))}
-        </section>
+            </DashboardChartCard>
+
+            <DashboardChartCard title="Distribución de Estados" className="dash-mid__donut">
+              <DonutWithLegend chart={analytics.status} />
+            </DashboardChartCard>
+
+            <DashboardChartCard title="Métodos de Pago" className="dash-mid__donut">
+              <DonutWithLegend chart={analytics.payment} formatValue={(v) => money(v)} />
+            </DashboardChartCard>
+
+            <DashboardChartCard title="Tipo de Pedido" className="dash-mid__donut">
+              <DonutWithLegend chart={analytics.orderType} />
+            </DashboardChartCard>
+          </section>
+
+          {/* Bottom: ranking + top productos + hora */}
+          <section className="dash-bottom">
+            <DashboardChartCard title="Ranking por Sucursal" className="dash-bottom__rank">
+              <div className="dash-table-wrap">
+                <table className="dash-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Sucursal</th>
+                      <th>Ventas productos</th>
+                      <th>Delivery</th>
+                      <th>Ventas totales</th>
+                      <th>Pedidos</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(analytics.branchStats.length ? analytics.branchStats : [{
+                      id: 'empty',
+                      name: 'Sin datos',
+                      productSales: 0,
+                      deliverySales: 0,
+                      sales: 0,
+                      orders: 0,
+                    }]).slice(0, 6).map((b, i) => (
+                      <tr
+                        key={b.id}
+                        className={b.id !== 'empty' && isSuperAdmin ? 'dash-table__row--click' : ''}
+                        onClick={() => {
+                          if (b.id !== 'empty' && isSuperAdmin) setSelectedBranchId(b.id);
+                        }}
+                      >
+                        <td>{i + 1}</td>
+                        <td className="dash-table__name">{b.name}</td>
+                        <td>{money(b.productSales)}</td>
+                        <td>{money(b.deliverySales)}</td>
+                        <td className="dash-table__strong">{money(b.sales)}</td>
+                        <td>{b.orders}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  {analytics.branchStats.length > 0 && (
+                    <tfoot>
+                      <tr>
+                        <td colSpan={2}>TOTAL GENERAL</td>
+                        <td>{money(branchTotals.productSales)}</td>
+                        <td>{money(branchTotals.deliverySales)}</td>
+                        <td className="dash-table__strong">{money(branchTotals.sales)}</td>
+                        <td>{branchTotals.orders}</td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+            </DashboardChartCard>
+
+            <DashboardChartCard
+              title="Top Productos Más Vendidos"
+              className="dash-bottom__products"
+              action={(
+                <span className="dash-link-muted">Ver todos los productos</span>
+              )}
+            >
+              <ol className="dash-top-list">
+                {(analytics.topProducts.items || []).map((item, i) => (
+                  <li key={`${item.name}-${i}`}>
+                    <span className="dash-top-list__rank">{i + 1}</span>
+                    <span className="dash-top-list__name" title={item.name}>{item.name}</span>
+                    <span className="dash-top-list__meta">
+                      <strong>{item.qty}</strong> uds
+                    </span>
+                    <span className="dash-top-list__sales">{money(item.sales)}</span>
+                  </li>
+                ))}
+                {!(analytics.topProducts.items || []).length && (
+                  <li className="dash-top-list__empty">Sin ventas en el período</li>
+                )}
+              </ol>
+            </DashboardChartCard>
+
+            <DashboardChartCard title="Actividad por Hora" className="dash-bottom__hourly">
+              <div className="dashboard-chart-h dashboard-chart-h--sm">
+                <Bar data={hourlyData} options={barOptions()} />
+              </div>
+            </DashboardChartCard>
+          </section>
+
+          {/* Resumen rápido */}
+          <section className="dashboard-summary-grid" aria-label="Resumen rápido">
+            {[
+              ['Pedidos en periodo', analytics.kpis.orders, Package],
+              ['Ventas productos', money(analytics.kpis.productSales), Wallet],
+              ['Delivery', money(analytics.kpis.deliverySales), Truck],
+              ['Ventas totales', money(analytics.kpis.sales), ShoppingBag],
+              ['Ticket promedio', money(analytics.kpis.ticket), TrendingUp],
+              ['Tasa de entrega', `${analytics.kpis.conversion}%`, CheckCircle2],
+              ['Efectivo', money(cashTotal), Wallet],
+              ['Transferencia', money(transferTotal), Wallet],
+              ['Tarjeta', money(cardTotal), CreditCard],
+            ].map(([label, val, Icon]) => (
+              <div key={label} className="dashboard-summary-item">
+                <Icon className="dashboard-summary-item__icon" strokeWidth={2} />
+                <div className="min-w-0">
+                  <span className="dashboard-summary-item__label">{label}</span>
+                  <span className="dashboard-summary-item__value">{val}</span>
+                </div>
+              </div>
+            ))}
+          </section>
+        </div>
       </div>
     </div>
   );

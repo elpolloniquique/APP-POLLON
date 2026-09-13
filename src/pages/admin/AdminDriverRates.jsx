@@ -26,6 +26,7 @@ import { Loader } from '../../components/ui/Loader';
 import { DEFAULT_MAP_CENTER } from '../../utils/geo';
 import { useAuth } from '../../context/AuthContext';
 import { useBranch } from '../../context/BranchContext';
+import '../../styles/admin-rates.css';
 function emptyZoneForm(zones) {
   const sorted = normalizeZones(zones);
   const lastTo = sorted.length ? sorted[sorted.length - 1].to_km : 0;
@@ -398,12 +399,12 @@ export function AdminDriverRates() {
   }, [zones]);
 
   return (
-    <div className="admin-page rates-admin-page flex h-[calc(100dvh-3.5rem)] flex-col gap-2 !space-y-0">
+    <div className="rates-admin">
       <AdminPageHeader
         title="Tarifas de Delivery"
         subtitle="Configura las tarifas por kilómetro o por zonas de entrega"
         actions={showBranchFilter ? (
-          <div className="flex flex-col items-end gap-1">
+          <div className="flex w-full flex-col items-stretch gap-1 sm:w-auto sm:items-end">
             <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Sucursal actual</span>
             <AdminBranchFilter
               value={selectedBranchId || activeBranch?.id || ''}
@@ -415,19 +416,17 @@ export function AdminDriverRates() {
       />
 
       {saveOk && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">
-          {saveOk}
-        </div>
+        <div className="rates-admin__alert rates-admin__alert--ok">{saveOk}</div>
       )}
 
       {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
+        <div className="rates-admin__alert rates-admin__alert--err">{error}</div>
       )}
 
       {loading ? (
         <Loader text="Cargando tarifas…" />
       ) : (
-        <>
+        <div className="rates-admin-scroll">
           <BranchLocationBar
             branch={activeBranch}
             center={
@@ -444,160 +443,153 @@ export function AdminDriverRates() {
             saving={locSaving}
           />
 
-          <div className="grid min-h-0 flex-1 gap-2 lg:grid-cols-[1fr_320px]">
-            <RatesZoneMap
-              className="h-full min-h-[420px]"
-              center={storeCenter}
-              zones={kmActive ? zones : []}
-              storeLabel="EL POLLÓN"
-              styleId={styleId}
-              onStyleChange={setStyleId}
-              highlightZoneId={highlightId}
-              editableCenter={locEditing}
-              onCenterChange={({ lat, lng }) => {
-                setLocDraft((prev) => ({
-                  address: prev?.address || activeBranch?.address || '',
-                  lat,
-                  lng,
-                }));
-              }}
-            />
-            <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto">
-              {/* Tarifas por km */}
-              <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-                <div className="mb-3 flex items-start justify-between gap-2">
+          <div className="rates-admin-grid">
+            <div className="rates-admin-map">
+              <RatesZoneMap
+                className="h-full w-full"
+                center={storeCenter}
+                zones={kmActive ? zones : []}
+                storeLabel="EL POLLÓN"
+                styleId={styleId}
+                onStyleChange={setStyleId}
+                highlightZoneId={highlightId}
+                editableCenter={locEditing}
+                onCenterChange={({ lat, lng }) => {
+                  setLocDraft((prev) => ({
+                    address: prev?.address || activeBranch?.address || '',
+                    lat,
+                    lng,
+                  }));
+                }}
+              />
+            </div>
+            <aside className="rates-admin-side">
+              <section className="rates-card">
+                <div className="rates-card__head">
                   <div>
-                    <h3 className="text-sm font-bold text-gray-900">Tarifas por Kilómetro</h3>
-                    <p className="text-[11px] text-gray-500">Desde Zona 00 (ubicación de la sucursal)</p>
+                    <h3 className="rates-card__title">Tarifas por Kilómetro</h3>
+                    <p className="rates-card__sub">Desde Zona 00 (ubicación de la sucursal)</p>
                   </div>
                   <button
                     type="button"
                     onClick={toggleKmActive}
-                    className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${
-                      kmActive ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'
-                    }`}
+                    className={`rates-badge ${kmActive ? 'rates-badge--on' : 'rates-badge--off'}`}
                   >
                     {kmActive ? 'Activo' : 'Inactivo'}
                   </button>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={openNew}
-                  disabled={!kmActive || saving}
-                  className="mb-2 flex w-full items-center justify-center gap-1.5 rounded-xl bg-pollon-red py-2.5 text-sm font-bold text-white shadow-sm transition hover:brightness-95 disabled:opacity-50"
-                >
-                  <Plus className="h-4 w-4" />
-                  Agregar Tarifa
-                </button>
+                <div className="rates-btn-stack">
+                  <button
+                    type="button"
+                    onClick={openNew}
+                    disabled={!kmActive || saving}
+                    className="rates-btn rates-btn--primary"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Agregar Tarifa
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={handleSaveAll}
-                  disabled={saving || !kmActive}
-                  className="mb-3 flex w-full items-center justify-center gap-1.5 rounded-xl border-2 border-emerald-600 bg-emerald-50 py-2.5 text-sm font-bold text-emerald-800 shadow-sm transition hover:bg-emerald-100 disabled:opacity-50"
-                >
-                  <Save className={`h-4 w-4 ${saving ? 'animate-pulse' : ''}`} />
-                  {saving ? 'Guardando…' : 'Actualizar y guardar'}
-                </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveAll}
+                    disabled={saving || !kmActive}
+                    className="rates-btn rates-btn--save"
+                  >
+                    <Save className={`h-4 w-4 ${saving ? 'animate-pulse' : ''}`} />
+                    {saving ? 'Guardando…' : 'Actualizar y guardar'}
+                  </button>
+                </div>
 
-                <div className="space-y-2">
+                <div className="rates-zone-list">
                   {zones.map((z) => (
                     <div
                       key={z.id}
-                      className="flex items-center gap-2 rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-2.5 transition hover:border-gray-200"
+                      className="rates-zone-row"
                       onMouseEnter={() => setHighlightId(z.id)}
                       onMouseLeave={() => setHighlightId(null)}
                     >
-                      <span className="h-3 w-3 shrink-0 rounded-full ring-2 ring-white shadow" style={{ background: z.color }} />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-semibold text-gray-900">{z.name}</p>
-                        <p className="text-[11px] text-gray-500">{formatKmRange(z.from_km, z.to_km)}</p>
+                      <span className="rates-zone-row__dot" style={{ background: z.color }} />
+                      <div className="min-w-0">
+                        <p className="rates-zone-row__name">{z.name}</p>
+                        <p className="rates-zone-row__range">{formatKmRange(z.from_km, z.to_km)}</p>
                       </div>
-                      <p className="shrink-0 text-sm font-bold text-gray-900">{money(z.fee)}</p>
-                      <button
-                        type="button"
-                        className="rounded-lg p-1.5 text-gray-400 hover:bg-white hover:text-gray-700"
-                        onClick={() => openEdit(z)}
-                        aria-label="Editar"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        className="rounded-lg p-1.5 text-gray-400 hover:bg-white hover:text-red-600"
-                        onClick={() => removeZone(z.id)}
-                        aria-label="Eliminar"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      <p className="rates-zone-row__fee">{money(z.fee)}</p>
+                      <div className="rates-zone-row__actions">
+                        <button
+                          type="button"
+                          className="rates-icon-btn"
+                          onClick={() => openEdit(z)}
+                          aria-label="Editar"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          className="rates-icon-btn rates-icon-btn--danger"
+                          onClick={() => removeZone(z.id)}
+                          aria-label="Eliminar"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                   {zones.length === 0 && (
-                    <p className="rounded-xl border border-dashed border-gray-200 px-3 py-6 text-center text-xs text-gray-400">
-                      Sin zonas. Agrega la primera tarifa.
-                    </p>
+                    <p className="rates-empty">Sin zonas. Agrega la primera tarifa.</p>
                   )}
                 </div>
 
-                <p className="mt-3 text-[10px] leading-relaxed text-gray-400">
+                <p className="rates-card__hint">
                   Las tarifas se calculan automáticamente según la distancia desde la sucursal hasta la dirección del cliente.
                 </p>
               </section>
 
-              {/* Placeholder tarifas fijas (como en el diseño) */}
-              <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm opacity-80">
-                <div className="mb-2 flex items-start justify-between gap-2">
+              <section className="rates-card rates-card--muted">
+                <div className="rates-card__head">
                   <div>
-                    <h3 className="text-sm font-bold text-gray-900">Tarifas Fijas por Zona</h3>
-                    <p className="text-[11px] text-gray-500">Polígonos personalizados (próximamente)</p>
+                    <h3 className="rates-card__title">Tarifas Fijas por Zona</h3>
+                    <p className="rates-card__sub">Polígonos personalizados (próximamente)</p>
                   </div>
-                  <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-gray-500">
-                    Inactivo
-                  </span>
+                  <span className="rates-badge rates-badge--off">Inactivo</span>
                 </div>
-                <button
-                  type="button"
-                  disabled
-                  className="flex w-full cursor-not-allowed items-center justify-center gap-1.5 rounded-xl border border-gray-200 py-2.5 text-sm font-semibold text-gray-400"
-                >
+                <button type="button" disabled className="rates-btn rates-btn--ghost">
                   <Plus className="h-4 w-4" />
                   Agregar Tarifas Fijas
                 </button>
-                <p className="mt-2 text-[10px] text-gray-400">Las tarifas fijas están desactivadas.</p>
+                <p className="rates-card__hint">Las tarifas fijas están desactivadas.</p>
               </section>
             </aside>
           </div>
 
-          {/* Footer resumen — compacto para dar más espacio al mapa */}
-          <div className="rates-footer shrink-0 rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-sm">
-            <div className="rates-footer__meta grid grid-cols-2 gap-x-3 gap-y-1 lg:grid-cols-4">
+          <div className="rates-footer">
+            <div className="rates-footer__meta">
               <div>
-                <p className="text-[9px] font-bold uppercase tracking-wide text-gray-400">Centro</p>
-                <p className="truncate text-[12px] font-semibold leading-tight text-gray-900">
+                <p className="rates-footer__label">Centro</p>
+                <p className="rates-footer__value">
                   {activeBranch?.name || 'El Pollón'}
                   {activeBranch?.city ? ` — ${activeBranch.city}` : ''}
                 </p>
               </div>
               <div>
-                <p className="text-[9px] font-bold uppercase tracking-wide text-gray-400">Actualizado</p>
-                <p className="truncate text-[12px] font-semibold leading-tight text-gray-900">{updatedLabel}</p>
+                <p className="rates-footer__label">Actualizado</p>
+                <p className="rates-footer__value">{updatedLabel}</p>
               </div>
               <div>
-                <p className="text-[9px] font-bold uppercase tracking-wide text-gray-400">Zonas</p>
-                <p className="text-[12px] font-semibold leading-tight text-gray-900">
+                <p className="rates-footer__label">Zonas</p>
+                <p className="rates-footer__value">
                   {zones.length} {kmActive ? 'activas' : 'inactivas'}
                 </p>
               </div>
               <div className="flex items-center justify-between gap-2">
-                <div>
-                  <p className="text-[9px] font-bold uppercase tracking-wide text-gray-400">Cobertura</p>
-                  <p className="text-[12px] font-semibold leading-tight text-gray-900">Hasta {maxKm || '—'} km</p>
+                <div className="min-w-0">
+                  <p className="rates-footer__label">Cobertura</p>
+                  <p className="rates-footer__value">Hasta {maxKm || '—'} km</p>
                 </div>
                 <button
                   type="button"
                   onClick={resetDefaults}
-                  className="rounded-md p-1.5 text-gray-400 hover:bg-gray-50 hover:text-gray-700"
+                  className="rates-icon-btn"
                   title="Restaurar zonas por defecto"
                 >
                   <RefreshCw className={`h-3.5 w-3.5 ${saving ? 'animate-spin' : ''}`} />
@@ -606,43 +598,38 @@ export function AdminDriverRates() {
             </div>
 
             {zones.length > 0 && (
-              <div className="rates-footer__zones mt-1.5 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+              <div className="rates-footer__zones">
                 {zones.map((z) => (
                   <div
                     key={`sum-${z.id}`}
-                    className="rates-zone-chip flex items-center gap-1.5 rounded-lg border px-2 py-1"
+                    className="rates-zone-chip"
                     style={{ borderColor: `${z.color}55`, background: `${z.color}12` }}
                   >
                     <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: z.color }} />
-                    <span className="min-w-0 flex-1 truncate text-[11px] font-bold text-gray-800">{z.name}</span>
-                    <span className="shrink-0 text-[10px] text-gray-500">{formatKmRange(z.from_km, z.to_km)}</span>
-                    <span className="shrink-0 text-[12px] font-extrabold tabular-nums" style={{ color: z.color }}>{money(z.fee)}</span>
+                    <span className="rates-zone-chip__name">{z.name}</span>
+                    <span className="rates-zone-chip__range">{formatKmRange(z.from_km, z.to_km)}</span>
+                    <span className="rates-zone-chip__fee" style={{ color: z.color }}>{money(z.fee)}</span>
                   </div>
                 ))}
               </div>
             )}
 
             {dirty && (
-              <p className="mt-1.5 text-[11px] text-amber-700">
+              <p className="rates-footer__warn">
                 Hay cambios sin guardar. Pulsa <strong>Actualizar y guardar</strong> para aplicarlos en el checkout.
               </p>
             )}
 
             {kmActive && zones.length > 0 && (
-              <div className="rates-footer__verify mt-1.5 rounded-lg border border-gray-100 bg-gray-50/90 px-2 py-1.5">
-                <p className="mb-1 text-[9px] font-bold uppercase tracking-wide text-gray-500">
-                  Verificación de cotización
-                </p>
-                <ul className="rates-verify-grid grid grid-cols-2 gap-1 sm:grid-cols-4">
+              <div className="rates-footer__verify">
+                <p className="rates-footer__verify-title">Verificación de cotización</p>
+                <ul className="rates-verify-grid">
                   {previewQuotes.map(({ km, fee, zone, outOfRange }) => (
-                    <li
-                      key={km}
-                      className="flex items-center justify-between gap-1 rounded-md bg-white px-1.5 py-1 text-[10px] leading-none text-gray-700 ring-1 ring-gray-100"
-                    >
-                      <span className="font-medium text-gray-500">
+                    <li key={km}>
+                      <span>
                         {km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`}
                       </span>
-                      <span className="font-bold text-gray-900">
+                      <span>
                         {outOfRange ? 'Fuera' : `${zone?.name || 'Zona'} · ${money(fee)}`}
                       </span>
                     </li>
@@ -652,12 +639,12 @@ export function AdminDriverRates() {
             )}
 
             {!activeBranch?.lat && (
-              <p className="mt-1.5 text-[11px] text-amber-700">
-                Esta sucursal no tiene coordenadas GPS. Configura lat/lng en Supursales o ejecuta el SQL de GPS para centrar el mapa correctamente.
+              <p className="rates-footer__warn">
+                Esta sucursal no tiene coordenadas GPS. Configura lat/lng en Sucursales para centrar el mapa correctamente.
               </p>
             )}
           </div>
-        </>
+        </div>
       )}
 
       <ZoneEditorModal

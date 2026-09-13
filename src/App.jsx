@@ -18,15 +18,16 @@ function PwaInstallBootstrap() {
   return null;
 }
 
-/** App nativa = modo repartidor: no mostrar home/tienda de cliente. */
+/**
+ * App nativa = solo modo repartidor.
+ * Importante: NO permitir /admin ni /cuenta (evita bucles Navigate → pantalla blanca).
+ */
 function NativeDriverEntryRedirect({ children }) {
   const location = useLocation();
   if (!isNativeDriverApp()) return children;
 
   const path = location.pathname || '/';
-  const isDriver = path === '/repartidor' || path.startsWith('/repartidor/');
-  const isAdmin = path === '/admin' || path.startsWith('/admin/');
-  if (isDriver || isAdmin) return children;
+  if (path === '/repartidor' || path.startsWith('/repartidor/')) return children;
 
   return <Navigate to="/repartidor" replace />;
 }

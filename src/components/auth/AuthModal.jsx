@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, Mail, Lock, User, Phone, Eye, EyeOff } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
 import { useAuth } from '../../context/AuthContext';
 import { isSupabaseConfigured } from '../../services/supabaseClient';
 import { getHomePathForRole, isDriverRole, normalizeRole } from '../../services/authService';
@@ -10,9 +11,18 @@ const TABS = [
   { id: 'register', label: 'Registrarse' },
 ];
 
+function isNativeApp() {
+  try {
+    return Capacitor.isNativePlatform();
+  } catch {
+    return false;
+  }
+}
+
 export function AuthModal({ open, onClose, defaultTab = 'login' }) {
   const { signIn, signUp, requestPasswordReset } = useAuth();
   const navigate = useNavigate();
+  const native = isNativeApp();
   const [tab, setTab] = useState(defaultTab);
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -41,6 +51,11 @@ export function AuthModal({ open, onClose, defaultTab = 'login' }) {
       const { profile: p } = await signIn(form.email, form.password);
       onClose();
       const role = normalizeRole(p?.rol || p?.role);
+      if (native) {
+        // App nativa: siempre al panel repartidor (el gate valida el rol).
+        navigate('/repartidor', { replace: true });
+        return;
+      }
       if (isDriverRole(role) || ['super_admin', 'admin_sucursal', 'administrador', 'cajera', 'cajero', 'cocina', 'delivery', 'repartidor'].includes(role)) {
         navigate(getHomePathForRole(role));
       } else {
@@ -73,7 +88,7 @@ export function AuthModal({ open, onClose, defaultTab = 'login' }) {
       setSuccess('¡Cuenta creada! Revisa tu correo si se requiere confirmación.');
       setTimeout(() => {
         onClose();
-        navigate('/cuenta');
+        navigate(native ? '/repartidor' : '/cuenta', { replace: true });
       }, 1200);
     } catch (err) {
       setError(err.message || 'No se pudo registrar');
@@ -169,7 +184,11 @@ export function AuthModal({ open, onClose, defaultTab = 'login' }) {
               </button>
               <p className="text-center text-xs text-gray-500">
                 ¿Eres personal?{' '}
-                <a href="/admin/login" className="font-semibold text-pollon-red hover:underline">Acceso staff</a>
+                {native ? (
+                  <span className="font-semibold text-gray-400">Usa el panel web de staff</span>
+                ) : (
+                  <a href="/admin/login" className="font-semibold text-pollon-red hover:underline">Acceso staff</a>
+                )}
               </p>
             </form>
           ) : (

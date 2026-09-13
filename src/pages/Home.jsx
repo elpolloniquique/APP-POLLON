@@ -22,7 +22,7 @@ import { AdminScrollPanel } from '../components/admin/AdminScrollPanel';
 
 const TRUST_BAR_ITEMS = [
   { icon: Bike, label: 'Delivery rápido' },
-  { icon: Shield, label: 'Pago 100% seguro' },
+  { icon: Shield, label: 'Pago al recibir' },
   { icon: ChefHat, label: 'Pollo fresco del día' },
   { icon: MapPin, label: 'Atención multi-sucursal' },
 ];

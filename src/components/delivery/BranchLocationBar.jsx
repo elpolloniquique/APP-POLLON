@@ -109,28 +109,26 @@ export function BranchLocationBar({
   };
 
   return (
-    <section className="branch-location-bar overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-      <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:gap-4">
-        <div className="flex min-w-0 items-start gap-3 sm:w-[220px] sm:shrink-0">
-          <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-pollon-red text-white shadow-sm">
+    <section className="branch-location-bar">
+      <div className="branch-location-bar__row">
+        <div className="branch-location-bar__lead">
+          <div className="branch-location-bar__icon">
             <MapPin className="h-5 w-5" strokeWidth={2.25} />
           </div>
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-sm font-bold tracking-tight text-gray-900">Ubicación de Sucursal</h3>
-              <span className="rounded-md bg-gray-900 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
-                Zona 00
-              </span>
+          <div className="branch-location-bar__titles">
+            <div className="branch-location-bar__title-row">
+              <h3 className="branch-location-bar__title">Ubicación de Sucursal</h3>
+              <span className="branch-location-bar__badge">Zona 00</span>
             </div>
-            <p className="mt-0.5 text-[11px] leading-snug text-gray-500">
+            <p className="branch-location-bar__hint">
               Punto central desde el que se calcula el delivery por kilometraje
             </p>
           </div>
         </div>
 
-        <div className="min-w-0 flex-1">
+        <div className="branch-location-bar__body">
           {editing ? (
-            <div className="space-y-1.5">
+            <div>
               <AddressAutocomplete
                 mode="search"
                 value={draft?.address || ''}
@@ -148,20 +146,20 @@ export function BranchLocationBar({
                 branchAddress={branch?.address || ''}
               />
               {localError && (
-                <p className="text-[11px] font-medium text-red-600">{localError}</p>
+                <p className="branch-location-bar__error">{localError}</p>
               )}
-              <p className="text-[10px] text-gray-400">
+              <p className="branch-location-bar__edit-hint">
                 Elige una sugerencia o arrastra el pin rojo en el mapa para afinar el punto exacto.
               </p>
             </div>
           ) : (
-            <div className="flex min-h-[44px] items-center gap-2 rounded-xl border border-gray-200 bg-gray-50/90 px-3.5 py-2.5">
+            <div className="branch-location-bar__address">
               <Navigation className={`h-4 w-4 shrink-0 ${hasGps ? 'text-emerald-600' : 'text-amber-500'}`} />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-gray-900" title={displayAddress}>
+                <p className="branch-location-bar__address-text" title={displayAddress}>
                   {displayAddress}
                 </p>
-                <p className="text-[10px] tabular-nums text-gray-400">
+                <p className="branch-location-bar__coords">
                   {hasGps
                     ? `${Number(center.lat).toFixed(6)}, ${Number(center.lng).toFixed(6)}`
                     : 'GPS pendiente — edita para fijar el centro en el mapa'}
@@ -171,14 +169,14 @@ export function BranchLocationBar({
           )}
         </div>
 
-        <div className="flex shrink-0 items-center gap-2 self-stretch sm:self-center">
+        <div className="branch-location-bar__actions">
           {editing ? (
             <>
               <button
                 type="button"
                 onClick={handleMapSyncLabel}
                 disabled={saving || resolving || draft?.lat == null}
-                className="hidden rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-xs font-semibold text-gray-600 transition hover:bg-gray-50 disabled:opacity-40 md:inline-flex"
+                className="branch-location-bar__btn branch-location-bar__btn--ghost hidden md:inline-flex"
                 title="Actualizar texto desde el pin del mapa"
               >
                 Desde mapa
@@ -187,7 +185,7 @@ export function BranchLocationBar({
                 type="button"
                 onClick={onCancel}
                 disabled={saving}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-semibold text-gray-600 transition hover:bg-gray-50 disabled:opacity-50"
+                className="branch-location-bar__btn branch-location-bar__btn--ghost"
               >
                 <X className="h-4 w-4" />
                 Cancelar
@@ -196,7 +194,7 @@ export function BranchLocationBar({
                 type="button"
                 onClick={handleConfirm}
                 disabled={saving || resolving}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-pollon-red px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:brightness-95 disabled:opacity-50"
+                className="branch-location-bar__btn branch-location-bar__btn--primary"
               >
                 {saving || resolving ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -210,7 +208,7 @@ export function BranchLocationBar({
             <button
               type="button"
               onClick={onStartEdit}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-pollon-red px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:brightness-95"
+              className="branch-location-bar__btn branch-location-bar__btn--primary"
             >
               <Pencil className="h-4 w-4" />
               Editar

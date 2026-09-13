@@ -187,7 +187,7 @@ export function DriverLayout() {
     if (native) await stopDriverBackgroundGps();
     await clearDriverAppBadge();
     await signOut();
-    navigate('/');
+    navigate(native ? '/repartidor' : '/', { replace: true });
   };
 
   // PWA clientes: shell mínimo + pantalla solo avisos

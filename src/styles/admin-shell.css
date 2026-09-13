@@ -362,9 +362,45 @@
   overflow-y: auto;
 }
 
-/* Dashboard / Reportes / Usuarios: una sola pantalla sin scroll en PC grande */
+/* Dashboard: contenedor con altura fija + scroll interno en cualquier tamaño */
+.admin-shell:has(.admin-dashboard),
+.admin-shell:has(.rates-admin) {
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+}
+
+.admin-shell:has(.admin-dashboard) .admin-shell__body,
+.admin-shell:has(.rates-admin) .admin-shell__body {
+  min-height: 0;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.admin-shell__main:has(.admin-dashboard),
+.admin-shell__main:has(.rates-admin) {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.admin-shell__main:has(.admin-dashboard) > .admin-dashboard,
+.admin-shell__main:has(.rates-admin) > .rates-admin {
+  flex: 1 1 auto;
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
+}
+
+.admin-shell:has(.admin-dashboard) .admin-shell__topbar,
+.admin-shell:has(.rates-admin) .admin-shell__topbar {
+  display: none;
+}
+
+/* Reportes / Usuarios / WhatsApp: una sola pantalla sin scroll en PC grande */
 @media (min-width: 1280px) and (min-height: 760px) {
-  .admin-shell:has(.admin-dashboard),
   .admin-shell:has(.admin-product-report),
   .admin-shell:has(.admin-users),
   .admin-shell:has(.admin-whatsapp) {
@@ -373,7 +409,6 @@
     overflow: hidden;
   }
 
-  .admin-shell:has(.admin-dashboard) .admin-shell__body,
   .admin-shell:has(.admin-product-report) .admin-shell__body,
   .admin-shell:has(.admin-users) .admin-shell__body,
   .admin-shell:has(.admin-whatsapp) .admin-shell__body {
@@ -383,7 +418,6 @@
     overflow: hidden;
   }
 
-  .admin-shell__main:has(.admin-dashboard),
   .admin-shell__main:has(.admin-product-report),
   .admin-shell__main:has(.admin-users),
   .admin-shell__main:has(.admin-whatsapp) {
@@ -393,7 +427,6 @@
     min-height: 0;
   }
 
-  .admin-shell__main:has(.admin-dashboard) > .admin-dashboard,
   .admin-shell__main:has(.admin-product-report) > .admin-product-report,
   .admin-shell__main:has(.admin-users) > .admin-users,
   .admin-shell__main:has(.admin-whatsapp) > .admin-whatsapp {
@@ -403,7 +436,6 @@
   }
 
   /* Ocultar topbar genérica — el panel trae su propio título */
-  .admin-shell:has(.admin-dashboard) .admin-shell__topbar,
   .admin-shell:has(.admin-product-report) .admin-shell__topbar,
   .admin-shell:has(.admin-users) .admin-shell__topbar,
   .admin-shell:has(.admin-whatsapp) .admin-shell__topbar {

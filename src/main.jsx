@@ -49,9 +49,8 @@ if (import.meta.env.PROD && !isViteDev && !isNativeCapacitor && !isLocalHost) {
 }
 
 if (isNativeCapacitor) {
-  import('@capacitor/splash-screen')
-    .then(({ SplashScreen }) => SplashScreen.hide().catch(() => {}))
-    .catch(() => {});
+  // No ocultar splash aquí: esperar a que DriverRoute pinte UI estable.
+  // Si se oculta al cargar el bundle, el WebView blanco se ve al reabrir la APK.
   unregisterServiceWorkers();
 }
 

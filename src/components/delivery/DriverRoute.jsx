@@ -6,10 +6,18 @@ import { AuthModal } from '../auth/AuthModal';
 import { isDriverRole, normalizeRole } from '../../services/authService';
 import { isNativeDriverApp } from '../../services/backgroundGpsService';
 
+function hideNativeSplash() {
+  if (!isNativeDriverApp()) return;
+  import('@capacitor/splash-screen')
+    .then(({ SplashScreen }) => SplashScreen.hide().catch(() => {}))
+    .catch(() => {});
+}
+
 /** Solo rol delivery / repartidor. No redirigir mientras el perfil aún carga. */
 export function DriverRoute({ children }) {
-  const { session, profile, loading, role, user } = useAuth();
+  const { session, profile, loading, role, user, signOut } = useAuth();
   const [waitExpired, setWaitExpired] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const native = isNativeDriverApp();
 
   useEffect(() => {
@@ -17,13 +25,21 @@ export function DriverRoute({ children }) {
       setWaitExpired(false);
       return undefined;
     }
-    const t = setTimeout(() => setWaitExpired(true), 10000);
+    const ms = native ? 20000 : 10000;
+    const t = setTimeout(() => setWaitExpired(true), ms);
     return () => clearTimeout(t);
-  }, [profile, loading, session]);
+  }, [profile, loading, session, native]);
+
+  // Ocultar splash solo cuando ya hay UI estable (evita WebView blanco).
+  useEffect(() => {
+    if (!native) return;
+    if (loading) return;
+    hideNativeSplash();
+  }, [native, loading, session, profile]);
 
   if (loading) return <Loader text="Cargando panel repartidor…" />;
+
   if (!session) {
-    // Web: modal sobre home. Nativo: login directo sin pantalla de cliente.
     if (native) {
       return (
         <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-black px-4">
@@ -42,11 +58,10 @@ export function DriverRoute({ children }) {
     || session?.user?.user_metadata?.role
   );
 
-  // Sesión OK pero perfil aún null / fallback cliente: esperar un momento
   if (!profile && !isDriverRole(fromMeta)) {
     if (waitExpired) {
       return (
-        <div className="flex min-h-[60dvh] flex-col items-center justify-center gap-3 bg-black px-6 text-center text-white">
+        <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-3 bg-black px-6 text-center text-white">
           <p className="text-sm text-white/80">No pudimos verificar tu cuenta de repartidor.</p>
           <button
             type="button"
@@ -55,6 +70,19 @@ export function DriverRoute({ children }) {
           >
             Reintentar
           </button>
+          {native && (
+            <button
+              type="button"
+              className="rounded-lg border border-white/30 px-4 py-2 text-sm font-bold text-white/90"
+              disabled={signingOut}
+              onClick={async () => {
+                setSigningOut(true);
+                try { await signOut(); } finally { setSigningOut(false); }
+              }}
+            >
+              {signingOut ? 'Saliendo…' : 'Cerrar sesión'}
+            </button>
+          )}
         </div>
       );
     }
@@ -63,6 +91,29 @@ export function DriverRoute({ children }) {
 
   if (isDriverRole(fromProfile) || isDriverRole(fromMeta)) {
     return children;
+  }
+
+  // Nativo: nunca Navigate a /admin o /cuenta (bucle → pantalla blanca).
+  if (native) {
+    return (
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-3 bg-black px-6 text-center text-white">
+        <p className="font-display text-2xl text-white">El Pollón</p>
+        <p className="text-sm text-white/80">
+          Esta app es solo para repartidores. Tu cuenta no tiene rol de delivery.
+        </p>
+        <button
+          type="button"
+          className="rounded-lg bg-[#c00000] px-4 py-2 text-sm font-bold"
+          disabled={signingOut}
+          onClick={async () => {
+            setSigningOut(true);
+            try { await signOut(); } finally { setSigningOut(false); }
+          }}
+        >
+          {signingOut ? 'Saliendo…' : 'Cerrar sesión e intentar de nuevo'}
+        </button>
+      </div>
+    );
   }
 
   return <Navigate to="/admin" replace />;
