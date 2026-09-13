@@ -27,6 +27,59 @@ function selectBranchWithCartConfirm(b, branch, setBranch, resetForBranch, items
 
 const NAV_HOME = { label: 'INICIO', path: '/', categoryId: null };
 
+/** Subtítulo siempre ≤ ancho de "El Pollón" (autoajuste de tamaño). */
+function HeaderBrandText() {
+  const titleRef = useRef(null);
+  const subtitleRef = useRef(null);
+
+  useEffect(() => {
+    const titleEl = titleRef.current;
+    const subtitleEl = subtitleRef.current;
+    if (!titleEl || !subtitleEl) return undefined;
+
+    const fitSubtitle = () => {
+      const titleW = titleEl.getBoundingClientRect().width;
+      if (!titleW) return;
+
+      // Medir con el tamaño base del CSS
+      subtitleEl.style.fontSize = '';
+      subtitleEl.style.width = 'max-content';
+
+      const subW = subtitleEl.scrollWidth;
+      if (subW > titleW && subW > 0) {
+        const computed = window.getComputedStyle(subtitleEl);
+        const basePx = parseFloat(computed.fontSize) || 12;
+        // Un pelín más chico que el ratio exacto para no rozar el borde
+        const nextPx = Math.max(basePx * (titleW / subW) * 0.98, 7.5);
+        subtitleEl.style.fontSize = `${nextPx}px`;
+      }
+      subtitleEl.style.width = `${titleW}px`;
+    };
+
+    const scheduleFit = () => {
+      window.requestAnimationFrame(fitSubtitle);
+    };
+
+    scheduleFit();
+    const ro = new ResizeObserver(scheduleFit);
+    ro.observe(titleEl);
+    window.addEventListener('resize', scheduleFit);
+    document.fonts?.ready?.then(scheduleFit).catch(() => {});
+
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', scheduleFit);
+    };
+  }, []);
+
+  return (
+    <div className="header-brand__text">
+      <p ref={titleRef} className="header-brand__title">El Pollón</p>
+      <p ref={subtitleRef} className="header-brand__subtitle">Restaurante Pollería</p>
+    </div>
+  );
+}
+
 function buildNavMenu(categories, branchId) {
   return [
     NAV_HOME,
@@ -373,10 +426,7 @@ export function SiteHeader({ onOpenCart, variant = 'full' }) {
                 height={72}
                 decoding="async"
               />
-              <div className="header-brand__text min-w-0">
-                <p className="header-brand__title">El Pollón</p>
-                <p className="header-brand__subtitle">Restaurante Pollería</p>
-              </div>
+              <HeaderBrandText />
             </Link>
 
             <div className="flex min-w-0 flex-1 items-center justify-center px-0.5">
@@ -415,10 +465,7 @@ export function SiteHeader({ onOpenCart, variant = 'full' }) {
                 height={88}
                 decoding="async"
               />
-              <div className="header-brand__text">
-                <p className="header-brand__title">El Pollón</p>
-                <p className="header-brand__subtitle">Restaurante Pollería</p>
-              </div>
+              <HeaderBrandText />
             </Link>
 
             <div className="hidden min-w-0 flex-1 justify-center px-3 lg:flex">

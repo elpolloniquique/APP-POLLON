@@ -418,7 +418,7 @@ export function AddressAutocomplete({
         </button>
 
         {gpsLoading && (
-          <p className="mt-1 px-0.5 text-[11px] leading-snug text-gray-600">
+          <p className="checkout-label__hint mt-1 px-0.5">
             {gpsPhase === 'permission' && 'Permite la ubicación precisa en el aviso del teléfono…'}
             {gpsPhase === 'reading' && (
               gpsAccuracy != null
@@ -430,8 +430,8 @@ export function AddressAutocomplete({
         )}
         {!gpsLoading && (
           <p
-            className={`mt-1 flex items-start gap-1.5 px-0.5 text-[11px] leading-snug ${
-              gpsError ? 'text-red-600' : selected ? 'text-emerald-700' : 'text-gray-500'
+            className={`checkout-label__hint mt-1 flex items-start gap-1.5 px-0.5 ${
+              gpsError ? 'text-red-600' : selected ? 'text-emerald-700' : ''
             }`}
           >
             {selected && <Crosshair className="mt-0.5 h-3 w-3 shrink-0" />}

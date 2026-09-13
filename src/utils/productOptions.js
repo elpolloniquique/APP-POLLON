@@ -50,9 +50,10 @@ export function formatDrinksLabel(drinks) {
 /** Opciones mostradas en el modal (diseño tienda). */
 export const MODAL_DRINK_OPTIONS = [
   'Coca Cola',
-  'Inca Kola',
   'Coca Cola Cero',
-  'Sprite',
+  'Inca Kola',
+  'Sprite Original',
+  'Sprite Cero',
   'Fanta',
 ];
 

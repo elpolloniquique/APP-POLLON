@@ -1,11 +1,10 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Flame, MapPin, Phone, Clock, Bike, ChevronRight, ChevronLeft, Plus, Star, Shield, ChefHat,
   MapPinned, ShoppingBag, CreditCard, MessageCircle, PackageSearch,
-  CheckCircle2, Truck, Radio, LogIn, ShoppingCart, Heart,
+  CheckCircle2, Radio, LogIn, ShoppingCart, Map, Heart,
 } from 'lucide-react';
-import { ORDER_STATUS_STEPS, ORDER_STATUS_LABELS } from '../utils/constants';
 import { SiteHeader } from '../components/layout/SiteHeader';
 import { SiteFooter } from '../components/layout/SiteFooter';
 import { WhatsAppFab } from '../components/layout/WhatsAppFab';
@@ -17,6 +16,7 @@ import { useBranch } from '../context/BranchContext';
 import { useBranchMenu } from '../context/BranchMenuContext';
 import { isBranchOpenNow } from '../services/branchService';
 import { money, formatDeliveryCost, resolveMediaUrl, storeCategoryUrl, resolveProductCategoryId } from '../utils/format';
+import { getAvailablePaymentMethods, formatPaymentMethodsSummary } from '../utils/paymentMethods';
 import { useBestsellers, BESTSELLERS_VISIBLE } from '../hooks/useBestsellers';
 import { AdminScrollPanel } from '../components/admin/AdminScrollPanel';
 
@@ -29,22 +29,55 @@ const TRUST_BAR_ITEMS = [
 
 const WHY_US = [
   { icon: ChefHat, title: 'Pollo fresco del día', desc: 'Marinado y cocinado al carbón cada día con receta peruana auténtica.' },
-  { icon: Bike, title: 'Delivery rápido y seguro', desc: 'Llegamos caliente a tu puerta en Arica, Iquique y Alto Hospicio.' },
-  { icon: Shield, title: 'Pago 100% seguro', desc: 'Pagas al recibir: efectivo, transferencia o tarjeta, según la sucursal.' },
+  { icon: Bike, title: 'Delivery rápido y seguro', desc: 'Llegamos caliente a tu puerta según la sucursal que elijas.' },
+  { icon: Map, title: 'Seguimiento en mapa en vivo', desc: 'En delivery ves al repartidor y el tiempo estimado desde Mis pedidos.' },
+  { icon: Shield, title: 'Pago al recibir', desc: null }, // se completa con métodos de la sucursal
   { icon: Star, title: 'Más de 10.000 clientes', desc: 'La pollería favorita del norte con ofertas familiares todos los días.' },
 ];
+
+const PAYMENT_CARD_STYLES = {
+  cash: {
+    box: 'bg-green-50',
+    title: 'text-green-900',
+    desc: 'text-green-700',
+  },
+  transfer: {
+    box: 'bg-blue-50',
+    title: 'text-blue-900',
+    desc: 'text-blue-700',
+  },
+  card: {
+    box: 'bg-violet-50',
+    title: 'text-violet-900',
+    desc: 'text-violet-700',
+  },
+};
 
 const HOME_ORDER_STEPS = [
   { n: 1, icon: MapPinned, title: 'Elige sucursal', desc: 'Selecciona tu local en el menú superior.' },
   { n: 2, icon: ShoppingBag, title: 'Arma tu pedido', desc: 'Personaliza platos y agrégalos al carrito.' },
-  { n: 3, icon: CreditCard, title: 'Confirma y paga', desc: 'Completa tus datos y elige el método de pago de tu sucursal.' },
-  { n: 4, icon: MessageCircle, title: 'Recibe tu código', desc: 'Aparece al confirmar; envía comprobante por WhatsApp si quieres.' },
+  { n: 3, icon: CreditCard, title: 'Confirma tu pedido', desc: 'Completa datos y elige pago al recibir.' },
+  { n: 4, icon: MessageCircle, title: 'Recibe tu código', desc: 'Pantalla verde con tu código único; WhatsApp opcional.' },
 ];
 
 const HOME_TRACK_STEPS = [
-  { n: 1, icon: CheckCircle2, title: '¿Confirmado?', desc: 'Al pulsar «Confirmar pedido» ves pantalla verde con tu código único.' },
-  { n: 2, icon: LogIn, title: 'Inicia sesión', desc: 'Regístrate o entra desde el header para ver tu historial.' },
-  { n: 3, icon: Radio, title: 'Seguimiento en vivo', desc: 'Mi cuenta → Mis pedidos → abre el pedido; el estado cambia solo.' },
+  { n: 1, icon: CheckCircle2, title: 'Pedido recibido', desc: 'Al confirmar ves pantalla verde con tu código único.' },
+  { n: 2, icon: LogIn, title: 'Inicia sesión o vincula', desc: 'Entra a tu cuenta; si pediste sin cuenta, vincula con código + teléfono.' },
+  { n: 3, icon: Radio, title: 'Seguimiento real', desc: 'Mis pedidos → abre el pedido: barra de estados; en delivery, mapa en vivo del repartidor y tiempo estimado.' },
+];
+
+/** Flujo real que ve el cliente en seguimiento (modo app / mapa). */
+const HOME_CLIENT_TRACK_STEPS = [
+  { label: 'Aceptado', active: false },
+  { label: 'En cocina', active: true },
+  { label: 'En reparto', active: false },
+  { label: 'Entregado', active: false },
+];
+
+const HOME_GUIDE_FEATURES = [
+  { icon: Shield, t: 'Pago al recibir', d: 'Según sucursal' },
+  { icon: Map, t: 'Mapa en vivo', d: 'Delivery con GPS del repartidor' },
+  { icon: MapPin, t: 'Multi-sucursal', d: 'Menú y precios por local' },
 ];
 
 const TESTIMONIALS = [
@@ -93,6 +126,15 @@ export function Home() {
   const [canScrollMenuLeft, setCanScrollMenuLeft] = useState(false);
   const [canScrollMenuRight, setCanScrollMenuRight] = useState(false);
   const location = useLocation();
+
+  const branchPaymentMethods = useMemo(
+    () => getAvailablePaymentMethods(branch),
+    [branch],
+  );
+  const paymentSummary = useMemo(
+    () => formatPaymentMethodsSummary(branch),
+    [branch],
+  );
 
   const updateMenuScrollHints = useCallback(() => {
     const el = menuScrollRef.current;
@@ -476,43 +518,54 @@ export function Home() {
             <h3 className="mb-4 border-b-2 border-pollon-red pb-2 font-display text-2xl text-pollon-black">
               POR QUÉ ELEGIRNOS
             </h3>
-            <ul className="space-y-5">
-              {WHY_US.map((item) => (
-                <li key={item.title} className="flex gap-4">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-red-50 text-pollon-red">
-                    <item.icon className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="font-bold text-pollon-black">{item.title}</p>
-                    <p className="mt-0.5 text-sm text-gray-600">{item.desc}</p>
-                  </div>
-                </li>
-              ))}
+            <ul className="space-y-4">
+              {WHY_US.map((item) => {
+                const desc = item.title === 'Pago al recibir'
+                  ? `Pagas al recibir: ${paymentSummary}, según la sucursal.`
+                  : item.desc;
+                return (
+                  <li key={item.title} className="flex gap-3.5">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-red-50 text-pollon-red">
+                      <item.icon className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-pollon-black">{item.title}</p>
+                      <p className="mt-0.5 text-sm leading-snug text-gray-600">{desc}</p>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           </div>
 
-          {/* Pagos aceptados */}
+          {/* Pagos aceptados — según sucursal activa */}
           <div className="rounded-2xl bg-white p-6 shadow-sm">
-            <h3 className="mb-4 border-b-2 border-pollon-red pb-2 font-display text-2xl text-pollon-black">
+            <h3 className="mb-1 border-b-2 border-pollon-red pb-2 font-display text-2xl text-pollon-black">
               MÉTODOS DE PAGO
             </h3>
-            <div className="space-y-4">
-              <div className="flex items-start gap-3 rounded-xl bg-green-50 p-4">
-                <span className="text-2xl">💵</span>
-                <div>
-                  <p className="font-bold text-green-900">Efectivo</p>
-                  <p className="text-sm text-green-700">Paga al recibir tu pedido en delivery o retiro en local.</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3 rounded-xl bg-blue-50 p-4">
-                <span className="text-2xl">🏦</span>
-                <div>
-                  <p className="font-bold text-blue-900">Transferencia</p>
-                  <p className="text-sm text-blue-700">Transfiere y envía comprobante por WhatsApp para confirmar.</p>
-                </div>
-              </div>
+            <p className="mb-4 text-[11px] font-medium uppercase tracking-wide text-gray-400">
+              {branch?.name ? `Disponibles en ${branch.name}` : 'Según la sucursal seleccionada'}
+            </p>
+            <div className="space-y-3">
+              {branchPaymentMethods.map((method) => {
+                const style = PAYMENT_CARD_STYLES[method.tone] || PAYMENT_CARD_STYLES.cash;
+                return (
+                  <div
+                    key={method.id}
+                    className={`flex items-start gap-3 rounded-xl p-4 ${style.box}`}
+                  >
+                    <span className="text-2xl" aria-hidden>{method.icon}</span>
+                    <div>
+                      <p className={`font-bold ${style.title}`}>{method.label}</p>
+                      <p className={`text-sm ${style.desc}`}>{method.desc}</p>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            <p className="mt-3 text-xs text-gray-500">No aceptamos tarjetas ni pago online.</p>
+            <p className="mt-3 text-xs text-gray-500">
+              Todos los pagos son al recibir el pedido. No hay cobro online.
+            </p>
           </div>
         </div>
       </section>
@@ -528,8 +581,8 @@ export function Home() {
             <h2 className="home-order-guide__title mt-2 font-display">
               PIDE Y SIGUE TU PEDIDO <span className="text-pollon-gold">EN POCOS PASOS</span>
             </h2>
-            <p className="home-order-guide__subtitle mx-auto mt-2 max-w-xl lg:mx-0">
-              Sin descargar apps. Todo desde el navegador, claro y al instante.
+            <p className="home-order-guide__subtitle mx-auto mt-2 max-w-2xl lg:mx-0">
+              Sin descargar apps. Estados en vivo y mapa del repartidor desde el navegador.
             </p>
           </header>
 
@@ -566,7 +619,7 @@ export function Home() {
                 Confirmación y seguimiento
               </h3>
               <p className="home-order-guide__card-lead mt-2">
-                Confirmado al instante. Cada cambio se ve en vivo en tu cuenta.
+                Tu código al instante. Estados en vivo. En delivery: mapa del repartidor + ETA.
               </p>
               <ol className="home-order-guide__steps mt-3">
                 {HOME_TRACK_STEPS.map((s) => (
@@ -582,12 +635,12 @@ export function Home() {
                   </li>
                 ))}
               </ol>
-              <Link to="/cuenta" className="home-order-guide__cta home-order-guide__cta--outline mt-4">
+              <Link to="/cuenta/pedidos" className="home-order-guide__cta home-order-guide__cta--outline mt-4">
                 Ver mis pedidos
               </Link>
             </article>
 
-            {/* Showcase: carrito + estados + confirmación */}
+            {/* Showcase: carrito + estados cliente + mapa en vivo */}
             <div className="home-order-guide__showcase">
               <div className="home-order-guide__showcase-col">
                 <div className="home-order-guide__showcase-head">
@@ -621,41 +674,57 @@ export function Home() {
               </div>
 
               <div className="home-order-guide__showcase-col home-order-guide__showcase-col--status">
-                <p className="home-order-guide__panel-label">Estados del pedido</p>
+                <p className="home-order-guide__panel-label">Seguimiento del cliente</p>
                 <ul className="home-order-guide__status-list">
-                  {ORDER_STATUS_STEPS.map((st, i) => {
-                    const meta = ORDER_STATUS_LABELS[st];
-                    const active = st === 'preparando';
-                    return (
-                      <li key={st} className={`home-order-guide__status-item${active ? ' is-active' : ''}`}>
-                        <span className="home-order-guide__status-dot">{i + 1}</span>
-                        <span>{meta?.label}</span>
-                      </li>
-                    );
-                  })}
+                  {HOME_CLIENT_TRACK_STEPS.map((st, i) => (
+                    <li
+                      key={st.label}
+                      className={`home-order-guide__status-item${st.active ? ' is-active' : ''}`}
+                    >
+                      <span className="home-order-guide__status-dot">{i + 1}</span>
+                      <span>{st.label}</span>
+                    </li>
+                  ))}
                 </ul>
+                <p className="home-order-guide__status-chip">
+                  <Map className="h-3 w-3 shrink-0" aria-hidden />
+                  En delivery aparece mapa + ETA
+                </p>
+                <p className="home-order-guide__status-note">
+                  Sin app del repartidor: Confirmado → Cocina → Reparto → Entregado
+                </p>
               </div>
 
               <div className="home-order-guide__showcase-col">
                 <div className="home-order-guide__showcase-head">
-                  <span className="home-order-guide__showcase-tag">Paso 4 · Listo</span>
-                  <h4 className="home-order-guide__showcase-title">Código y seguimiento</h4>
+                  <span className="home-order-guide__showcase-tag">Paso 4 · Mapa en vivo</span>
+                  <h4 className="home-order-guide__showcase-title">Código y mapa</h4>
                   <p className="home-order-guide__showcase-desc">
-                    Tras confirmar ves tu código. En Mi cuenta sigues cada estado en tiempo real.
+                    En Mis pedidos ves estados; en delivery el mapa del repartidor en tiempo real.
                   </p>
                 </div>
                 <div className="home-order-guide__phone">
-                  <div className="home-order-guide__phone-screen">
-                    <div className="home-order-guide__phone-bar">EL POLLÓN</div>
-                    <div className="home-order-guide__phone-confirm">
-                      <CheckCircle2 className="mx-auto h-8 w-8 text-green-600" strokeWidth={1.75} aria-hidden />
-                      <p className="mt-1.5 text-sm font-bold text-gray-800">¡Pedido confirmado!</p>
+                  <div className="home-order-guide__phone-screen home-order-guide__phone-screen--track">
+                    <div className="home-order-guide__phone-bar">EL POLLÓN · SEGUIMIENTO</div>
+                    <div className="home-order-guide__live-head">
                       <p className="home-order-guide__phone-code">#000142</p>
-                      <p className="mt-0.5 text-xs text-gray-600">Tu código de seguimiento</p>
+                      <span className="home-order-guide__live-badge">
+                        <Radio className="h-2.5 w-2.5" aria-hidden />
+                        En vivo en mapa
+                      </span>
                     </div>
-                    <div className="home-order-guide__phone-track">
-                      <p className="text-[10px] font-bold uppercase tracking-wide text-amber-900">En vivo</p>
-                      <p className="text-sm font-semibold text-gray-800">En cocina</p>
+                    <div className="home-order-guide__mini-map" aria-hidden>
+                      <img
+                        src="/img/guide-live-map.png"
+                        alt=""
+                        className="home-order-guide__mini-map-img"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    </div>
+                    <div className="home-order-guide__phone-track home-order-guide__phone-track--live">
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-800">En reparto</p>
+                      <p className="text-sm font-bold text-gray-900">Llega en ~12 min</p>
                     </div>
                   </div>
                 </div>
@@ -663,11 +732,7 @@ export function Home() {
             </div>
 
             <ul className="home-order-guide__features-bar">
-              {[
-                { icon: Shield, t: 'Pago seguro', d: 'Al recibir, según sucursal' },
-                { icon: Truck, t: 'Delivery o retiro', d: 'Según tu sucursal' },
-                { icon: MapPin, t: 'Multi-sucursal', d: 'Menú y precios por local' },
-              ].map(({ icon: Icon, t, d }) => (
+              {HOME_GUIDE_FEATURES.map(({ icon: Icon, t, d }) => (
                 <li key={t} className="home-order-guide__feature">
                   <Icon className="h-5 w-5 shrink-0 text-pollon-gold" aria-hidden />
                   <div>
