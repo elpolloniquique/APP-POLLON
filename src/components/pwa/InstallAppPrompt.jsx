@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Capacitor } from '@capacitor/core';
-import { Download, Share, Smartphone, X } from 'lucide-react';
+import { MoreHorizontal, Share, Smartphone, X } from 'lucide-react';
 import {
   dismissInstallPrompt,
   isAndroidChrome,
@@ -18,8 +18,10 @@ import {
   subscribeDeferredInstallPrompt,
 } from '../../utils/pwaInstallBridge';
 
+const LOGO_SRC = '/img/logo pollon.png';
+
 /**
- * Aviso “Instalar app” en el sitio (Chrome Android / iOS).
+ * Aviso “Instalar app” en el sitio (Chrome Android / iOS / escritorio).
  * - Si YA está instalada (pollito) → no se muestra.
  * - Si NO está instalada → mensaje + botón Instalar.
  * No se muestra dentro de la APK nativa, ni en /admin, ni en modo standalone.
@@ -128,10 +130,10 @@ export function InstallAppPrompt() {
         return;
       }
       if (!r?.ok) {
-        setHint('Si no aparece el diálogo: menú de Chrome (⋮) → Instalar aplicación.');
+        setHint('Si no aparece el diálogo: menú del navegador (⋮) → Instalar aplicación.');
       }
     } catch {
-      setHint('Menú de Chrome (⋮) → Instalar aplicación.');
+      setHint('Menú del navegador (⋮) → Instalar aplicación.');
     } finally {
       setInstalling(false);
     }
@@ -139,88 +141,89 @@ export function InstallAppPrompt() {
 
   if (!visible || isNative || isAdmin || isStandaloneDisplayMode()) return null;
 
-  const platformHint = isIosSafari()
-    ? 'iPhone / iPad'
+  const viaLabel = isIosSafari()
+    ? 'en Safari'
     : isAndroidChrome()
-      ? 'Android'
+      ? 'en Chrome'
       : isDesktopInstallableBrowser()
-        ? 'Escritorio'
-        : 'Tu celular';
+        ? 'en tu navegador'
+        : 'en tu dispositivo';
+
+  const bodyText = mode === 'ios'
+    ? 'Toca Compartir y luego Agregar a pantalla de inicio para instalar la app.'
+    : 'Instala la app gratuita: pide más rápido y recibe avisos en el ícono del pollito.';
 
   return (
     <div className="install-prompt" role="dialog" aria-labelledby="install-prompt-title" aria-live="polite">
       <div className="install-prompt__card">
-        <button
-          type="button"
-          className="install-prompt__close"
-          onClick={handleDismiss}
-          aria-label="Cerrar aviso de instalación"
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
+        <header className="install-prompt__header">
+          <div className="install-prompt__site">
+            <span className="install-prompt__site-logo" aria-hidden>
+              <img src={LOGO_SRC} alt="" width={16} height={16} />
+            </span>
+            <span className="install-prompt__site-host">www.el-pollon.cl</span>
+          </div>
+          <div className="install-prompt__header-actions">
+            <span className="install-prompt__more" aria-hidden>
+              <MoreHorizontal className="h-3.5 w-3.5" />
+            </span>
+            <button
+              type="button"
+              className="install-prompt__close"
+              onClick={handleDismiss}
+              aria-label="Cerrar aviso de instalación"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </header>
 
-        <div className="install-prompt__brand">
-          <span className="install-prompt__logo" aria-hidden>
-            <img src="/icons/icon-192.png" alt="" width={32} height={32} />
+        <div className="install-prompt__body">
+          <span className="install-prompt__app-icon" aria-hidden>
+            <img src={LOGO_SRC} alt="" width={48} height={48} />
           </span>
-          <div>
-            <p className="install-prompt__eyebrow">App gratuita · {platformHint}</p>
+          <div className="install-prompt__copy">
             <h2 id="install-prompt-title" className="install-prompt__title">
-              Instalar El Pollón
+              El Pollón · Instalar app
             </h2>
+            <p className="install-prompt__text">{bodyText}</p>
+            {mode === 'ios' && (
+              <div className="install-prompt__ios-steps">
+                <span className="install-prompt__ios-step">
+                  <Share className="h-3 w-3" aria-hidden />
+                  Compartir
+                </span>
+                <span className="install-prompt__ios-arrow" aria-hidden>→</span>
+                <span className="install-prompt__ios-step">
+                  <Smartphone className="h-3 w-3" aria-hidden />
+                  Agregar a inicio
+                </span>
+              </div>
+            )}
+            {hint ? <p className="install-prompt__hint">{hint}</p> : null}
+            <p className="install-prompt__via">{viaLabel}</p>
           </div>
         </div>
 
-        {mode === 'ios' ? (
-          <div className="install-prompt__ios-guide">
-            <p className="install-prompt__text">
-              Para instalar en iPhone: toca <strong>Compartir</strong> y luego{' '}
-              <strong>Agregar a pantalla de inicio</strong>.
-            </p>
-            <div className="install-prompt__ios-steps">
-              <span className="install-prompt__ios-step">
-                <Share className="h-4 w-4" aria-hidden />
-                Compartir
-              </span>
-              <span className="install-prompt__ios-arrow" aria-hidden>→</span>
-              <span className="install-prompt__ios-step">
-                <Smartphone className="h-4 w-4" aria-hidden />
-                Agregar a inicio
-              </span>
-            </div>
-          </div>
-        ) : (
-          <p className="install-prompt__text">
-            En tu celular, con el ícono del pollito, pides más rápido y recibes avisos.
-          </p>
-        )}
-
         <div className="install-prompt__actions">
-          {mode === 'native' && (
+          {mode === 'native' ? (
             <button
               type="button"
-              className="install-prompt__btn install-prompt__btn--primary"
+              className="install-prompt__btn"
               onClick={handleInstall}
               disabled={installing}
             >
-              <Download className="h-3 w-3" aria-hidden />
               {installing ? 'Instalando…' : 'Instalar'}
             </button>
-          )}
-          {mode === 'ios' && (
-            <button
-              type="button"
-              className="install-prompt__btn install-prompt__btn--primary"
-              onClick={handleDismiss}
-            >
+          ) : (
+            <button type="button" className="install-prompt__btn" onClick={handleDismiss}>
               Entendido
             </button>
           )}
-          <button type="button" className="install-prompt__btn install-prompt__btn--ghost" onClick={handleDismiss}>
-            Ahora no
+          <button type="button" className="install-prompt__btn" onClick={handleDismiss}>
+            Cerrar
           </button>
         </div>
-        {hint ? <p className="install-prompt__text" style={{ marginTop: 8 }}>{hint}</p> : null}
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter, Navigate, useLocation } from 'react-router-dom';
 import { useEffect } from 'react';
 import { BranchProvider } from './context/BranchContext';
 import { BranchMenuProvider } from './context/BranchMenuContext';
@@ -9,12 +9,26 @@ import { InstallAppPrompt } from './components/pwa/InstallAppPrompt';
 import { SiteAlertOverlay } from './components/layout/SiteAlertOverlay';
 import { AppRoutes } from './routes/AppRoutes';
 import { ensurePwaInstallListeners } from './utils/pwaInstallBridge';
+import { isNativeDriverApp } from './services/backgroundGpsService';
 
 function PwaInstallBootstrap() {
   useEffect(() => {
     ensurePwaInstallListeners();
   }, []);
   return null;
+}
+
+/** App nativa = modo repartidor: no mostrar home/tienda de cliente. */
+function NativeDriverEntryRedirect({ children }) {
+  const location = useLocation();
+  if (!isNativeDriverApp()) return children;
+
+  const path = location.pathname || '/';
+  const isDriver = path === '/repartidor' || path.startsWith('/repartidor/');
+  const isAdmin = path === '/admin' || path.startsWith('/admin/');
+  if (isDriver || isAdmin) return children;
+
+  return <Navigate to="/repartidor" replace />;
 }
 
 export default function App() {
@@ -26,7 +40,9 @@ export default function App() {
             <BranchMenuProvider>
               <PwaInstallBootstrap />
               <SeoManager />
-              <AppRoutes />
+              <NativeDriverEntryRedirect>
+                <AppRoutes />
+              </NativeDriverEntryRedirect>
               <SiteAlertOverlay />
               <InstallAppPrompt />
             </BranchMenuProvider>
